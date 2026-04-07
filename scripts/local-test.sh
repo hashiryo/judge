@@ -21,6 +21,14 @@ if [[ -d "${INCLUDE_DIR}" ]]; then
   CXXFLAGS="${CXXFLAGS} -I${INCLUDE_DIR}"
 fi
 
+# ARM (macOS等) では SIMDe を有効化
+if [[ "$(uname -m)" != "x86_64" ]]; then
+  SIMDE_DIR="${ROOT}/include/simde"
+  if [[ -d "${SIMDE_DIR}" ]]; then
+    CXXFLAGS="${CXXFLAGS} -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -I${SIMDE_DIR}"
+  fi
+fi
+
 if [[ $# -eq 0 ]]; then
   echo "Usage: $0 <cpp-file-or-problem-dir>"
   exit 1
