@@ -1,0 +1,186 @@
+name: judge
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'problems/**'
+  workflow_dispatch:
+    inputs:
+      full-run:
+        description: 'Run all problems (not just changed)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: judge-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      has-problems: ${{ steps.detect.outputs.has-problems }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed problems
+        id: detect
+        run: |
+          if [ "${{ github.event.inputs.full-run }}" = "true" ]; then
+            python3 scripts/detect-changed.py --all
+          else
+            python3 scripts/detect-changed.py \
+              --before "${{ github.event.before }}" \
+              --after "${{ github.sha }}"
+          fi
+
+  download:
+    needs: detect
+    if: needs.detect.outputs.has-problems == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore testcase cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/testcases
+          key: testcases-v1
+          restore-keys: testcases-
+
+      - name: Restore library-checker-problems
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/library-checker-problems
+          key: library-checker-v1
+
+      - name: Download testcases
+        env:
+          YUKICODER_TOKEN: ${{ secrets.YUKICODER_TOKEN }}
+        run: |
+          python3 scripts/download-testcases.py \
+            --problems-json '${{ needs.detect.outputs.matrix }}'
+
+      - name: Save testcase cache
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/testcases
+          key: testcases-v1
+        continue-on-error: true
+
+      - name: Save library-checker-problems cache
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/library-checker-problems
+          key: library-checker-v1
+        continue-on-error: true
+
+      - name: Upload testcases
+        uses: actions/upload-artifact@v4
+        with:
+          name: testcases
+          path: |
+            .cache/testcases
+            .cache/custom-testcases
+          retention-days: 1
+          compression-level: 1
+
+  run:
+    needs: [detect, download]
+    if: needs.detect.outputs.has-problems == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - { os: ubuntu-24.04,     cxx: g++-13,     name: x64-g++,      cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native" }
+          - { os: ubuntu-24.04,     cxx: clang++-18,  name: x64-clang++,  cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native" }
+          - { os: ubuntu-24.04-arm, cxx: g++-13,     name: arm-g++,      cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native" }
+          - { os: ubuntu-24.04-arm, cxx: clang++-18,  name: arm-clang++,  cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native" }
+    runs-on: ${{ matrix.env.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download testcases
+        uses: actions/download-artifact@v4
+        with:
+          name: testcases
+          path: .cache
+
+      - name: Run tests
+        env:
+          CXX: ${{ matrix.env.cxx }}
+          CXXFLAGS: ${{ matrix.env.cxxflags }}
+          ENV_NAME: ${{ matrix.env.name }}
+          PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
+        run: bash scripts/run-tests.sh
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ matrix.env.name }}
+          path: .cache/results/
+          retention-days: 7
+
+      - name: Upload error logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.env.name }}
+          path: .cache/logs/${{ matrix.env.name }}/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  collect:
+    needs: [detect, run]
+    if: "!cancelled() && needs.detect.outputs.has-problems == 'true'"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: result-*
+          path: .cache/results/
+          merge-multiple: true
+
+      - name: Collect results
+        run: python3 scripts/collect-results.py
+
+      - name: Write summary
+        run: python3 scripts/write-summary.py >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: Commit history
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add .results/history.jsonl
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "[skip ci] Update judge results"
+            git pull --rebase origin main || true
+            git push
+          fi
