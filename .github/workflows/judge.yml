@@ -8,11 +8,6 @@ on:
       - 'problems/**'
       - 'docs/**'
   workflow_dispatch:
-    inputs:
-      full-run:
-        description: 'Run all problems (not just changed)'
-        type: boolean
-        default: false
 
 permissions:
   contents: write

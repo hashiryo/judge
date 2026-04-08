@@ -213,12 +213,18 @@ run_cpp_file() {
   # コンパイル
   local binary
   binary=$(mktemp)
-  if ! ${CXX} ${CXXFLAGS} -o "${binary}" "${cpp_file}" 2>/dev/null; then
+  local compile_err
+  compile_err=$(mktemp)
+  if ! ${CXX} ${CXXFLAGS} -o "${binary}" "${cpp_file}" 2>"${compile_err}"; then
     echo "  [CE] ${rel_path}"
-    echo "{\"file\":\"${rel_path}\",\"status\":\"CE\",\"cases\":[]}"
-    rm -f "${binary}"
+    cat "${compile_err}" | head -20 | sed 's/^/    /'
+    local ce_msg
+    ce_msg=$(head -5 "${compile_err}" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-500)
+    echo "{\"file\":\"${rel_path}\",\"status\":\"CE\",\"detail\":\"${ce_msg}\",\"cases\":[]}"
+    rm -f "${binary}" "${compile_err}"
     return
   fi
+  rm -f "${compile_err}"
 
   echo -n "  [RUN] ${rel_path} "
   local overall_status="AC"

@@ -243,8 +243,10 @@ function renderOverview() {
         <tr><th>File</th>${ENVS.map(e => `<th>${e}</th>`).join('')}</tr>
         ${files.map(f => {
           const row = ENVS.map(env => {
-            const r = results.find(x => x.file.endsWith(f) && x.environment === env);
+            let r = results.find(x => x.file.endsWith(f) && x.environment === env);
+            if (!r) r = results.find(x => x.file.endsWith(f) && !x.environment && x.status === 'CE');
             if (!r) return '<td>-</td>';
+            if (r.status === 'CE') return `<td><span class="${statusClass('CE')}">CE</span></td>`;
             return `<td><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)}</td>`;
           }).join('');
           return `<tr><td>${f}</td>${row}</tr>`;
@@ -388,8 +390,14 @@ function renderDetail() {
   for (const f of files) {
     html += `<tr><td>${f}</td>`;
     for (const env of ENVS) {
-      const r = results.find(x => x.file.endsWith(f) && x.environment === env);
+      let r = results.find(x => x.file.endsWith(f) && x.environment === env);
+      if (!r) r = results.find(x => x.file.endsWith(f) && !x.environment && x.status === 'CE');
       if (!r) { html += '<td>-</td>'; continue; }
+      if (r.status === 'CE') {
+        const detail = r.detail ? `<br><span style="font-size:0.75em;color:var(--text2)">${r.detail.slice(0,80)}</span>` : '';
+        html += `<td><span class="${statusClass('CE')}">CE</span>${detail}</td>`;
+        continue;
+      }
       html += `<td><span class="${statusClass(r.status)}">${r.status}</span><br>${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}</td>`;
     }
     html += '</tr>';
