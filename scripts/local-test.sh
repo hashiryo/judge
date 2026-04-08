@@ -93,13 +93,16 @@ for cpp_file in "${CPP_FILES[@]}"; do
   filename=$(basename "${cpp_file}")
   echo "=== ${filename} ==="
 
-  # error tolerance を読み取る
+  # problem.toml から error tolerance を読み取る
   ERROR_TOL=""
-  while IFS= read -r line; do
-    if [[ "${line}" =~ //\ *judge-error:\ *([0-9.eE+-]+) ]]; then
-      ERROR_TOL="${BASH_REMATCH[1]}"
-    fi
-  done < <(head -20 "${cpp_file}")
+  TOML_FILE="${PROBLEM_DIR}/problem.toml"
+  if [[ -f "${TOML_FILE}" ]]; then
+    while IFS= read -r line; do
+      if [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
+        ERROR_TOL="${BASH_REMATCH[1]}"
+      fi
+    done < "${TOML_FILE}"
+  fi
 
   # コンパイル
   binary=$(mktemp)

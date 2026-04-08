@@ -32,36 +32,38 @@ def url_to_cache_dir(url: str) -> Path:
     return TC_CACHE_DIR / url_to_md5(url)
 
 
-def parse_judge_url(cpp_file: Path) -> str | None:
-    """cpp ファイルの先頭から // judge: URL を読み取る"""
-    try:
-        with open(cpp_file) as f:
-            for line in f:
-                line = line.strip()
-                if not line.startswith("//"):
-                    if line and not line.startswith("#"):
-                        break
-                    continue
-                m = re.match(r"//\s*judge:\s*(\S+)", line)
-                if m:
-                    return m.group(1)
-    except Exception:
-        pass
-    return None
+def parse_problem_toml(problem_dir: Path) -> dict:
+    """problem.toml を読み取る (toml パーサーなしの簡易実装)"""
+    toml_path = problem_dir / "problem.toml"
+    config = {}
+    if not toml_path.exists():
+        return config
+    for line in toml_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r'(\w+)\s*=\s*"([^"]*)"', line)
+        if m:
+            config[m.group(1)] = m.group(2)
+            continue
+        m = re.match(r'(\w+)\s*=\s*(\S+)', line)
+        if m:
+            config[m.group(1)] = m.group(2)
+    return config
 
 
-def collect_problem_urls(problems_json: dict) -> dict[str, list[str]]:
+def collect_problem_urls(problems_json: dict) -> dict:
     """問題 JSON から URL → ファイルリストのマッピングを作成"""
-    urls: dict[str, list[str]] = {}
+    urls: dict = {}
     for problem in problems_json.get("problems", []):
         problem_dir = ROOT / problem["dir"]
-        for filename in problem["files"]:
-            cpp_file = problem_dir / filename
-            url = parse_judge_url(cpp_file)
-            if url:
-                if url not in urls:
-                    urls[url] = []
-                urls[url].append(str(cpp_file.relative_to(ROOT)))
+        config = parse_problem_toml(problem_dir)
+        url = config.get("url")
+        if url:
+            if url not in urls:
+                urls[url] = []
+            for filename in problem["files"]:
+                urls[url].append(str((problem_dir / filename).relative_to(ROOT)))
     return urls
 
 

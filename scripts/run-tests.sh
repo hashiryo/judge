@@ -172,23 +172,31 @@ for a, e in zip(actual, expected):
 }
 
 # =============================================================================
-# cpp ファイルのアノテーションを解析
+# problem.toml を解析
 # =============================================================================
-parse_annotations() {
-  local cpp_file="$1"
+parse_problem_toml() {
+  local problem_dir="$1"
+  local toml_file="${ROOT}/${problem_dir}/problem.toml"
   PROBLEM_URL=""
   TLE_SEC="10"
   ERROR_TOL=""
 
+  if [[ ! -f "${toml_file}" ]]; then
+    return
+  fi
+
   while IFS= read -r line; do
-    if [[ "${line}" =~ //\ *judge:\ *(.+) ]]; then
-      PROBLEM_URL=$(echo "${BASH_REMATCH[1]}" | xargs)
-    elif [[ "${line}" =~ //\ *judge-tle:\ *([0-9.]+) ]]; then
+    # url = "..."
+    if [[ "${line}" =~ ^url\ *=\ *\"([^\"]+)\" ]]; then
+      PROBLEM_URL="${BASH_REMATCH[1]}"
+    # tle = N
+    elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
       TLE_SEC="${BASH_REMATCH[1]}"
-    elif [[ "${line}" =~ //\ *judge-error:\ *([0-9.eE+-]+) ]]; then
+    # error = N
+    elif [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
       ERROR_TOL="${BASH_REMATCH[1]}"
     fi
-  done < <(head -20 "${cpp_file}")
+  done < "${toml_file}"
 }
 
 # =============================================================================
@@ -200,7 +208,7 @@ run_cpp_file() {
   local rel_path
   rel_path="${cpp_file#${ROOT}/}"
 
-  parse_annotations "${cpp_file}"
+  # PROBLEM_URL, TLE_SEC, ERROR_TOL は呼び出し元で parse_problem_toml 済み
 
   # コンパイル
   local binary
@@ -294,29 +302,18 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
   echo ""
   echo "=== ${PROBLEM_DIR} ==="
 
+  # problem.toml から設定を読み込み
+  parse_problem_toml "${PROBLEM_DIR}"
+
   # テストケースディレクトリを収集
   TC_DIRS=()
 
-  # 最初の cpp から URL を取得してテストケースを探す
-  for j in $(seq 0 $((FILE_COUNT - 1))); do
-    FILENAME=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['problems'][$i]['files'][$j])")
-    CPP_FILE="${ROOT}/${PROBLEM_DIR}/${FILENAME}"
-    if [[ -f "${CPP_FILE}" ]]; then
-      parse_annotations "${CPP_FILE}"
-      if [[ -n "${PROBLEM_URL}" ]]; then
-        tc_dir=$(get_testcase_dir "${PROBLEM_URL}" || true)
-        if [[ -n "${tc_dir}" ]]; then
-          # 重複排除して追加
-          already=false
-          for existing in "${TC_DIRS[@]+"${TC_DIRS[@]}"}"; do
-            [[ "${existing}" == "${tc_dir}" ]] && already=true
-          done
-          ${already} || TC_DIRS+=("${tc_dir}")
-        fi
-        break
-      fi
+  if [[ -n "${PROBLEM_URL}" ]]; then
+    tc_dir=$(get_testcase_dir "${PROBLEM_URL}" || true)
+    if [[ -n "${tc_dir}" ]]; then
+      TC_DIRS+=("${tc_dir}")
     fi
-  done
+  fi
 
   # 自作テストケース
   custom_dir=$(get_custom_testcase_dir "${PROBLEM_DIR}" || true)

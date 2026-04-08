@@ -1,5 +1,3 @@
-// judge: https://judge.yosupo.jp/problem/unionfind
-//
 // SIMD の動作確認用。Union-Find 自体は SIMD の恩恵が薄いが、
 // ifdef の切り替えとコンパイルが通ることの確認として使う。
 #ifdef USE_SIMDE

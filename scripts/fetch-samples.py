@@ -24,22 +24,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def parse_judge_url(problem_dir: Path):
-    """問題ディレクトリ内の cpp から // judge: URL を読み取る"""
-    for cpp in sorted(problem_dir.glob("*.cpp")):
-        try:
-            for line in cpp.open():
-                line = line.strip()
-                if not line.startswith("//"):
-                    if line and not line.startswith("#"):
-                        break
-                    continue
-                m = re.match(r"//\s*judge:\s*(\S+)", line)
-                if m:
-                    return m.group(1)
-        except Exception:
-            pass
-    return None
+def parse_problem_toml(problem_dir: Path) -> dict:
+    """problem.toml を読み取る"""
+    toml_path = problem_dir / "problem.toml"
+    config = {}
+    if not toml_path.exists():
+        return config
+    for line in toml_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.match(r'(\w+)\s*=\s*"([^"]*)"', line)
+        if m:
+            config[m.group(1)] = m.group(2)
+            continue
+        m = re.match(r'(\w+)\s*=\s*(\S+)', line)
+        if m:
+            config[m.group(1)] = m.group(2)
+    return config
 
 
 # ============================================================
@@ -290,10 +292,11 @@ def main():
         print(f"Error: {target} is not a directory", file=sys.stderr)
         sys.exit(1)
 
-    # 問題 URL を取得
-    url = parse_judge_url(target)
+    # problem.toml から URL を取得
+    config = parse_problem_toml(target)
+    url = config.get("url")
     if not url:
-        print(f"Error: No // judge: URL found in {target}/*.cpp", file=sys.stderr)
+        print(f"Error: No url found in {target}/problem.toml", file=sys.stderr)
         sys.exit(1)
 
     print(f"Problem URL: {url}")
