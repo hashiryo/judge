@@ -229,8 +229,8 @@ run_cpp_file() {
   local compile_err
   compile_err=$(mktemp)
   if ! ${CXX} ${CXXFLAGS} -o "${binary}" "${cpp_file}" 2>"${compile_err}"; then
-    echo "  [CE] ${rel_path}"
-    cat "${compile_err}" | head -20 | sed 's/^/    /'
+    echo "  [CE] ${rel_path}" >&2
+    head -20 "${compile_err}" | sed 's/^/    /' >&2
     local ce_msg
     ce_msg=$(head -5 "${compile_err}" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-500)
     echo "{\"file\":\"${rel_path}\",\"status\":\"CE\",\"detail\":\"${ce_msg}\",\"cases\":[]}"
@@ -239,7 +239,7 @@ run_cpp_file() {
   fi
   rm -f "${compile_err}"
 
-  echo -n "  [RUN] ${rel_path} "
+  echo -n "  [RUN] ${rel_path} " >&2
   local overall_status="AC"
   local cases_json=""
   local case_count=0
@@ -290,7 +290,7 @@ run_cpp_file() {
     done
   done
 
-  echo "${overall_status} (${case_count} cases, max ${max_time}ms, ${max_mem}KB)"
+  echo "${overall_status} (${case_count} cases, max ${max_time}ms, ${max_mem}KB)" >&2
 
   echo "{\"file\":\"${rel_path}\",\"problem\":\"${PROBLEM_URL}\",\"environment\":\"${ENV_NAME}\",\"status\":\"${overall_status}\",\"time_max_ms\":${max_time},\"memory_max_kb\":${max_mem},\"cases\":[${cases_json}]}"
 

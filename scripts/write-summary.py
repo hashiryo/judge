@@ -63,6 +63,8 @@ def format_memory(kb: int) -> str:
 def format_cell(status: str, time_ms: int, memory_kb: int) -> str:
     if status == "CE":
         return "CE"
+    if status == "MLE":
+        return f":purple_circle: MLE {format_memory(memory_kb)}"
     icon = {"AC": ":white_check_mark:", "WA": ":x:", "TLE": ":hourglass:", "RE": ":boom:"}.get(status, status)
     return f"{icon} {format_time(time_ms)} / {format_memory(memory_kb)}"
 
@@ -125,8 +127,12 @@ def main():
         # 各ファイル
         for filename in sorted(files_data.keys()):
             row = f"| `{filename}` |"
+            # CE は environment が空の場合がある
+            ce_result = files_data[filename].get("")
             for env in ENVS:
                 r = files_data[filename].get(env)
+                if r is None and ce_result and ce_result.get("status") == "CE":
+                    r = ce_result
                 if r is None:
                     row += " - |"
                     continue
