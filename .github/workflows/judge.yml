@@ -207,7 +207,7 @@ jobs:
           path: _site
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: "!cancelled() && github.ref == 'refs/heads/main' && needs.collect.result == 'success'"
     needs: collect
     runs-on: ubuntu-24.04
     environment:
