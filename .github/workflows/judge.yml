@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'problems/**'
+      - 'docs/**'
   workflow_dispatch:
     inputs:
       full-run:
@@ -15,6 +16,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: judge-${{ github.ref }}
@@ -147,7 +150,7 @@ jobs:
 
   collect:
     needs: [detect, run]
-    if: "!cancelled() && needs.detect.outputs.has-problems == 'true'"
+    if: "!cancelled()"
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -160,6 +163,7 @@ jobs:
           python-version: "3.12"
 
       - name: Download all results
+        if: needs.detect.outputs.has-problems == 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: result-*
@@ -167,13 +171,15 @@ jobs:
           merge-multiple: true
 
       - name: Collect results
+        if: needs.detect.outputs.has-problems == 'true'
         run: python3 scripts/collect-results.py
 
       - name: Write summary
+        if: needs.detect.outputs.has-problems == 'true'
         run: python3 scripts/write-summary.py >> "$GITHUB_STEP_SUMMARY" || true
 
       - name: Commit history
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && needs.detect.outputs.has-problems == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -186,3 +192,28 @@ jobs:
             git pull --rebase origin main || true
             git push
           fi
+
+      - name: Prepare Pages
+        if: github.ref == 'refs/heads/main'
+        run: |
+          mkdir -p _site
+          cp docs/index.html _site/
+          cp .results/history.jsonl _site/ 2>/dev/null || true
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: collect
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

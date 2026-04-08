@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Judge Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text2: #8b949e;
+    --green: #3fb950;
+    --red: #f85149;
+    --yellow: #d29922;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.5em; margin-bottom: 8px; }
+  h2 { font-size: 1.2em; margin: 24px 0 12px; color: var(--blue); }
+  h3 { font-size: 1em; margin: 16px 0 8px; color: var(--text2); }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .subtitle { color: var(--text2); font-size: 0.9em; margin-bottom: 20px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 8px 16px; cursor: pointer; border: 1px solid transparent;
+    border-bottom: none; border-radius: 6px 6px 0 0; color: var(--text2);
+    background: transparent; font-size: 0.9em;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); background: var(--bg2); border-color: var(--border); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Tables */
+  table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+  th, td { padding: 6px 12px; border: 1px solid var(--border); text-align: center; font-size: 0.85em; }
+  th { background: var(--bg2); color: var(--text2); font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; }
+  tr:hover td { background: rgba(88, 166, 255, 0.05); }
+
+  .status-ac { color: var(--green); font-weight: 600; }
+  .status-wa { color: var(--red); font-weight: 600; }
+  .status-tle { color: var(--yellow); font-weight: 600; }
+  .status-re { color: var(--red); font-weight: 600; }
+  .status-ce { color: var(--text2); font-weight: 600; }
+  .diff-better { color: var(--green); }
+  .diff-worse { color: var(--red); }
+  .diff-same { color: var(--text2); }
+
+  /* Problem cards */
+  .problem-card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 16px; margin-bottom: 12px; cursor: pointer;
+  }
+  .problem-card:hover { border-color: var(--blue); }
+  .problem-header { display: flex; justify-content: space-between; align-items: center; }
+  .problem-name { font-weight: 600; font-size: 1em; }
+  .problem-meta { color: var(--text2); font-size: 0.85em; }
+  .problem-files { color: var(--text2); font-size: 0.85em; margin-top: 4px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 0.8em; font-weight: 600;
+  }
+  .badge-ac { background: rgba(63, 185, 80, 0.2); color: var(--green); }
+  .badge-fail { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+
+  /* History chart (simple bar) */
+  .chart-container { margin: 12px 0; }
+  .chart-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; font-size: 0.8em; }
+  .chart-label { width: 80px; text-align: right; color: var(--text2); flex-shrink: 0; }
+  .chart-bar-bg { flex: 1; height: 18px; background: var(--bg); border-radius: 3px; position: relative; overflow: hidden; }
+  .chart-bar {
+    height: 100%; border-radius: 3px; display: flex; align-items: center;
+    padding-left: 6px; font-size: 0.75em; color: var(--text); min-width: 1px;
+  }
+  .chart-bar.ac { background: rgba(63, 185, 80, 0.5); }
+  .chart-bar.fail { background: rgba(248, 81, 73, 0.5); }
+
+  /* Filters */
+  .filters { margin-bottom: 16px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  select, input {
+    background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+    padding: 6px 10px; border-radius: 6px; font-size: 0.85em;
+  }
+  label { font-size: 0.85em; color: var(--text2); }
+
+  .loading { text-align: center; padding: 40px; color: var(--text2); }
+  .error { text-align: center; padding: 40px; color: var(--red); }
+</style>
+</head>
+<body>
+<h1>Judge Dashboard</h1>
+<p class="subtitle" id="subtitle">Loading...</p>
+
+<div class="tabs">
+  <div class="tab active" data-tab="overview">Overview</div>
+  <div class="tab" data-tab="history">History</div>
+  <div class="tab" data-tab="detail">Detail</div>
+</div>
+
+<!-- Overview tab -->
+<div id="overview" class="tab-content active">
+  <div id="problem-list"></div>
+</div>
+
+<!-- History tab -->
+<div id="history" class="tab-content">
+  <div class="filters">
+    <label>Problem: <select id="history-problem"></select></label>
+    <label>File: <select id="history-file"></select></label>
+    <label>Env: <select id="history-env"></select></label>
+  </div>
+  <div id="history-chart"></div>
+  <div id="history-table-container"></div>
+</div>
+
+<!-- Detail tab -->
+<div id="detail" class="tab-content">
+  <div class="filters">
+    <label>Push: <select id="detail-push"></select></label>
+    <label>Problem: <select id="detail-problem"></select></label>
+  </div>
+  <div id="detail-content"></div>
+</div>
+
+<script>
+const ENVS = ['x64-g++', 'x64-clang++', 'arm-g++', 'arm-clang++'];
+let allEntries = [];
+
+// ============================================================
+// Data loading
+// ============================================================
+async function loadData() {
+  try {
+    const resp = await fetch('history.jsonl');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const text = await resp.text();
+    allEntries = text.trim().split('\n').filter(l => l).map(l => JSON.parse(l));
+    if (allEntries.length === 0) throw new Error('No data');
+    document.getElementById('subtitle').textContent =
+      `${allEntries.length} push(es) recorded`;
+    renderOverview();
+    populateHistoryFilters();
+    populateDetailFilters();
+  } catch (e) {
+    document.getElementById('subtitle').textContent = '';
+    document.getElementById('problem-list').innerHTML =
+      `<div class="error">Failed to load history.jsonl: ${e.message}</div>`;
+  }
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+function getProblems(entry) {
+  const problems = new Map();
+  for (const r of entry.results) {
+    const parts = r.file.split('/');
+    const key = parts.slice(0, 2).join('/');
+    if (!problems.has(key)) problems.set(key, []);
+    problems.get(key).push(r);
+  }
+  return problems;
+}
+
+function getAllProblems() {
+  const problems = new Set();
+  for (const entry of allEntries) {
+    for (const r of entry.results) {
+      problems.add(r.file.split('/').slice(0, 2).join('/'));
+    }
+  }
+  return [...problems].sort();
+}
+
+function getAllFiles() {
+  const files = new Set();
+  for (const entry of allEntries) {
+    for (const r of entry.results) files.add(r.file);
+  }
+  return [...files].sort();
+}
+
+function statusClass(status) {
+  return 'status-' + (status || 'ce').toLowerCase();
+}
+
+function formatTime(ms) {
+  if (ms === undefined || ms === null) return '-';
+  return ms >= 1000 ? (ms/1000).toFixed(2) + 's' : ms + 'ms';
+}
+
+function formatMemory(kb) {
+  if (kb === undefined || kb === null) return '-';
+  return kb >= 1024 ? (kb/1024).toFixed(1) + 'MB' : kb + 'KB';
+}
+
+function formatDate(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'})
+    + ' ' + d.toLocaleTimeString('ja-JP', {hour:'2-digit', minute:'2-digit'});
+}
+
+// ============================================================
+// Overview tab
+// ============================================================
+function renderOverview() {
+  const latest = allEntries[allEntries.length - 1];
+  const problems = getProblems(latest);
+  const container = document.getElementById('problem-list');
+  container.innerHTML = '';
+
+  for (const [problemDir, results] of [...problems.entries()].sort()) {
+    const files = [...new Set(results.map(r => r.file.split('/').pop()))].sort();
+    const allAc = results.every(r => r.status === 'AC');
+
+    const card = document.createElement('div');
+    card.className = 'problem-card';
+    card.onclick = () => showProblemDetail(problemDir);
+
+    card.innerHTML = `
+      <div class="problem-header">
+        <span class="problem-name">${problemDir}</span>
+        <span class="badge ${allAc ? 'badge-ac' : 'badge-fail'}">${allAc ? 'All AC' : 'FAIL'}</span>
+      </div>
+      <div class="problem-files">${files.join(', ')}</div>
+      <table style="margin-top:10px">
+        <tr><th>File</th>${ENVS.map(e => `<th>${e}</th>`).join('')}</tr>
+        ${files.map(f => {
+          const row = ENVS.map(env => {
+            const r = results.find(x => x.file.endsWith(f) && x.environment === env);
+            if (!r) return '<td>-</td>';
+            return `<td><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)}</td>`;
+          }).join('');
+          return `<tr><td>${f}</td>${row}</tr>`;
+        }).join('')}
+      </table>
+    `;
+    container.appendChild(card);
+  }
+}
+
+function showProblemDetail(problemDir) {
+  // Switch to detail tab and select the problem
+  switchTab('detail');
+  const sel = document.getElementById('detail-problem');
+  sel.value = problemDir;
+  renderDetail();
+}
+
+// ============================================================
+// History tab
+// ============================================================
+function populateHistoryFilters() {
+  const problems = getAllProblems();
+  const problemSel = document.getElementById('history-problem');
+  problemSel.innerHTML = problems.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  const envSel = document.getElementById('history-env');
+  envSel.innerHTML = ENVS.map(e => `<option value="${e}">${e}</option>`).join('');
+
+  updateHistoryFiles();
+  problemSel.onchange = () => { updateHistoryFiles(); renderHistory(); };
+  document.getElementById('history-file').onchange = renderHistory;
+  envSel.onchange = renderHistory;
+  renderHistory();
+}
+
+function updateHistoryFiles() {
+  const problem = document.getElementById('history-problem').value;
+  const files = new Set();
+  for (const entry of allEntries) {
+    for (const r of entry.results) {
+      if (r.file.startsWith(problem + '/')) files.add(r.file);
+    }
+  }
+  const fileSel = document.getElementById('history-file');
+  const sorted = [...files].sort();
+  fileSel.innerHTML = sorted.map(f => `<option value="${f}">${f.split('/').pop()}</option>`).join('');
+}
+
+function renderHistory() {
+  const file = document.getElementById('history-file').value;
+  const env = document.getElementById('history-env').value;
+  if (!file || !env) return;
+
+  // Collect history for this file+env
+  const history = [];
+  for (const entry of allEntries) {
+    const r = entry.results.find(x => x.file === file && x.environment === env);
+    if (r) {
+      history.push({ ...r, sha_short: entry.sha_short, timestamp: entry.timestamp, sha: entry.sha });
+    }
+  }
+
+  // Chart
+  const maxTime = Math.max(...history.map(h => h.time_max_ms || 0), 1);
+  const chartHtml = history.map(h => {
+    const pct = ((h.time_max_ms || 0) / maxTime * 100).toFixed(1);
+    const cls = h.status === 'AC' ? 'ac' : 'fail';
+    return `<div class="chart-row">
+      <span class="chart-label">${h.sha_short}</span>
+      <div class="chart-bar-bg">
+        <div class="chart-bar ${cls}" style="width:${pct}%">${formatTime(h.time_max_ms)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('history-chart').innerHTML = `<div class="chart-container">${chartHtml}</div>`;
+
+  // Table
+  let tableHtml = `<table>
+    <tr><th>Push</th><th>Date</th><th>Status</th><th>Max Time</th><th>Max Memory</th><th>vs Prev</th></tr>`;
+  for (let i = 0; i < history.length; i++) {
+    const h = history[i];
+    let diff = '-';
+    if (i > 0) {
+      const prev = history[i-1];
+      const d = (h.time_max_ms || 0) - (prev.time_max_ms || 0);
+      if (Math.abs(d) < 3) diff = '<span class="diff-same">=</span>';
+      else if (d > 0) diff = `<span class="diff-worse">+${d}ms</span>`;
+      else diff = `<span class="diff-better">${d}ms</span>`;
+    }
+    tableHtml += `<tr>
+      <td>${h.sha_short}</td>
+      <td>${formatDate(h.timestamp)}</td>
+      <td><span class="${statusClass(h.status)}">${h.status}</span></td>
+      <td>${formatTime(h.time_max_ms)}</td>
+      <td>${formatMemory(h.memory_max_kb)}</td>
+      <td>${diff}</td>
+    </tr>`;
+  }
+  tableHtml += '</table>';
+  document.getElementById('history-table-container').innerHTML = tableHtml;
+}
+
+// ============================================================
+// Detail tab
+// ============================================================
+function populateDetailFilters() {
+  const pushSel = document.getElementById('detail-push');
+  pushSel.innerHTML = allEntries.map((e, i) =>
+    `<option value="${i}">${e.sha_short} (${formatDate(e.timestamp)})</option>`
+  ).reverse().join('');
+
+  const problems = getAllProblems();
+  const problemSel = document.getElementById('detail-problem');
+  problemSel.innerHTML = problems.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  pushSel.onchange = renderDetail;
+  problemSel.onchange = renderDetail;
+  renderDetail();
+}
+
+function renderDetail() {
+  const idx = parseInt(document.getElementById('detail-push').value);
+  const problemDir = document.getElementById('detail-problem').value;
+  const entry = allEntries[idx];
+  if (!entry) return;
+
+  const results = entry.results.filter(r => r.file.startsWith(problemDir + '/'));
+  const files = [...new Set(results.map(r => r.file.split('/').pop()))].sort();
+
+  const container = document.getElementById('detail-content');
+
+  if (results.length === 0) {
+    container.innerHTML = '<p style="color:var(--text2)">No results for this problem in this push.</p>';
+    return;
+  }
+
+  // Summary table
+  let html = `<h3>${entry.sha_short} - ${formatDate(entry.timestamp)}</h3>`;
+  html += `<table><tr><th>File</th>${ENVS.map(e => `<th>${e}</th>`).join('')}</tr>`;
+  for (const f of files) {
+    html += `<tr><td>${f}</td>`;
+    for (const env of ENVS) {
+      const r = results.find(x => x.file.endsWith(f) && x.environment === env);
+      if (!r) { html += '<td>-</td>'; continue; }
+      html += `<td><span class="${statusClass(r.status)}">${r.status}</span><br>${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+
+  // Per-case detail for each file
+  for (const f of files) {
+    html += `<h3>${f} - Per Case</h3>`;
+    // Pick one env's cases for case names
+    const sample = results.find(x => x.file.endsWith(f) && x.cases && x.cases.length > 0);
+    if (!sample) { html += '<p style="color:var(--text2)">No case data</p>'; continue; }
+
+    const caseNames = sample.cases.map(c => c.name);
+    html += `<table><tr><th>Case</th>${ENVS.map(e => `<th>${e}</th>`).join('')}</tr>`;
+    for (const cn of caseNames) {
+      html += `<tr><td>${cn}</td>`;
+      for (const env of ENVS) {
+        const r = results.find(x => x.file.endsWith(f) && x.environment === env);
+        const c = r && r.cases ? r.cases.find(x => x.name === cn) : null;
+        if (!c) { html += '<td>-</td>'; continue; }
+        html += `<td><span class="${statusClass(c.status)}">${c.status}</span> ${formatTime(c.time_ms)}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+  }
+
+  container.innerHTML = html;
+}
+
+// ============================================================
+// Tab switching
+// ============================================================
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === name));
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => switchTab(t.dataset.tab));
+
+// ============================================================
+// Init
+// ============================================================
+loadData();
+</script>
+</body>
+</html>
