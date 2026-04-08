@@ -121,6 +121,15 @@ run_single_case() {
   [[ -z "${elapsed_ms}" ]] && elapsed_ms=0
   [[ -z "${memory_kb}" ]] && memory_kb=0
 
+  # MLE 判定
+  if [[ "${status}" == "AC" ]] && [[ -n "${MLE_MB:-}" ]]; then
+    local mle_kb=$(( MLE_MB * 1024 ))
+    if [[ ${memory_kb} -gt ${mle_kb} ]]; then
+      status="MLE"
+      detail="used ${memory_kb}KB > limit ${mle_kb}KB"
+    fi
+  fi
+
   # 判定
   if [[ "${status}" == "AC" ]]; then
     if [[ -n "${checker_bin}" ]] && [[ -x "${checker_bin}" ]]; then
@@ -179,6 +188,7 @@ parse_problem_toml() {
   local toml_file="${ROOT}/${problem_dir}/problem.toml"
   PROBLEM_URL=""
   TLE_SEC="10"
+  MLE_MB="256"
   ERROR_TOL=""
 
   if [[ ! -f "${toml_file}" ]]; then
@@ -192,6 +202,9 @@ parse_problem_toml() {
     # tle = N
     elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
       TLE_SEC="${BASH_REMATCH[1]}"
+    # mle = N (MB)
+    elif [[ "${line}" =~ ^mle\ *=\ *([0-9]+) ]]; then
+      MLE_MB="${BASH_REMATCH[1]}"
     # error = N
     elif [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
       ERROR_TOL="${BASH_REMATCH[1]}"

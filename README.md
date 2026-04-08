@@ -67,6 +67,7 @@ push すると GHA が自動で全テストケースをダウンロードし、4
 ```toml
 url = "https://judge.yosupo.jp/problem/unionfind"  # 問題 URL
 tle = 5                                              # TLE 秒数 (デフォルト: 10)
+mle = 256                                            # MLE メガバイト (デフォルト: 256)
 # error = 1e-6                                       # 浮動小数点許容誤差
 ```
 
