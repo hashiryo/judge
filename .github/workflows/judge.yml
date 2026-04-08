@@ -37,7 +37,7 @@ jobs:
       - name: Detect changed problems
         id: detect
         run: |
-          if [ "${{ github.event.inputs.full-run }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             python3 scripts/detect-changed.py --all
           else
             python3 scripts/detect-changed.py \
