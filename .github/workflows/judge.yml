@@ -125,13 +125,7 @@ jobs:
           CXXFLAGS: ${{ matrix.env.cxxflags }}
           ENV_NAME: ${{ matrix.env.name }}
           PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
-        run: |
-          echo "=== SIMDe check ==="
-          ls -la include/ 2>&1
-          ls -la include/simde/ 2>&1 | head -10
-          git submodule status 2>&1
-          echo "=================="
-          bash scripts/run-tests.sh
+        run: bash scripts/run-tests.sh
 
       - name: Upload results
         uses: actions/upload-artifact@v4
