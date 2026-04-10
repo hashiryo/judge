@@ -127,7 +127,7 @@ jobs:
           PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
         run: |
           echo "=== SIMDe check ==="
-          ls include/simde/simde/x86/avx2.h 2>&1 || echo "NOT FOUND"
+          ls -la include/simde/ 2>&1 | head -20
           echo "=================="
           bash scripts/run-tests.sh
 
