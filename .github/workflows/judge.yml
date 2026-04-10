@@ -125,7 +125,11 @@ jobs:
           CXXFLAGS: ${{ matrix.env.cxxflags }}
           ENV_NAME: ${{ matrix.env.name }}
           PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
-        run: bash scripts/run-tests.sh
+        run: |
+          echo "=== SIMDe check ==="
+          ls include/simde/simde/x86/avx2.h 2>&1 || echo "NOT FOUND"
+          echo "=================="
+          bash scripts/run-tests.sh
 
       - name: Upload results
         uses: actions/upload-artifact@v4
