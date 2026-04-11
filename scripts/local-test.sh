@@ -15,15 +15,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CXX="${CXX:-c++}"
 CXXFLAGS="${CXXFLAGS:--std=c++17 -O2}"
 
-# ローカルの bits/stdc++.h を include パスに追加
-INCLUDE_DIR="${ROOT}/include"
-if [[ -d "${INCLUDE_DIR}" ]]; then
-  CXXFLAGS="${CXXFLAGS} -I${INCLUDE_DIR}"
+# Library submodule の include を追加 (bits/stdc++.h, debug.hpp)
+LIB_INCLUDE="${ROOT}/lib/include"
+if [[ -d "${LIB_INCLUDE}" ]]; then
+  CXXFLAGS="${CXXFLAGS} -I${LIB_INCLUDE}"
 fi
 
 # ARM (macOS等) では SIMDe を有効化
 if [[ "$(uname -m)" != "x86_64" ]]; then
-  SIMDE_DIR="${ROOT}/include/simde"
+  SIMDE_DIR="${LIB_INCLUDE}/simde"
   if [[ -d "${SIMDE_DIR}" ]]; then
     CXXFLAGS="${CXXFLAGS} -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -I${SIMDE_DIR}"
   fi

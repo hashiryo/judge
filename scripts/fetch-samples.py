@@ -135,8 +135,8 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
             print(f"  Failed to download correct.cpp: {e}", file=sys.stderr)
             return 0
 
-        # include/bits/stdc++.h があれば -I に追加
-        include_dir = ROOT / "include"
+        # lib/include/bits/stdc++.h があれば -I に追加
+        include_dir = ROOT / "lib" / "include"
         compile_flags = ["-std=c++17", "-O2"]
         if include_dir.is_dir():
             compile_flags.append(f"-I{include_dir}")
