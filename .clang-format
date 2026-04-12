@@ -13,3 +13,5 @@ ColumnLimit: 1000
 AlignEscapedNewlines: DontAlign
 SpaceBeforeAssignmentOperators: false
 SortIncludes: false
+SpaceBeforeParens: Never
+AllowShortCaseLabelsOnASingleLine: true
