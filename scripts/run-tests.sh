@@ -135,6 +135,10 @@ run_single_case() {
     if [[ -n "${checker_bin}" ]] && [[ -x "${checker_bin}" ]]; then
       if ! "${checker_bin}" "${input_file}" "${output_file}" "${expected_file}" &>/dev/null; then
         status="WA"
+        local actual_head expected_head
+        actual_head=$(head -1 "${output_file}" | cut -c1-50)
+        expected_head=$(head -1 "${expected_file}" | cut -c1-50)
+        detail="expected:[${expected_head}] actual:[${actual_head}]"
       fi
     elif [[ -n "${error_tolerance}" ]] && [[ "${error_tolerance}" != "0" ]]; then
       if ! python3 -c "
@@ -146,10 +150,15 @@ for a, e in zip(actual, expected):
     if abs(float(a) - float(e)) > ${error_tolerance}: sys.exit(1)
 " 2>/dev/null; then
         status="WA"
+        detail="float compare failed (tolerance=${error_tolerance})"
       fi
     else
       if ! diff <(sed 's/[[:space:]]*$//' "${output_file}") <(sed 's/[[:space:]]*$//' "${expected_file}") &>/dev/null; then
         status="WA"
+        local actual_head expected_head
+        actual_head=$(head -1 "${output_file}" | cut -c1-50)
+        expected_head=$(head -1 "${expected_file}" | cut -c1-50)
+        detail="expected:[${expected_head}] actual:[${actual_head}]"
       fi
     fi
   fi
@@ -161,11 +170,19 @@ for a, e in zip(actual, expected):
       echo "Status: ${status}"
       echo "Time: ${elapsed_ms}ms"
       echo "Memory: ${memory_kb}KB"
+      if [[ -f "${input_file}" ]]; then
+        echo "--- input (first 20 lines) ---"
+        head -20 "${input_file}"
+      fi
       if [[ "${status}" == "WA" ]] && [[ -f "${output_file}" ]]; then
         echo "--- actual output (first 20 lines) ---"
         head -20 "${output_file}"
         echo "--- expected output (first 20 lines) ---"
         head -20 "${expected_file}"
+      fi
+      if [[ -n "${detail}" ]]; then
+        echo "--- detail ---"
+        echo "${detail}"
       fi
     } > "${log_file}" 2>/dev/null
   fi
@@ -241,6 +258,7 @@ run_cpp_file() {
 
   echo -n "  [RUN] ${rel_path} " >&2
   local overall_status="AC"
+  local overall_detail=""
   local cases_json=""
   local case_count=0
   local max_time=0
@@ -273,26 +291,43 @@ run_cpp_file() {
 
       local result
       result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "${TLE_SEC}" "${ERROR_TOL}" "${checker_bin}")
-      local case_status case_time case_mem
+      local case_status case_time case_mem case_detail
       case_status=$(echo "${result}" | awk '{print $1}')
       case_time=$(echo "${result}" | awk '{print $2}')
       case_mem=$(echo "${result}" | awk '{print $3}')
+      case_detail=$(echo "${result}" | cut -d' ' -f4- | sed 's/"/\\"/g')
 
       if [[ "${case_status}" != "AC" ]]; then
         overall_status="${case_status}"
+        if [[ -z "${overall_detail}" ]]; then
+          if [[ -n "${case_detail}" ]] && [[ "${case_detail}" != "${result}" ]]; then
+            overall_detail="${case_name}: ${case_detail}"
+          else
+            overall_detail="${case_name}: ${case_status}"
+          fi
+        fi
       fi
       [[ ${case_time} -gt ${max_time} ]] && max_time=${case_time}
       [[ ${case_mem} -gt ${max_mem} ]] && max_mem=${case_mem}
 
       [[ -n "${cases_json}" ]] && cases_json+=","
-      cases_json+="{\"name\":\"${case_name}\",\"status\":\"${case_status}\",\"time_ms\":${case_time},\"memory_kb\":${case_mem}}"
+      if [[ -n "${case_detail}" ]] && [[ "${case_detail}" != "${result}" ]]; then
+        cases_json+="{\"name\":\"${case_name}\",\"status\":\"${case_status}\",\"time_ms\":${case_time},\"memory_kb\":${case_mem},\"detail\":\"${case_detail}\"}"
+      else
+        cases_json+="{\"name\":\"${case_name}\",\"status\":\"${case_status}\",\"time_ms\":${case_time},\"memory_kb\":${case_mem}}"
+      fi
       case_count=$((case_count + 1))
     done
   done
 
   echo "${overall_status} (${case_count} cases, max ${max_time}ms, ${max_mem}KB)" >&2
 
-  echo "{\"file\":\"${rel_path}\",\"problem\":\"${PROBLEM_URL}\",\"environment\":\"${ENV_NAME}\",\"status\":\"${overall_status}\",\"time_max_ms\":${max_time},\"memory_max_kb\":${max_mem},\"cases\":[${cases_json}]}"
+  if [[ -n "${overall_detail}" ]]; then
+    overall_detail=$(echo "${overall_detail}" | sed 's/"/\\"/g' | cut -c1-500)
+    echo "{\"file\":\"${rel_path}\",\"problem\":\"${PROBLEM_URL}\",\"environment\":\"${ENV_NAME}\",\"status\":\"${overall_status}\",\"detail\":\"${overall_detail}\",\"time_max_ms\":${max_time},\"memory_max_kb\":${max_mem},\"cases\":[${cases_json}]}"
+  else
+    echo "{\"file\":\"${rel_path}\",\"problem\":\"${PROBLEM_URL}\",\"environment\":\"${ENV_NAME}\",\"status\":\"${overall_status}\",\"time_max_ms\":${max_time},\"memory_max_kb\":${max_mem},\"cases\":[${cases_json}]}"
+  fi
 
   rm -f "${binary}"
 }
