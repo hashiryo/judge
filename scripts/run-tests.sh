@@ -93,7 +93,7 @@ parse_problem_toml() {
     elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
       TLE_SEC="${BASH_REMATCH[1]}"
     elif [[ "${line}" =~ ^mle\ *=\ *([0-9]+) ]]; then
-      MLE_MB="${BASH_REMATCH[1]}"
+      export MLE_MB="${BASH_REMATCH[1]}"
     elif [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
       ERROR_TOL="${BASH_REMATCH[1]}"
     fi
