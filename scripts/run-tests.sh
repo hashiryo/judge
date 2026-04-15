@@ -16,6 +16,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Library submodule の共通関数を読み込み
+SCRIPTS_DIR="${ROOT}/lib/scripts"
+source "${SCRIPTS_DIR}/lib/run-lib.sh"
+
 CXX="${CXX:-g++}"
 CXXFLAGS="${CXXFLAGS:--std=c++17 -O2}"
 ENV_NAME="${ENV_NAME:-local}"
@@ -38,6 +42,8 @@ if [[ -z "${PROBLEMS_JSON}" ]]; then
 fi
 
 mkdir -p "${RESULT_DIR}"
+
+EXECUTION_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
 # =============================================================================
 # テストケースディレクトリを取得
@@ -67,137 +73,6 @@ get_custom_testcase_dir() {
 }
 
 # =============================================================================
-# 1つのテストケースを実行して時間・メモリを計測
-# =============================================================================
-run_single_case() {
-  local binary="$1"
-  local input_file="$2"
-  local expected_file="$3"
-  local tle_sec="$4"
-  local error_tolerance="$5"
-  local checker_bin="${6:-}"
-  local output_file
-  output_file=$(mktemp)
-
-  local status="AC"
-  local elapsed_ms=0
-  local memory_kb=0
-  local detail=""
-
-  local time_output
-  time_output=$(mktemp)
-
-  # 実行 + 計測
-  if [[ "$(uname)" == "Darwin" ]]; then
-    /usr/bin/time -l timeout "${tle_sec}" "${binary}" < "${input_file}" > "${output_file}" 2>"${time_output}" && true
-    local exit_code=$?
-
-    if [[ ${exit_code} -eq 124 ]] || [[ ${exit_code} -eq 137 ]]; then
-      status="TLE"
-    elif [[ ${exit_code} -ne 0 ]]; then
-      status="RE"
-      detail="exit code ${exit_code}"
-    fi
-
-    elapsed_ms=$(awk '/real/{printf "%.0f", $1 * 1000}' "${time_output}" 2>/dev/null || echo "0")
-    memory_kb=$(awk '/maximum resident set size/{printf "%.0f", $1 / 1024}' "${time_output}" 2>/dev/null || echo "0")
-  else
-    /usr/bin/time -v timeout "${tle_sec}" "${binary}" < "${input_file}" > "${output_file}" 2>"${time_output}" && true
-    local exit_code=$?
-
-    if [[ ${exit_code} -eq 124 ]] || [[ ${exit_code} -eq 137 ]]; then
-      status="TLE"
-    elif [[ ${exit_code} -ne 0 ]]; then
-      status="RE"
-      detail="exit code ${exit_code}"
-    fi
-
-    elapsed_ms=$(grep "Elapsed (wall clock)" "${time_output}" | sed 's/.*: //' | awk -F: '{if (NF==2) printf "%.0f", ($1*60+$2)*1000; else printf "%.0f", $1*1000}' 2>/dev/null || echo "0")
-    memory_kb=$(grep "Maximum resident set size" "${time_output}" | awk '{print $NF}' 2>/dev/null || echo "0")
-  fi
-
-  rm -f "${time_output}"
-
-  [[ -z "${elapsed_ms}" ]] && elapsed_ms=0
-  [[ -z "${memory_kb}" ]] && memory_kb=0
-
-  # MLE 判定
-  if [[ "${status}" == "AC" ]] && [[ -n "${MLE_MB:-}" ]]; then
-    local mle_kb=$(( MLE_MB * 1024 ))
-    if [[ ${memory_kb} -gt ${mle_kb} ]]; then
-      status="MLE"
-      detail="used ${memory_kb}KB > limit ${mle_kb}KB"
-    fi
-  fi
-
-  # 判定
-  if [[ "${status}" == "AC" ]]; then
-    if [[ -n "${checker_bin}" ]] && [[ -x "${checker_bin}" ]]; then
-      if ! "${checker_bin}" "${input_file}" "${output_file}" "${expected_file}" &>/dev/null; then
-        status="WA"
-        local actual_head expected_head
-        actual_head=$(head -1 "${output_file}" | cut -c1-50)
-        expected_head=$(head -1 "${expected_file}" | cut -c1-50)
-        detail="expected:[${expected_head}] actual:[${actual_head}]"
-      fi
-    elif [[ -n "${error_tolerance}" ]] && [[ "${error_tolerance}" != "0" ]]; then
-      if ! python3 -c "
-import sys
-with open('${output_file}') as f: actual = f.read().split()
-with open('${expected_file}') as f: expected = f.read().split()
-if len(actual) != len(expected): sys.exit(1)
-for a, e in zip(actual, expected):
-    if abs(float(a) - float(e)) > ${error_tolerance}: sys.exit(1)
-" 2>/dev/null; then
-        status="WA"
-        detail="float compare failed (tolerance=${error_tolerance})"
-      fi
-    else
-      if ! diff <(sed 's/[[:space:]]*$//' "${output_file}") <(sed 's/[[:space:]]*$//' "${expected_file}") &>/dev/null; then
-        status="WA"
-        local actual_head expected_head
-        actual_head=$(head -1 "${output_file}" | cut -c1-50)
-        expected_head=$(head -1 "${expected_file}" | cut -c1-50)
-        detail="expected:[${expected_head}] actual:[${actual_head}]"
-      fi
-    fi
-  fi
-
-  # エラー詳細をログに保存
-  if [[ "${status}" != "AC" ]] && [[ -n "${DETAIL_LOG_DIR:-}" ]]; then
-    local log_file="${DETAIL_LOG_DIR}/${case_name:-unknown}.${status}.log"
-    {
-      echo "Status: ${status}"
-      echo "Time: ${elapsed_ms}ms"
-      echo "Memory: ${memory_kb}KB"
-      if [[ -f "${input_file}" ]]; then
-        echo "--- input (first 20 lines) ---"
-        head -20 "${input_file}"
-      fi
-      if [[ "${status}" == "WA" ]] && [[ -f "${output_file}" ]]; then
-        echo "--- actual output (first 20 lines) ---"
-        head -20 "${output_file}"
-        echo "--- expected output (first 20 lines) ---"
-        head -20 "${expected_file}"
-      fi
-      if [[ -n "${detail}" ]]; then
-        echo "--- detail ---"
-        echo "${detail}"
-      fi
-    } > "${log_file}" 2>/dev/null
-  fi
-
-  rm -f "${output_file}"
-
-  if [[ -n "${detail}" ]]; then
-    detail=$(echo "${detail}" | head -3 | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-200)
-    echo "${status} ${elapsed_ms} ${memory_kb} ${detail}"
-  else
-    echo "${status} ${elapsed_ms} ${memory_kb}"
-  fi
-}
-
-# =============================================================================
 # problem.toml を解析
 # =============================================================================
 parse_problem_toml() {
@@ -213,16 +88,12 @@ parse_problem_toml() {
   fi
 
   while IFS= read -r line; do
-    # url = "..."
     if [[ "${line}" =~ ^url\ *=\ *\"([^\"]+)\" ]]; then
       PROBLEM_URL="${BASH_REMATCH[1]}"
-    # tle = N
     elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
       TLE_SEC="${BASH_REMATCH[1]}"
-    # mle = N (MB)
     elif [[ "${line}" =~ ^mle\ *=\ *([0-9]+) ]]; then
       MLE_MB="${BASH_REMATCH[1]}"
-    # error = N
     elif [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
       ERROR_TOL="${BASH_REMATCH[1]}"
     fi
@@ -234,11 +105,9 @@ parse_problem_toml() {
 # =============================================================================
 run_cpp_file() {
   local cpp_file="$1"
-  local tc_dirs=("${@:2}")  # テストケースディレクトリ (複数可)
+  local tc_dirs=("${@:2}")
   local rel_path
   rel_path="${cpp_file#${ROOT}/}"
-
-  # PROBLEM_URL, TLE_SEC, ERROR_TOL は呼び出し元で parse_problem_toml 済み
 
   # コンパイル
   local binary
@@ -248,33 +117,31 @@ run_cpp_file() {
   if ! ${CXX} ${CXXFLAGS} -o "${binary}" "${cpp_file}" 2>"${compile_err}"; then
     echo "  [CE] ${rel_path}" >&2
     head -20 "${compile_err}" | sed 's/^/    /' >&2
-    local ce_msg
-    ce_msg=$(head -5 "${compile_err}" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-500)
-    echo "{\"file\":\"${rel_path}\",\"status\":\"CE\",\"detail\":\"${ce_msg}\",\"cases\":[]}"
-    rm -f "${binary}" "${compile_err}"
+    local compile_error_excerpt
+    compile_error_excerpt=$(mktemp)
+    head -50 "${compile_err}" > "${compile_error_excerpt}"
+    python3 "${SCRIPTS_DIR}/collect-run-results.py" build-entry \
+      --file "${rel_path}" \
+      --problem "${PROBLEM_URL}" \
+      --environment "${ENV_NAME}" \
+      --status "CE" \
+      --last-execution-time "${EXECUTION_TIME}" \
+      --compile-error-file "${compile_error_excerpt}" \
+      --cases-records /dev/null
+    rm -f "${compile_error_excerpt}" "${binary}" "${compile_err}"
     return
   fi
   rm -f "${compile_err}"
 
   echo -n "  [RUN] ${rel_path} " >&2
   local overall_status="AC"
-  local overall_detail=""
-  local cases_json=""
   local case_count=0
-  local max_time=0
-  local max_mem=0
+  local case_records_file
+  case_records_file=$(mktemp)
 
   for tc_dir in "${tc_dirs[@]}"; do
-    # checker の検出・コンパイル
-    local checker_bin=""
-    if [[ -f "${tc_dir}/checker.cpp" ]]; then
-      checker_bin="${tc_dir}/checker"
-      if [[ ! -x "${checker_bin}" ]]; then
-        local checker_args=(-std=c++17 -O2)
-        [[ -f "${tc_dir}/testlib.h" ]] && checker_args+=("-I${tc_dir}")
-        g++ "${checker_args[@]}" -o "${checker_bin}" "${tc_dir}/checker.cpp" 2>/dev/null || checker_bin=""
-      fi
-    fi
+    local checker_bin
+    checker_bin=$(compile_checker "${tc_dir}")
 
     shopt -s nullglob
     for input_file in "${tc_dir}"/*.in; do
@@ -292,59 +159,42 @@ run_cpp_file() {
       local result
       result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "${TLE_SEC}" "${ERROR_TOL}" "${checker_bin}")
       local case_status case_time case_mem case_detail
-      case_status=$(echo "${result}" | awk '{print $1}')
-      case_time=$(echo "${result}" | awk '{print $2}')
-      case_mem=$(echo "${result}" | awk '{print $3}')
-      case_detail=$(echo "${result}" | cut -d' ' -f4- | sed 's/"/\\"/g')
+      read -r case_status case_time case_mem case_detail <<< "${result}"
 
-      if [[ "${case_status}" != "AC" ]]; then
+      if [[ "${case_status}" != "AC" ]] && [[ "${overall_status}" == "AC" ]]; then
         overall_status="${case_status}"
-        if [[ -z "${overall_detail}" ]]; then
-          if [[ -n "${case_detail}" ]] && [[ "${case_detail}" != "${result}" ]]; then
-            overall_detail="${case_name}: ${case_detail}"
-          else
-            overall_detail="${case_name}: ${case_status}"
-          fi
-        fi
       fi
-      [[ ${case_time} -gt ${max_time} ]] && max_time=${case_time}
-      [[ ${case_mem} -gt ${max_mem} ]] && max_mem=${case_mem}
 
-      [[ -n "${cases_json}" ]] && cases_json+=","
-      if [[ -n "${case_detail}" ]] && [[ "${case_detail}" != "${result}" ]]; then
-        cases_json+="{\"name\":\"${case_name}\",\"status\":\"${case_status}\",\"time_ms\":${case_time},\"memory_kb\":${case_mem},\"detail\":\"${case_detail}\"}"
-      else
-        cases_json+="{\"name\":\"${case_name}\",\"status\":\"${case_status}\",\"time_ms\":${case_time},\"memory_kb\":${case_mem}}"
-      fi
+      append_case_record "${case_records_file}" "${case_name}" "${case_status}" "${case_time}" "${case_mem}" "${case_detail:-}"
       case_count=$((case_count + 1))
     done
   done
 
-  echo "${overall_status} (${case_count} cases, max ${max_time}ms, ${max_mem}KB)" >&2
+  echo "${overall_status} (${case_count} cases)" >&2
 
-  if [[ -n "${overall_detail}" ]]; then
-    overall_detail=$(echo "${overall_detail}" | sed 's/"/\\"/g' | cut -c1-500)
-    echo "{\"file\":\"${rel_path}\",\"problem\":\"${PROBLEM_URL}\",\"environment\":\"${ENV_NAME}\",\"status\":\"${overall_status}\",\"detail\":\"${overall_detail}\",\"time_max_ms\":${max_time},\"memory_max_kb\":${max_mem},\"cases\":[${cases_json}]}"
-  else
-    echo "{\"file\":\"${rel_path}\",\"problem\":\"${PROBLEM_URL}\",\"environment\":\"${ENV_NAME}\",\"status\":\"${overall_status}\",\"time_max_ms\":${max_time},\"memory_max_kb\":${max_mem},\"cases\":[${cases_json}]}"
-  fi
+  python3 "${SCRIPTS_DIR}/collect-run-results.py" build-entry \
+    --file "${rel_path}" \
+    --problem "${PROBLEM_URL}" \
+    --environment "${ENV_NAME}" \
+    --status "${overall_status}" \
+    --last-execution-time "${EXECUTION_TIME}" \
+    --cases-records "${case_records_file}"
 
-  rm -f "${binary}"
+  rm -f "${case_records_file}" "${binary}"
 }
 
 # =============================================================================
 # メイン: 問題ごとに全 cpp を実行
 # =============================================================================
-EXECUTION_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
 echo "Environment: ${ENV_NAME} (${CXX})"
 echo "Time: ${EXECUTION_TIME}"
 echo "---"
 
-# 結果ファイル (JSON array)
+# JSONL 中間形式
+RESULT_JSONL="${RESULT_DIR}/result-${ENV_NAME}.jsonl"
 RESULT_FILE="${RESULT_DIR}/result-${ENV_NAME}.json"
-echo "[" > "${RESULT_FILE}"
-FIRST_ENTRY=true
+: > "${RESULT_JSONL}"
 
 # PROBLEMS_JSON をパースして問題ごとに処理
 PROBLEM_COUNT=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d['problems']))")
@@ -356,10 +206,8 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
   echo ""
   echo "=== ${PROBLEM_DIR} ==="
 
-  # problem.toml から設定を読み込み
   parse_problem_toml "${PROBLEM_DIR}"
 
-  # テストケースディレクトリを収集
   TC_DIRS=()
 
   if [[ -n "${PROBLEM_URL}" ]]; then
@@ -369,7 +217,6 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     fi
   fi
 
-  # 自作テストケース
   custom_dir=$(get_custom_testcase_dir "${PROBLEM_DIR}" || true)
   if [[ -n "${custom_dir}" ]]; then
     TC_DIRS+=("${custom_dir}")
@@ -380,7 +227,6 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     continue
   fi
 
-  # 全 cpp ファイルを実行
   for j in $(seq 0 $((FILE_COUNT - 1))); do
     FILENAME=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['problems'][$i]['files'][$j])")
     CPP_FILE="${ROOT}/${PROBLEM_DIR}/${FILENAME}"
@@ -390,28 +236,13 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     fi
 
     result_json=$(run_cpp_file "${CPP_FILE}" "${TC_DIRS[@]}")
-
-    # JSON に追加 (最後の行が JSON)
-    json_line=$(echo "${result_json}" | tail -1)
-    if [[ "${json_line}" == "{"* ]]; then
-      if ${FIRST_ENTRY}; then
-        FIRST_ENTRY=false
-      else
-        echo "," >> "${RESULT_FILE}"
-      fi
-      echo "${json_line}" >> "${RESULT_FILE}"
+    if [[ -n "${result_json}" ]]; then
+      echo "${result_json}" >> "${RESULT_JSONL}"
     fi
   done
 done
 
-echo "]" >> "${RESULT_FILE}"
-
-# 整形
-python3 -c "
-import json
-with open('${RESULT_FILE}') as f:
-    data = json.load(f)
-with open('${RESULT_FILE}', 'w') as f:
-    json.dump(data, f, indent=2)
-print(f'Results: ${RESULT_FILE} ({len(data)} entries)')
-"
+# JSONL → JSON 配列に変換
+python3 "${SCRIPTS_DIR}/collect-run-results.py" finalize \
+  --in-jsonl "${RESULT_JSONL}" \
+  --out-json "${RESULT_FILE}"

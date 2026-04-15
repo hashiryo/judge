@@ -11,6 +11,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
+# Library submodule の共通関数を読み込み
+SCRIPTS_DIR="${ROOT}/lib/scripts"
+source "${SCRIPTS_DIR}/lib/run-lib.sh"
+
 # macOS ではデフォルトで clang++ を使う (include/bits/stdc++.h を自前で用意済み)
 CXX="${CXX:-c++}"
 CXXFLAGS="${CXXFLAGS:--std=c++17 -O2}"
@@ -75,15 +79,17 @@ echo "Compiler:  ${CXX} ${CXXFLAGS}"
 echo ""
 
 # checker の検出・コンパイル
-CHECKER_BIN=""
-if [[ -f "${TC_DIR}/checker.cpp" ]]; then
-  CHECKER_BIN="${TC_DIR}/checker"
-  if [[ ! -x "${CHECKER_BIN}" ]] || [[ "${TC_DIR}/checker.cpp" -nt "${CHECKER_BIN}" ]]; then
-    echo "Compiling checker..."
-    checker_args=(-std=c++17 -O2)
-    [[ -f "${TC_DIR}/testlib.h" ]] && checker_args+=("-I${TC_DIR}")
-    g++ "${checker_args[@]}" -o "${CHECKER_BIN}" "${TC_DIR}/checker.cpp"
-  fi
+CHECKER_BIN=$(compile_checker "${TC_DIR}")
+
+# problem.toml から error tolerance を読み取る
+ERROR_TOL=""
+TOML_FILE="${PROBLEM_DIR}/problem.toml"
+if [[ -f "${TOML_FILE}" ]]; then
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
+      ERROR_TOL="${BASH_REMATCH[1]}"
+    fi
+  done < "${TOML_FILE}"
 fi
 
 # 各 cpp ファイルを実行
@@ -92,17 +98,6 @@ PASS_ALL=true
 for cpp_file in "${CPP_FILES[@]}"; do
   filename=$(basename "${cpp_file}")
   echo "=== ${filename} ==="
-
-  # problem.toml から error tolerance を読み取る
-  ERROR_TOL=""
-  TOML_FILE="${PROBLEM_DIR}/problem.toml"
-  if [[ -f "${TOML_FILE}" ]]; then
-    while IFS= read -r line; do
-      if [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
-        ERROR_TOL="${BASH_REMATCH[1]}"
-      fi
-    done < "${TOML_FILE}"
-  fi
 
   # コンパイル
   binary=$(mktemp)
@@ -128,69 +123,28 @@ for cpp_file in "${CPP_FILES[@]}"; do
     case_name=$(basename "${input_file}" .in)
     total_count=$((total_count + 1))
 
-    # 実行
-    output_file=$(mktemp)
-    start_time=$(python3 -c "import time; print(int(time.monotonic_ns()))")
+    # run_single_case を使用
+    result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "10" "${ERROR_TOL}" "${CHECKER_BIN}")
+    case_status=$(echo "${result}" | awk '{print $1}')
+    case_time=$(echo "${result}" | awk '{print $2}')
+    case_mem=$(echo "${result}" | awk '{print $3}')
 
-    # timeout コマンド (macOS では gtimeout、なければタイムアウトなし)
-    TIMEOUT_CMD=""
-    if command -v timeout &>/dev/null; then
-      TIMEOUT_CMD="timeout 10"
-    elif command -v gtimeout &>/dev/null; then
-      TIMEOUT_CMD="gtimeout 10"
-    fi
+    [[ ${case_time} -gt ${max_time} ]] && max_time=${case_time}
 
-    if ${TIMEOUT_CMD} "${binary}" < "${input_file}" > "${output_file}" 2>/dev/null; then
-      end_time=$(python3 -c "import time; print(int(time.monotonic_ns()))")
-      elapsed_ms=$(( (end_time - start_time) / 1000000 ))
-      [[ ${elapsed_ms} -gt ${max_time} ]] && max_time=${elapsed_ms}
-
-      # 判定
-      verdict="AC"
-      if [[ -n "${CHECKER_BIN}" ]] && [[ -x "${CHECKER_BIN}" ]]; then
-        if ! "${CHECKER_BIN}" "${input_file}" "${output_file}" "${expected_file}" &>/dev/null; then
-          verdict="WA"
-        fi
-      elif [[ -n "${ERROR_TOL}" ]] && [[ "${ERROR_TOL}" != "0" ]]; then
-        if ! python3 -c "
-import sys
-with open('${output_file}') as f: actual = f.read().split()
-with open('${expected_file}') as f: expected = f.read().split()
-if len(actual) != len(expected): sys.exit(1)
-for a, e in zip(actual, expected):
-    if abs(float(a) - float(e)) > ${ERROR_TOL}: sys.exit(1)
-" 2>/dev/null; then
-          verdict="WA"
-        fi
-      else
-        if ! diff <(sed 's/[[:space:]]*$//' "${output_file}") <(sed 's/[[:space:]]*$//' "${expected_file}") &>/dev/null; then
-          verdict="WA"
-        fi
-      fi
-
-      if [[ "${verdict}" == "AC" ]]; then
-        echo "  ${case_name}: AC (${elapsed_ms}ms)"
-        ac_count=$((ac_count + 1))
-      else
-        echo "  ${case_name}: WA (${elapsed_ms}ms)"
-        echo "    expected: $(head -1 "${expected_file}" | cut -c1-80)"
-        echo "    actual:   $(head -1 "${output_file}" | cut -c1-80)"
-        PASS_ALL=false
-      fi
+    if [[ "${case_status}" == "AC" ]]; then
+      echo "  ${case_name}: AC (${case_time}ms)"
+      ac_count=$((ac_count + 1))
     else
-      exit_code=$?
-      end_time=$(python3 -c "import time; print(int(time.monotonic_ns()))")
-      elapsed_ms=$(( (end_time - start_time) / 1000000 ))
-
-      if [[ ${exit_code} -eq 124 ]]; then
-        echo "  ${case_name}: TLE (>${elapsed_ms}ms)"
-      else
-        echo "  ${case_name}: RE (exit ${exit_code}, ${elapsed_ms}ms)"
+      echo "  ${case_name}: ${case_status} (${case_time}ms)"
+      if [[ "${case_status}" == "WA" ]]; then
+        echo "    expected: $(head -1 "${expected_file}" | cut -c1-80)"
+        actual_file=$(mktemp)
+        timeout 10 "${binary}" < "${input_file}" > "${actual_file}" 2>/dev/null || true
+        echo "    actual:   $(head -1 "${actual_file}" | cut -c1-80)"
+        rm -f "${actual_file}"
       fi
       PASS_ALL=false
     fi
-
-    rm -f "${output_file}"
   done
 
   rm -f "${binary}"
