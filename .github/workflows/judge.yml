@@ -5,8 +5,8 @@ on:
     branches:
       - main
     paths:
-      - 'problems/**'
-      - 'docs/**'
+      - "problems/**"
+      - "docs/**"
   workflow_dispatch:
 
 permissions:
@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -103,10 +105,30 @@ jobs:
       fail-fast: false
       matrix:
         env:
-          - { os: ubuntu-24.04,     cxx: g++-13,     name: x64-g++,      cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -mavx2" }
-          - { os: ubuntu-24.04,     cxx: clang++-18,  name: x64-clang++,  cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -mavx2" }
-          - { os: ubuntu-24.04-arm, cxx: g++-13,     name: arm-g++,      cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
-          - { os: ubuntu-24.04-arm, cxx: clang++-18,  name: arm-clang++,  cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
+          - {
+              os: ubuntu-24.04,
+              cxx: g++-13,
+              name: x64-g++,
+              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -mavx2",
+            }
+          - {
+              os: ubuntu-24.04,
+              cxx: clang++-18,
+              name: x64-clang++,
+              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -mavx2",
+            }
+          - {
+              os: ubuntu-24.04-arm,
+              cxx: g++-13,
+              name: arm-g++,
+              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
+            }
+          - {
+              os: ubuntu-24.04-arm,
+              cxx: clang++-18,
+              name: arm-clang++,
+              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
+            }
     runs-on: ${{ matrix.env.os }}
     steps:
       - uses: actions/checkout@v4

@@ -12,21 +12,25 @@ import shutil
 import sys
 from pathlib import Path
 
-# Library submodule の scripts/ を参照
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib" / "scripts"))
-from lib.download import DownloadConfig, download_batch, url_to_md5
-
 ROOT = Path(__file__).resolve().parent.parent
 TC_CACHE_DIR = ROOT / ".cache" / "testcases"
 CUSTOM_TC_DIR = ROOT / ".cache" / "custom-testcases"
 
 YUKICODER_TOKEN = os.environ.get("YUKICODER_TOKEN", "")
 
-CONFIG = DownloadConfig(
-    tc_cache_dir=TC_CACHE_DIR,
-    library_checker_dir=ROOT / ".cache" / "library-checker-problems",
-    yukicoder_token=YUKICODER_TOKEN,
-)
+
+def load_download_module():
+    """Library submodule の download モジュールを遅延ロードする"""
+    scripts_dir = ROOT / "lib" / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    from lib.download import DownloadConfig, download_batch
+
+    config = DownloadConfig(
+        tc_cache_dir=TC_CACHE_DIR,
+        library_checker_dir=ROOT / ".cache" / "library-checker-problems",
+        yukicoder_token=YUKICODER_TOKEN,
+    )
+    return download_batch, config
 
 
 def parse_problem_toml(problem_dir: Path) -> dict:
@@ -131,7 +135,8 @@ def main() -> None:
         return
 
     # 共通ダウンロードモジュールを使用
-    summary = download_batch(urls, CONFIG)
+    download_batch, config = load_download_module()
+    summary = download_batch(urls, config)
 
     print(f"\nTestcase download summary:")
     print(f"  Cached:     {summary.cached}")
