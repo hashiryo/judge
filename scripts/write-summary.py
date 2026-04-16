@@ -95,11 +95,11 @@ def main():
     # 問題ごとにグルーピング
     by_problem: dict[str, list[dict]] = defaultdict(list)
     for r in current:
-        # 問題ディレクトリを抽出
+        # 問題ディレクトリを抽出 (ファイルの親ディレクトリ = problem.toml のある場所)
         file_path = r.get("file", "")
-        parts = Path(file_path).parts
-        if len(parts) >= 2 and parts[0] == "problems":
-            problem = str(Path(parts[0]) / parts[1])
+        problem_dir = str(Path(file_path).parent)
+        if problem_dir.startswith("problems"):
+            problem = problem_dir
         else:
             problem = "unknown"
         by_problem[problem].append(r)

@@ -81,13 +81,16 @@ echo ""
 # checker の検出・コンパイル
 CHECKER_BIN=$(compile_checker "${TC_DIR}")
 
-# problem.toml から error tolerance を読み取る
+# problem.toml から error tolerance と TLE を読み取る
 ERROR_TOL=""
+TLE_SEC="10"
 TOML_FILE="${PROBLEM_DIR}/problem.toml"
 if [[ -f "${TOML_FILE}" ]]; then
   while IFS= read -r line; do
     if [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
       ERROR_TOL="${BASH_REMATCH[1]}"
+    elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
+      TLE_SEC="${BASH_REMATCH[1]}"
     fi
   done < "${TOML_FILE}"
 fi
@@ -125,7 +128,7 @@ for cpp_file in "${CPP_FILES[@]}"; do
     total_count=$((total_count + 1))
 
     # run_single_case を使用
-    result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "10" "${ERROR_TOL}" "${CHECKER_BIN}")
+    result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "${TLE_SEC}" "${ERROR_TOL}" "${CHECKER_BIN}")
     read -r case_status case_time case_mem _ <<< "${result}"
 
     [[ ${case_time} -gt ${max_time} ]] && max_time=${case_time}
