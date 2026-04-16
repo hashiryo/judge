@@ -113,6 +113,7 @@ for cpp_file in "${CPP_FILES[@]}"; do
   ac_count=0
   total_count=0
   max_time=0
+  max_mem=0
 
   shopt -s nullglob
   for input_file in "${TC_DIR}"/*.in; do
@@ -125,17 +126,16 @@ for cpp_file in "${CPP_FILES[@]}"; do
 
     # run_single_case を使用
     result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "10" "${ERROR_TOL}" "${CHECKER_BIN}")
-    case_status=$(echo "${result}" | awk '{print $1}')
-    case_time=$(echo "${result}" | awk '{print $2}')
-    case_mem=$(echo "${result}" | awk '{print $3}')
+    read -r case_status case_time case_mem _ <<< "${result}"
 
     [[ ${case_time} -gt ${max_time} ]] && max_time=${case_time}
+    [[ ${case_mem} -gt ${max_mem} ]] && max_mem=${case_mem}
 
     if [[ "${case_status}" == "AC" ]]; then
-      echo "  ${case_name}: AC (${case_time}ms)"
+      echo "  ${case_name}: AC (${case_time}ms, ${case_mem}KB)"
       ac_count=$((ac_count + 1))
     else
-      echo "  ${case_name}: ${case_status} (${case_time}ms)"
+      echo "  ${case_name}: ${case_status} (${case_time}ms, ${case_mem}KB)"
       if [[ "${case_status}" == "WA" ]]; then
         echo "    expected: $(head -1 "${expected_file}" | cut -c1-80)"
         actual_file=$(mktemp)
@@ -152,7 +152,7 @@ for cpp_file in "${CPP_FILES[@]}"; do
   if [[ ${total_count} -eq 0 ]]; then
     echo "  No testcases found"
   else
-    echo "  Result: ${ac_count}/${total_count} AC (max ${max_time}ms)"
+    echo "  Result: ${ac_count}/${total_count} AC (max ${max_time}ms, ${max_mem}KB)"
   fi
   echo ""
 done
