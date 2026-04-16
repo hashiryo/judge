@@ -2,15 +2,17 @@
 """
 変更された問題ディレクトリを検出し、同じ問題の全 .cpp ファイルを含めて出力する。
 
+問題ディレクトリは、problems/ 以下で problem.toml を持つディレクトリとみなす。
+
 出力: JSON (GitHub Actions の matrix 用)
-  {"problems": [{"dir": "problems/yosupo-unionfind", "files": ["sol_a.cpp", "sol_b.cpp"]}]}
+    {"problems": [{"dir": "problems/yosupo-unionfind", "files": ["sol_a.cpp", "sol_b.cpp"]}]}
 
 使い方:
-  # push の差分から検出
-  python3 scripts/detect-changed.py --before <sha> --after <sha>
+    # push の差分から検出
+    python3 scripts/detect-changed.py --before <sha> --after <sha>
 
-  # 全問題を対象
-  python3 scripts/detect-changed.py --all
+    # 全問題を対象
+    python3 scripts/detect-changed.py --all
 """
 import argparse
 import json
@@ -18,9 +20,32 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 PROBLEMS_DIR = ROOT / "problems"
+
+
+def is_problem_root(path: Path) -> bool:
+    """problem.toml を持つディレクトリを問題ルートとみなす"""
+    return path.is_dir() and (path / "problem.toml").is_file()
+
+
+def find_problem_root(path: Path) -> Optional[Path]:
+    """指定パスから最も近い問題ルートを親方向に探索する"""
+    current = path if path.is_dir() else path.parent
+    while True:
+        try:
+            current.relative_to(PROBLEMS_DIR)
+        except ValueError:
+            return None
+
+        if is_problem_root(current):
+            return current
+
+        if current == PROBLEMS_DIR:
+            return None
+        current = current.parent
 
 
 def get_changed_files(before: str, after: str) -> list[str]:
@@ -43,12 +68,15 @@ def find_problem_dirs_from_files(files: list[str]) -> set[str]:
     """変更ファイルから問題ディレクトリを抽出"""
     dirs = set()
     for f in files:
-        parts = Path(f).parts
-        # problems/<problem-name>/... のパターン
-        if len(parts) >= 2 and parts[0] == "problems":
-            problem_dir = str(Path(parts[0]) / parts[1])
-            if (ROOT / problem_dir).is_dir():
-                dirs.add(problem_dir)
+        file_path = ROOT / f
+        try:
+            file_path.relative_to(PROBLEMS_DIR)
+        except ValueError:
+            continue
+
+        problem_root = find_problem_root(file_path)
+        if problem_root is not None:
+            dirs.add(str(problem_root.relative_to(ROOT)))
     return dirs
 
 
@@ -57,11 +85,12 @@ def find_all_problem_dirs() -> set[str]:
     dirs = set()
     if not PROBLEMS_DIR.exists():
         return dirs
-    for child in PROBLEMS_DIR.iterdir():
-        if child.is_dir() and not child.name.startswith("."):
-            # .cpp ファイルがあるか確認
-            if any(child.rglob("*.cpp")):
-                dirs.add(str(child.relative_to(ROOT)))
+    for toml_file in PROBLEMS_DIR.rglob("problem.toml"):
+        child = toml_file.parent
+        if child.name.startswith("."):
+            continue
+        if any(child.rglob("*.cpp")):
+            dirs.add(str(child.relative_to(ROOT)))
     return dirs
 
 
