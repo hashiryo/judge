@@ -24,6 +24,13 @@ from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 PROBLEMS_DIR = ROOT / "problems"
+EXCLUDED_CPP_DIR_NAMES = {"gen", "testcases"}
+
+
+def is_submission_cpp(problem_root: Path, cpp_path: Path) -> bool:
+    """提出候補に含める .cpp かを判定する"""
+    rel = cpp_path.relative_to(problem_root)
+    return not any(part in EXCLUDED_CPP_DIR_NAMES for part in rel.parts)
 
 
 def is_problem_root(path: Path) -> bool:
@@ -89,20 +96,18 @@ def find_all_problem_dirs() -> set[str]:
         child = toml_file.parent
         if child.name.startswith("."):
             continue
-        if any(child.rglob("*.cpp")):
+        if any(is_submission_cpp(child, cpp) for cpp in child.rglob("*.cpp")):
             dirs.add(str(child.relative_to(ROOT)))
     return dirs
 
 
 def collect_cpp_files(problem_dir: str) -> list[str]:
-    """問題ディレクトリ内の全 .cpp ファイルを収集 (testcases/ 内は除く)"""
+    """問題ディレクトリ内の提出候補 .cpp ファイルを収集する"""
     d = ROOT / problem_dir
     files = []
     for cpp in sorted(d.rglob("*.cpp")):
-        rel = cpp.relative_to(d)
-        # testcases/ 内の .cpp (checker 等) は除外
-        if "testcases" not in rel.parts:
-            files.append(str(rel))
+        if is_submission_cpp(d, cpp):
+            files.append(str(cpp.relative_to(d)))
     return files
 
 

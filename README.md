@@ -95,3 +95,5 @@ problems/graph/unionfind/
   testcases/
     00.in  00.out
 ```
+
+`gen/` は提出候補から自動除外されるので、テストケース生成器や基準解 (`.cpp` を含む) を置いてよい。
