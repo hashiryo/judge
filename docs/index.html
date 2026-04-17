@@ -286,6 +286,9 @@
 
     <!-- Overview tab -->
     <div id="overview" class="tab-content active">
+      <div class="filters">
+        <label><input type="checkbox" id="overview-ac-only" /> AC only</label>
+      </div>
       <div id="problem-list"></div>
     </div>
 
@@ -345,6 +348,7 @@
           document.getElementById("subtitle").textContent =
             `${allEntries.length} push(es) recorded`;
           renderOverview();
+          document.getElementById("overview-ac-only").onchange = renderOverview;
           populateHistoryFilters();
           populateDetailFilters();
         } catch (e) {
@@ -443,14 +447,30 @@
         const problems = getProblems(latest);
         const container = document.getElementById("problem-list");
         container.innerHTML = "";
+        const acOnly = document.getElementById("overview-ac-only").checked;
 
         for (const [problemDir, results] of [...problems.entries()].sort()) {
+          const allAc = results.every((r) => r.status === "AC");
+          if (acOnly && !allAc) continue;
+
           const files = [
             ...new Set(
               results.map((r) => getFilePathWithinProblem(r.file, problemDir)),
             ),
           ].sort();
-          const allAc = results.every((r) => r.status === "AC");
+
+          const filteredFiles = acOnly
+            ? files.filter((f) => {
+                const fullPath = `${problemDir}/${f}`;
+                return ENVS.every((env) => {
+                  const r = results.find(
+                    (x) => x.file === fullPath && x.environment === env,
+                  );
+                  return r && r.status === "AC";
+                });
+              })
+            : files;
+          if (acOnly && filteredFiles.length === 0) continue;
 
           const card = document.createElement("div");
           card.className = "problem-card";
@@ -461,10 +481,10 @@
         <span class="problem-name">${problemDir}</span>
         <span class="badge ${allAc ? "badge-ac" : "badge-fail"}">${allAc ? "All AC" : "FAIL"}</span>
       </div>
-      <div class="problem-files">${files.join(", ")}</div>
+      <div class="problem-files">${filteredFiles.join(", ")}</div>
       <table style="margin-top:10px">
         <tr><th>File</th>${ENVS.map((e) => `<th>${e}</th>`).join("")}</tr>
-        ${files
+        ${filteredFiles
           .map((f) => {
             const row = ENVS.map((env) => {
               const fullPath = `${problemDir}/${f}`;
@@ -561,16 +581,26 @@
           }
         }
 
+        // Compute best time per cases_hash group (AC only)
+        const bestByHash = {};
+        for (const h of history) {
+          if (h.status !== "AC" || !h.cases_hash || !h.time_max_ms) continue;
+          if (!(h.cases_hash in bestByHash) || h.time_max_ms < bestByHash[h.cases_hash]) {
+            bestByHash[h.cases_hash] = h.time_max_ms;
+          }
+        }
+
         // Chart
         const maxTime = Math.max(...history.map((h) => h.time_max_ms || 0), 1);
         const chartHtml = history
           .map((h) => {
             const pct = (((h.time_max_ms || 0) / maxTime) * 100).toFixed(1);
+            const isBest = h.status === "AC" && h.cases_hash && h.time_max_ms === bestByHash[h.cases_hash];
             const cls = h.status === "AC" ? "ac" : "fail";
             return `<div class="chart-row">
       <span class="chart-label">${h.sha_short}</span>
       <div class="chart-bar-bg">
-        <div class="chart-bar ${cls}" style="width:${pct}%">${formatTime(h.time_max_ms)}</div>
+        <div class="chart-bar ${cls}" style="width:${pct}%">${formatTime(h.time_max_ms)}${isBest ? " ★" : ""}</div>
       </div>
     </div>`;
           })
@@ -580,17 +610,28 @@
 
         // Table
         let tableHtml = `<table>
-    <tr><th>Push</th><th>Date</th><th>Status</th><th>Max Time</th><th>Max Memory</th><th>vs Prev</th></tr>`;
+    <tr><th>Push</th><th>Date</th><th>Status</th><th>Max Time</th><th>Max Memory</th><th>vs Prev</th><th>Best</th></tr>`;
         for (let i = 0; i < history.length; i++) {
           const h = history[i];
           let diff = "-";
           if (i > 0) {
             const prev = history[i - 1];
-            const d = (h.time_max_ms || 0) - (prev.time_max_ms || 0);
-            if (Math.abs(d) < 3) diff = '<span class="diff-same">=</span>';
-            else if (d > 0) diff = `<span class="diff-worse">+${d}ms</span>`;
-            else diff = `<span class="diff-better">${d}ms</span>`;
+            const casesChanged = h.cases_hash && prev.cases_hash && h.cases_hash !== prev.cases_hash;
+            if (casesChanged) {
+              diff = '<span class="diff-same" title="テストケースが変更されました">cases changed</span>';
+            } else {
+              const d = (h.time_max_ms || 0) - (prev.time_max_ms || 0);
+              if (Math.abs(d) < 3) diff = '<span class="diff-same">=</span>';
+              else if (d > 0) diff = `<span class="diff-worse">+${d}ms</span>`;
+              else diff = `<span class="diff-better">${d}ms</span>`;
+            }
           }
+          const isBest = h.status === "AC" && h.cases_hash && h.time_max_ms === bestByHash[h.cases_hash];
+          const bestCell = isBest
+            ? '<span class="diff-better">★ best</span>'
+            : (h.cases_hash && bestByHash[h.cases_hash] != null
+              ? formatTime(bestByHash[h.cases_hash])
+              : "-");
           tableHtml += `<tr>
       <td>${h.sha_short}</td>
       <td>${formatDate(h.timestamp)}</td>
@@ -598,6 +639,7 @@
       <td>${formatTime(h.time_max_ms)}</td>
       <td>${formatMemory(h.memory_max_kb)}</td>
       <td>${diff}</td>
+      <td>${bestCell}</td>
     </tr>`;
         }
         tableHtml += "</table>";

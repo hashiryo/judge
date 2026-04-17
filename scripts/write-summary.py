@@ -184,15 +184,21 @@ def main():
                         if prev is None:
                             row += " (new) |"
                             continue
-                        curr_ms = r.get("time_max_ms", 0)
-                        prev_ms = prev.get("time_max_ms", 0)
-                        diff_str = format_diff(curr_ms, prev_ms)
-                        curr_status = r.get("status", "?")
-                        prev_status = prev.get("status", "?")
-                        if curr_status != prev_status:
-                            row += f" {prev_status}→{curr_status} ({diff_str}) |"
+                        curr_hash = r.get("cases_hash", "")
+                        prev_hash = prev.get("cases_hash", "")
+                        cases_changed = curr_hash and prev_hash and curr_hash != prev_hash
+                        if cases_changed:
+                            row += " :recycle: cases changed |"
                         else:
-                            row += f" {diff_str} |"
+                            curr_ms = r.get("time_max_ms", 0)
+                            prev_ms = prev.get("time_max_ms", 0)
+                            diff_str = format_diff(curr_ms, prev_ms)
+                            curr_status = r.get("status", "?")
+                            prev_status = prev.get("status", "?")
+                            if curr_status != prev_status:
+                                row += f" {prev_status}→{curr_status} ({diff_str}) |"
+                            else:
+                                row += f" {diff_str} |"
                     print(row)
 
         print()
