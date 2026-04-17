@@ -24,9 +24,9 @@ private:
 signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
- constexpr MP_Br mp(998244353);
- u32 n, state, a, b;
- cin >> n >> state >> a >> b;
+ u32 n, mod, state, a, b;
+ cin >> n >> mod >> state >> a >> b;
+ MP_Br mp(mod);
  state= mp.set(state);
  a= mp.set(a);
  b= mp.set(b);
