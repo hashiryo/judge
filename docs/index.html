@@ -360,8 +360,7 @@
       function getProblems(entry) {
         const problems = new Map();
         for (const r of entry.results) {
-          const parts = r.file.split("/");
-          const key = parts.slice(0, 2).join("/");
+          const key = getProblemDir(r.file);
           if (!problems.has(key)) problems.set(key, []);
           problems.get(key).push(r);
         }
@@ -372,7 +371,7 @@
         const problems = new Set();
         for (const entry of allEntries) {
           for (const r of entry.results) {
-            problems.add(r.file.split("/").slice(0, 2).join("/"));
+            problems.add(getProblemDir(r.file));
           }
         }
         return [...problems].sort();
@@ -422,6 +421,20 @@
         return ` title="${escapeAttr(detail)}" style="cursor:help"`;
       }
 
+      function getProblemDir(filePath) {
+        const parts = String(filePath || "").split("/");
+        if (parts.length <= 1) return String(filePath || "");
+        return parts.slice(0, -1).join("/");
+      }
+
+      function getFilePathWithinProblem(filePath, problemDir) {
+        if (!filePath || !problemDir) return String(filePath || "");
+        const prefix = problemDir + "/";
+        return filePath.startsWith(prefix)
+          ? filePath.slice(prefix.length)
+          : String(filePath || "");
+      }
+
       // ============================================================
       // Overview tab
       // ============================================================
@@ -433,7 +446,9 @@
 
         for (const [problemDir, results] of [...problems.entries()].sort()) {
           const files = [
-            ...new Set(results.map((r) => r.file.split("/").pop())),
+            ...new Set(
+              results.map((r) => getFilePathWithinProblem(r.file, problemDir)),
+            ),
           ].sort();
           const allAc = results.every((r) => r.status === "AC");
 
@@ -452,13 +467,14 @@
         ${files
           .map((f) => {
             const row = ENVS.map((env) => {
+              const fullPath = `${problemDir}/${f}`;
               let r = results.find(
-                (x) => x.file.endsWith(f) && x.environment === env,
+                (x) => x.file === fullPath && x.environment === env,
               );
               if (!r)
                 r = results.find(
                   (x) =>
-                    x.file.endsWith(f) && !x.environment && x.status === "CE",
+                    x.file === fullPath && !x.environment && x.status === "CE",
                 );
               if (!r) return "<td>-</td>";
               const tip = tooltipAttr(r.detail);
@@ -517,7 +533,10 @@
         const fileSel = document.getElementById("history-file");
         const sorted = [...files].sort();
         fileSel.innerHTML = sorted
-          .map((f) => `<option value="${f}">${f.split("/").pop()}</option>`)
+          .map(
+            (f) =>
+              `<option value="${f}">${getFilePathWithinProblem(f, problem)}</option>`,
+          )
           .join("");
       }
 
@@ -620,7 +639,9 @@
           r.file.startsWith(problemDir + "/"),
         );
         const files = [
-          ...new Set(results.map((r) => r.file.split("/").pop())),
+          ...new Set(
+            results.map((r) => getFilePathWithinProblem(r.file, problemDir)),
+          ),
         ].sort();
 
         const container = document.getElementById("detail-content");
@@ -635,15 +656,16 @@
         let html = `<h3>${entry.sha_short} - ${formatDate(entry.timestamp)}</h3>`;
         html += `<table><tr><th>File</th>${ENVS.map((e) => `<th>${e}</th>`).join("")}</tr>`;
         for (const f of files) {
+          const fullPath = `${problemDir}/${f}`;
           html += `<tr><td>${f}</td>`;
           for (const env of ENVS) {
             let r = results.find(
-              (x) => x.file.endsWith(f) && x.environment === env,
+              (x) => x.file === fullPath && x.environment === env,
             );
             if (!r)
               r = results.find(
                 (x) =>
-                  x.file.endsWith(f) && !x.environment && x.status === "CE",
+                  x.file === fullPath && !x.environment && x.status === "CE",
               );
             if (!r) {
               html += "<td>-</td>";
@@ -662,10 +684,11 @@
 
         // Per-case detail for each file
         for (const f of files) {
+          const fullPath = `${problemDir}/${f}`;
           html += `<h3>${f} - Per Case</h3>`;
           // Pick one env's cases for case names
           const sample = results.find(
-            (x) => x.file.endsWith(f) && x.cases && x.cases.length > 0,
+            (x) => x.file === fullPath && x.cases && x.cases.length > 0,
           );
           if (!sample) {
             html += '<p style="color:var(--text2)">No case data</p>';
@@ -678,7 +701,7 @@
             html += `<tr><td>${cn}</td>`;
             for (const env of ENVS) {
               const r = results.find(
-                (x) => x.file.endsWith(f) && x.environment === env,
+                (x) => x.file === fullPath && x.environment === env,
               );
               const c =
                 r && r.cases ? r.cases.find((x) => x.name === cn) : null;
