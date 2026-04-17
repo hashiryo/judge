@@ -127,7 +127,8 @@ run_cpp_file() {
       --status "CE" \
       --last-execution-time "${EXECUTION_TIME}" \
       --compile-error-file "${compile_error_excerpt}" \
-      --cases-records /dev/null
+      --cases-records /dev/null \
+      --cases-hash "${CASES_HASH}"
     rm -f "${compile_error_excerpt}" "${binary}" "${compile_err}"
     return
   fi
@@ -178,7 +179,8 @@ run_cpp_file() {
     --environment "${ENV_NAME}" \
     --status "${overall_status}" \
     --last-execution-time "${EXECUTION_TIME}" \
-    --cases-records "${case_records_file}"
+    --cases-records "${case_records_file}" \
+    --cases-hash "${CASES_HASH}"
 
   rm -f "${case_records_file}" "${binary}"
 }
@@ -226,6 +228,10 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     echo "  [SKIP] No testcases available"
     continue
   fi
+
+  # テストケース入力ファイルの内容からハッシュを計算
+  CASES_HASH=$(find "${TC_DIRS[@]}" -name '*.in' -print0 | sort -z | xargs -0 cat 2>/dev/null | shasum -a 256 | cut -c1-16)
+
 
   for j in $(seq 0 $((FILE_COUNT - 1))); do
     FILENAME=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['problems'][$i]['files'][$j])")

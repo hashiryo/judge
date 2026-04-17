@@ -28,12 +28,12 @@ def add_handmade_cases() -> None:
 def add_random_cases() -> None:
     rng = random.Random(MOD)
     configs = [
-        ("rand_00", 1_000),
-        ("rand_01", 10_000),
-        ("mid_00", 1_000_000),
-        ("mid_01", 3_000_000),
-        ("heavy_00", 10_000_000),
-        ("heavy_01", 20_000_000),
+        ("rand_00", 10_000),
+        ("rand_01", 100_000),
+        ("mid_00", 10_000_000),
+        ("mid_01", 30_000_000),
+        ("heavy_00", 100_000_000),
+        ("heavy_01", 200_000_000),
     ]
     for name, n in configs:
         s = rng.randrange(MOD)
