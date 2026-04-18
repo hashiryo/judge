@@ -6,7 +6,7 @@ import random
 from pathlib import Path
 
 MIN_MOD = (1 << 20) + 1
-MAX_MOD = (1 << 32) - 1
+MAX_MOD = (1 << 31) - 1
 ROOT = Path(__file__).resolve().parent.parent
 TESTCASES_DIR = ROOT / "testcases"
 
