@@ -307,6 +307,7 @@
           >Env:
           <select id="history-env"></select
         ></label>
+        <label><input type="checkbox" id="history-ac-only" /> AC only</label>
       </div>
       <div id="history-chart"></div>
       <div id="history-table-container"></div>
@@ -539,6 +540,7 @@
         };
         document.getElementById("history-file").onchange = renderHistory;
         envSel.onchange = renderHistory;
+        document.getElementById("history-ac-only").onchange = renderHistory;
         renderHistory();
       }
 
@@ -565,6 +567,8 @@
         const env = document.getElementById("history-env").value;
         if (!file || !env) return;
 
+        const acOnly = document.getElementById("history-ac-only").checked;
+
         // Collect history for this file+env
         const history = [];
         for (const entry of allEntries) {
@@ -572,6 +576,7 @@
             (x) => x.file === file && x.environment === env,
           );
           if (r) {
+            if (acOnly && r.status !== "AC") continue;
             history.push({
               ...r,
               sha_short: entry.sha_short,
@@ -616,9 +621,11 @@
           let diff = "-";
           if (i > 0) {
             const prev = history[i - 1];
-            const casesChanged = h.cases_hash && prev.cases_hash && h.cases_hash !== prev.cases_hash;
-            if (casesChanged) {
+            const bothHaveHash = h.cases_hash && prev.cases_hash;
+            if (bothHaveHash && h.cases_hash !== prev.cases_hash) {
               diff = '<span class="diff-same" title="テストケースが変更されました">cases changed</span>';
+            } else if (!bothHaveHash) {
+              diff = '<span class="diff-same" title="cases_hash が不明のため比較不可">-</span>';
             } else {
               const d = (h.time_max_ms || 0) - (prev.time_max_ms || 0);
               if (Math.abs(d) < 3) diff = '<span class="diff-same">=</span>';
