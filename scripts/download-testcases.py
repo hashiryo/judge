@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """
 問題ディレクトリの problem.toml から judge URL を読み取り、テストケースをダウンロードする。
 自作テストケース (testcases/) も検出してキャッシュにコピーする。

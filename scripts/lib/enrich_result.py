@@ -1,3 +1,7 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """judge 固有の結果エントリ補強モジュール
 
 Library の build_result_entry が生成する基本エントリに、

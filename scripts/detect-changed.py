@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """
 変更された問題ディレクトリを検出し、同じ問題の全 .cpp ファイルを含めて出力する。
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """
 テスト結果から GitHub Step Summary 用の比較テーブルを生成する。
 

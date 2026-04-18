@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """
 問題のサンプルケースをダウンロードして testcases/ に保存する。
 

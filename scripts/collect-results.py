@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.12"
+# ///
 """
 各環境のテスト結果 JSON をマージして history.jsonl に1行追記する。
 
