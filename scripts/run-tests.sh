@@ -127,8 +127,7 @@ run_cpp_file() {
       --status "CE" \
       --last-execution-time "${EXECUTION_TIME}" \
       --compile-error-file "${compile_error_excerpt}" \
-      --cases-records /dev/null \
-      --cases-hash "${CASES_HASH}"
+      --cases-records /dev/null
     rm -f "${compile_error_excerpt}" "${binary}" "${compile_err}"
     return
   fi
@@ -179,8 +178,7 @@ run_cpp_file() {
     --environment "${ENV_NAME}" \
     --status "${overall_status}" \
     --last-execution-time "${EXECUTION_TIME}" \
-    --cases-records "${case_records_file}" \
-    --cases-hash "${CASES_HASH}"
+    --cases-records "${case_records_file}"
 
   rm -f "${case_records_file}" "${binary}"
 }
@@ -243,7 +241,7 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
 
     result_json=$(run_cpp_file "${CPP_FILE}" "${TC_DIRS[@]}")
     if [[ -n "${result_json}" ]]; then
-      echo "${result_json}" >> "${RESULT_JSONL}"
+      echo "${result_json}" | python3 "${ROOT}/scripts/lib/enrich_result.py" --cases-hash "${CASES_HASH}" >> "${RESULT_JSONL}"
     fi
   done
 done
