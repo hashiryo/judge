@@ -142,7 +142,7 @@ for cpp_file in "${CPP_FILES[@]}"; do
       if [[ "${case_status}" == "WA" ]]; then
         echo "    expected: $(head -1 "${expected_file}" | cut -c1-80)"
         actual_file=$(mktemp)
-        timeout 10 "${binary}" < "${input_file}" > "${actual_file}" 2>/dev/null || true
+        "${TIMEOUT_CMD}" 10 "${binary}" < "${input_file}" > "${actual_file}" 2>/dev/null || true
         echo "    actual:   $(head -1 "${actual_file}" | cut -c1-80)"
         rm -f "${actual_file}"
       fi

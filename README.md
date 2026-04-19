@@ -27,6 +27,21 @@ scripts/
   write-summary.py     # GHA: Step Summary 生成
 ```
 
+## セットアップ
+
+サブモジュール (Library) とその入れ子 (simde) を再帰的に取得する:
+
+```bash
+git submodule update --init --recursive
+```
+
+ローカルテストには `timeout` コマンドが必要。macOS は Homebrew の coreutils を入れる
+(入っていれば `gtimeout` として検出される):
+
+```bash
+brew install coreutils
+```
+
 ## 使い方
 
 ### 1. 問題ディレクトリを作る
