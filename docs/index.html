@@ -798,7 +798,7 @@
                 suffix = ` <span class="diff-muted">(+${d}ms)</span>`;
               }
             }
-            html += `<td${tooltip}><span class="${statusClass(r.status)}">${r.status}</span><br>${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}${suffix}</td>`;
+            html += `<td${tooltip}><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}${suffix}</td>`;
           }
           html += "</tr>";
         }
@@ -831,7 +831,7 @@
                 html += "<td>-</td>";
                 continue;
               }
-              html += `<td${tooltipAttr(c.detail)}><span class="${statusClass(c.status)}">${c.status}</span> ${formatTime(c.time_ms)}</td>`;
+              html += `<td${tooltipAttr(c.detail)}><span class="${statusClass(c.status)}">${c.status}</span> ${formatTime(c.time_ms)} / ${formatMemory(c.memory_kb)}</td>`;
             }
             html += "</tr>";
           }
