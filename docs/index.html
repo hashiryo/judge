@@ -730,6 +730,22 @@
           return;
         }
 
+        // 環境ごとに AC の最速時間を計算
+        const bestByEnv = {};
+        for (const env of ENVS) {
+          let best = null;
+          for (const f of files) {
+            const fullPath = `${problemDir}/${f}`;
+            const r = results.find(
+              (x) => x.file === fullPath && x.environment === env,
+            );
+            if (r && r.status === "AC" && typeof r.time_max_ms === "number") {
+              if (best === null || r.time_max_ms < best) best = r.time_max_ms;
+            }
+          }
+          bestByEnv[env] = best;
+        }
+
         // Summary table
         let html = `<h3>${entry.sha_short} - ${formatDate(entry.timestamp)}</h3>`;
         html += `<table><tr><th>File</th>${ENVS.map((e) => `<th>${e}</th>`).join("")}</tr>`;
@@ -754,7 +770,17 @@
               html += `<td${tooltip}><span class="${statusClass("CE")}">CE</span></td>`;
               continue;
             }
-            html += `<td${tooltip}><span class="${statusClass(r.status)}">${r.status}</span><br>${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}</td>`;
+            const best = bestByEnv[env];
+            let suffix = "";
+            if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
+              if (r.time_max_ms === best) {
+                suffix = ' <span class="diff-better">★</span>';
+              } else {
+                const d = r.time_max_ms - best;
+                suffix = ` <span class="diff-worse">(+${d}ms)</span>`;
+              }
+            }
+            html += `<td${tooltip}><span class="${statusClass(r.status)}">${r.status}</span><br>${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}${suffix}</td>`;
           }
           html += "</tr>";
         }
