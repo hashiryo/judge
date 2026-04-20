@@ -18,7 +18,7 @@ struct MP_Br {  // mod < 2^31
 private:
  u64 x;
  constexpr inline u32 quo(u64 n) const { return (u128(n) * x) >> 64; }
- constexpr inline u32 rem(u64 n) const { return n - u64(quo(n) - 1) * mod; }
+ constexpr inline u32 rem(u64 n) const { return n - u64(quo(n)) * mod + mod; }
 };
 signed main() {
  cin.tie(0);

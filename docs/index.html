@@ -151,6 +151,10 @@
       .diff-same {
         color: var(--text2);
       }
+      .diff-muted {
+        color: var(--text2);
+        font-size: 0.85em;
+      }
 
       /* Problem cards */
       .problem-card {
@@ -525,7 +529,7 @@
                   suffix = ' <span class="diff-better">★</span>';
                 } else {
                   const d = r.time_max_ms - best;
-                  suffix = ` <span class="diff-worse">(+${d}ms)</span>`;
+                  suffix = ` <span class="diff-muted">(+${d}ms)</span>`;
                 }
               }
               return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)}${suffix}</td>`;
