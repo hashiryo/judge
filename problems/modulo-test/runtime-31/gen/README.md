@@ -4,20 +4,20 @@
 
 反復は
 
-`s <- s * a + b (mod mod)`
+`s <- (a * s + b) * (c * s + d) (mod mod)`
 
 で、`mod` は毎ケースごとに与えられる。
 
 ## 入力
 
-1 行に 5 整数を与える。
+1 行に 7 整数を与える。
 
-`N mod s a b`
+`N mod s a b c d`
 
 - `0 <= N`
 - `2^20 < mod < 2^31`
 - `mod` は奇数
-- `0 <= s, a, b < mod`
+- `0 <= s, a, b, c, d < mod`
 
 ## 出力
 
