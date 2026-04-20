@@ -6,7 +6,7 @@ using u32= unsigned;
 using i64= long long;
 using u64= unsigned long long;
 using u128= __uint128_t;
-struct MP_D2B1 {  // mod < 2^31
+struct MP_D2B1 {  // mod < 2^32
  u32 mod;
  constexpr MP_D2B1(): mod(0), s(0), d(0), v(0) {}
  constexpr MP_D2B1(u32 m): mod(m), s(__builtin_clz(m)), d(m << s), v(u64(-1) / d) {}

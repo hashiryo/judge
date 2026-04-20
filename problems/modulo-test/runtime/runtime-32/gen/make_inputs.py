@@ -5,8 +5,8 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-MIN_MOD = (1 << 30) + 1
-MAX_MOD = (1 << 31) - 1
+MIN_MOD = (1 << 31) + 1
+MAX_MOD = (1 << 32) - 1
 ROOT = Path(__file__).resolve().parent.parent
 TESTCASES_DIR = ROOT / "testcases"
 
