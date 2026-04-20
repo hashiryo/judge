@@ -25,12 +25,14 @@ signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
  constexpr MP_Mo32 mp(998244353);
- u32 n, state, a, b;
- cin >> n >> state >> a >> b;
+ u32 n, state, a, b, c, d;
+ cin >> n >> state >> a >> b >> c >> d;
  state= mp.set(state);
  a= mp.set(a);
  b= mp.set(b);
- for(int i= 0; i < n; ++i) state= mp.plus(mp.mul(state, a), b);
+ c= mp.set(c);
+ d= mp.set(d);
+ for(int i= 0; i < n; ++i) state= mp.mul(mp.plus(mp.mul(state, a), b), mp.plus(mp.mul(state, c), d));
  state= mp.get(state);
  cout << state << '\n';
  return 0;

@@ -10,19 +10,19 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTCASES_DIR = ROOT / "testcases"
 
 
-def write_case(name: str, n: int, s: int, a: int, b: int) -> None:
+def write_case(name: str, n: int, s: int, a: int, b: int, c: int, d: int) -> None:
     TESTCASES_DIR.mkdir(parents=True, exist_ok=True)
     path = TESTCASES_DIR / f"{name}.in"
-    path.write_text(f"{n} {s} {a} {b}\n")
+    path.write_text(f"{n} {s} {a} {b} {c} {d}\n")
 
 
 def add_handmade_cases() -> None:
-    write_case("small_00", 0, 0, 0, 0)
-    write_case("small_01", 1, 1, 0, 0)
-    write_case("small_02", 5, 1, 1, 1)
-    write_case("edge_00", 20, MOD - 1, MOD - 1, 0)
-    write_case("edge_01", 20, MOD - 1, 1, MOD - 1)
-    write_case("edge_02", 100, 123456789, 0, MOD - 1)
+    write_case("small_00", 0, 0, 0, 0, 0, 0)
+    write_case("small_01", 1, 1, 0, 0, 0, 0)
+    write_case("small_02", 5, 1, 1, 1, 1, 1)
+    write_case("edge_00", 20, MOD - 1, MOD - 1, 0, MOD - 1, 0)
+    write_case("edge_01", 20, MOD - 1, 1, MOD - 1, 1, MOD - 1)
+    write_case("edge_02", 100, 123456789, 0, MOD - 1, 0, MOD - 1)
 
 
 def add_random_cases() -> None:
@@ -39,7 +39,9 @@ def add_random_cases() -> None:
         s = rng.randrange(MOD)
         a = rng.randrange(MOD)
         b = rng.randrange(MOD)
-        write_case(name, n, s, a, b)
+        c = rng.randrange(MOD)
+        d = rng.randrange(MOD)
+        write_case(name, n, s, a, b, c, d)
 
 
 def main() -> None:

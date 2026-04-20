@@ -19,20 +19,20 @@ def normalize_mod(mod: int) -> int:
     return mod
 
 
-def write_case(name: str, n: int, mod: int, s: int, a: int, b: int) -> None:
+def write_case(name: str, n: int, mod: int, s: int, a: int, b: int, c: int, d: int) -> None:
     TESTCASES_DIR.mkdir(parents=True, exist_ok=True)
     mod = normalize_mod(mod)
     path = TESTCASES_DIR / f"{name}.in"
-    path.write_text(f"{n} {mod} {s % mod} {a % mod} {b % mod}\n")
+    path.write_text(f"{n} {mod} {s % mod} {a % mod} {b % mod} {c % mod} {d % mod}\n")
 
 
 def add_handmade_cases() -> None:
-    write_case("small_00", 0, MIN_MOD, 0, 0, 0)
-    write_case("small_01", 1, MIN_MOD, 1, 0, 0)
-    write_case("small_02", 5, MIN_MOD, 1, 1, 1)
-    write_case("edge_00", 20, MIN_MOD, MIN_MOD - 1, MIN_MOD - 1, 0)
-    write_case("edge_01", 20, MAX_MOD, MAX_MOD - 1, 1, MAX_MOD - 2)
-    write_case("edge_02", 100, MAX_MOD, 123456789, 0, MAX_MOD - 1)
+    write_case("small_00", 0, MIN_MOD, 0, 0, 0, 0, 0)
+    write_case("small_01", 1, MIN_MOD, 1, 0, 0, 0, 0)
+    write_case("small_02", 5, MIN_MOD, 1, 1, 1, 1, 1)
+    write_case("edge_00", 20, MIN_MOD, MIN_MOD - 1, MIN_MOD - 1, 0, MIN_MOD - 1, 0)
+    write_case("edge_01", 20, MAX_MOD, MAX_MOD - 1, 1, MAX_MOD - 2, 1, MAX_MOD - 2)
+    write_case("edge_02", 100, MAX_MOD, 123456789, 0, MAX_MOD - 1, 0, MAX_MOD - 1)
 
 
 def sample_mod(rng: random.Random) -> int:
@@ -55,7 +55,9 @@ def add_random_cases() -> None:
         s = rng.randrange(mod)
         a = rng.randrange(mod)
         b = rng.randrange(mod)
-        write_case(name, n, mod, s, a, b)
+        c = rng.randrange(mod)
+        d = rng.randrange(mod)
+        write_case(name, n, mod, s, a, b, c, d)
 
 
 def main() -> None:
