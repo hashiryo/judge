@@ -5,7 +5,7 @@ using u32= unsigned;
 using i64= long long;
 using u64= unsigned long long;
 using u128= __uint128_t;
-struct MP_Br {  // mod < 2^31
+struct MP_Br {  // mod < 2^30
  u32 mod;
  constexpr MP_Br(): mod(0), x(0) {}
  constexpr MP_Br(u32 m): mod(m), x((u128(1) << 64) / m) {}

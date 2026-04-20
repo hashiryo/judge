@@ -5,7 +5,7 @@ using u32= unsigned;
 using i64= long long;
 using u64= unsigned long long;
 using u128= __uint128_t;
-template <class u_t, class du_t, u8 B> struct MP_Mo {  // mod < 2^31, mod < 2^62
+template <class u_t, class du_t, u8 B> struct MP_Mo {  // mod < 2^30, mod < 2^62
  u_t mod;
  constexpr MP_Mo(): mod(0), iv(0), r2(0) {}
  constexpr MP_Mo(u_t m): mod(m), iv(inv(m)), r2(-du_t(mod) % mod) {}
