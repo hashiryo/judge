@@ -5,7 +5,7 @@ using u32= unsigned;
 using i64= long long;
 using u64= unsigned long long;
 using u128= __uint128_t;
-struct MP_Br {  // mod < 2^30
+struct MP_Br {  // mod < 2^31
  u32 mod;
  constexpr MP_Br(): mod(0), x(0) {}
  constexpr MP_Br(u32 m): mod(m), x((u128(1) << 64) / m) {}
@@ -13,12 +13,15 @@ struct MP_Br {  // mod < 2^30
  static constexpr inline u32 set(u32 n) { return n; }
  constexpr inline u32 get(u32 n) const { return n >= mod ? n - mod : n; }
  constexpr inline u32 norm(u32 n) const { return n >= mod ? n - mod : n; }
- constexpr inline u32 plus(u32 l, u32 r) const { return l+= r, l < (mod << 1) ? l : l - (mod << 1); }
- constexpr inline u32 diff(u32 l, u32 r) const { return l-= r, l >> 31 ? l + (mod << 1) : l; }
+ constexpr inline u32 plus(u32 l, u32 r) const { return l+= r, l < mod ? l : l - mod; }
+ constexpr inline u32 diff(u32 l, u32 r) const { return l-= r, l >> 31 ? l + mod : l; }
 private:
  u64 x;
  constexpr inline u32 quo(u64 n) const { return (u128(n) * x) >> 64; }
- constexpr inline u32 rem(u64 n) const { return n - u64(quo(n)) * mod; }
+ constexpr inline u32 rem(u64 n) const {
+  u32 r= n - u64(quo(n)) * mod;
+  return r-= -u32(r >= mod) & mod;
+ }
 };
 signed main() {
  cin.tie(0);
