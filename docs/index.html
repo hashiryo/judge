@@ -473,6 +473,22 @@
             : files;
           if (acOnly && filteredFiles.length === 0) continue;
 
+          // 環境ごとに AC の最速時間を計算
+          const bestByEnv = {};
+          for (const env of ENVS) {
+            let best = null;
+            for (const f of filteredFiles) {
+              const fullPath = `${problemDir}/${f}`;
+              const r = results.find(
+                (x) => x.file === fullPath && x.environment === env,
+              );
+              if (r && r.status === "AC" && typeof r.time_max_ms === "number") {
+                if (best === null || r.time_max_ms < best) best = r.time_max_ms;
+              }
+            }
+            bestByEnv[env] = best;
+          }
+
           const card = document.createElement("div");
           card.className = "problem-card";
           card.onclick = () => showProblemDetail(problemDir);
@@ -499,7 +515,20 @@
                 );
               if (!r) return "<td>-</td>";
               const tip = tooltipAttr(r.detail);
-              return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span>${r.status === "CE" ? "" : " " + formatTime(r.time_max_ms)}</td>`;
+              if (r.status === "CE") {
+                return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span></td>`;
+              }
+              const best = bestByEnv[env];
+              let suffix = "";
+              if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
+                if (r.time_max_ms === best) {
+                  suffix = ' <span class="diff-better">★</span>';
+                } else {
+                  const d = r.time_max_ms - best;
+                  suffix = ` <span class="diff-worse">(+${d}ms)</span>`;
+                }
+              }
+              return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)}${suffix}</td>`;
             }).join("");
             return `<tr><td>${f}</td>${row}</tr>`;
           })
