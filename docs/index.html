@@ -321,12 +321,12 @@
     <div id="detail" class="tab-content">
       <div class="filters">
         <label
-          >Push:
-          <select id="detail-push"></select
-        ></label>
-        <label
           >Problem:
           <select id="detail-problem"></select
+        ></label>
+        <label
+          >Push:
+          <select id="detail-push"></select
         ></label>
       </div>
       <div id="detail-content"></div>
@@ -691,24 +691,38 @@
       // Detail tab
       // ============================================================
       function populateDetailFilters() {
-        const pushSel = document.getElementById("detail-push");
-        pushSel.innerHTML = allEntries
-          .map(
-            (e, i) =>
-              `<option value="${i}">${e.sha_short} (${formatDate(e.timestamp)})</option>`,
-          )
-          .reverse()
-          .join("");
-
         const problems = getAllProblems();
         const problemSel = document.getElementById("detail-problem");
         problemSel.innerHTML = problems
           .map((p) => `<option value="${p}">${p}</option>`)
           .join("");
 
-        pushSel.onchange = renderDetail;
-        problemSel.onchange = renderDetail;
+        problemSel.onchange = () => {
+          updateDetailPushes();
+          renderDetail();
+        };
+        document.getElementById("detail-push").onchange = renderDetail;
+
+        updateDetailPushes();
         renderDetail();
+      }
+
+      function updateDetailPushes() {
+        const problemDir = document.getElementById("detail-problem").value;
+        const pushSel = document.getElementById("detail-push");
+        const options = [];
+        for (let i = 0; i < allEntries.length; i++) {
+          const e = allEntries[i];
+          const hasResults = e.results.some((r) =>
+            r.file.startsWith(problemDir + "/"),
+          );
+          if (hasResults) {
+            options.push(
+              `<option value="${i}">${e.sha_short} (${formatDate(e.timestamp)})</option>`,
+            );
+          }
+        }
+        pushSel.innerHTML = options.reverse().join("");
       }
 
       function renderDetail() {
