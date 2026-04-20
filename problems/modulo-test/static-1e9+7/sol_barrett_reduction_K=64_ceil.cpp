@@ -8,7 +8,7 @@ using u128= __uint128_t;
 struct MP_Br {  // mod < 2^31
  u32 mod;
  constexpr MP_Br(): mod(0), x(0) {}
- constexpr MP_Br(u32 m): mod(m), x((u128(1) << 64) / m) {}
+ constexpr MP_Br(u32 m): mod(m), x(u64(-1) / m + 1) {}
  constexpr inline u32 mul(u32 l, u32 r) const { return rem(u64(l) * r); }
  static constexpr inline u32 set(u32 n) { return n; }
  constexpr inline u32 get(u32 n) const { return n >= mod ? n - mod : n; }
@@ -18,14 +18,14 @@ struct MP_Br {  // mod < 2^31
 private:
  u64 x;
  constexpr inline u32 quo(u64 n) const { return (u128(n) * x) >> 64; }
- constexpr inline u32 rem(u64 n) const { return n - u64(quo(n)) * mod; }
+ constexpr inline u32 rem(u64 n) const { return n - u64(quo(n) - 1) * mod; }
 };
 signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
- u32 n, mod, state, a, b;
- cin >> n >> mod >> state >> a >> b;
- MP_Br mp(mod);
+ constexpr MP_Br mp(int(1e9 + 7));
+ u32 n, state, a, b;
+ cin >> n >> state >> a >> b;
  state= mp.set(state);
  a= mp.set(a);
  b= mp.set(b);
