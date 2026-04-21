@@ -117,6 +117,9 @@
       tr:hover td {
         background: rgba(88, 166, 255, 0.05);
       }
+      .env-group-start {
+        border-left: 2px solid var(--border);
+      }
 
       .status-ac {
         color: var(--green);
@@ -766,7 +769,9 @@
 
         // Summary table
         let html = `<h3>${entry.sha_short} - ${formatDate(entry.timestamp)}</h3>`;
-        html += `<table><tr><th>File</th>${ENVS.map((e) => `<th>${e}</th>`).join("")}</tr>`;
+        html += `<table>`;
+        html += `<tr><th rowspan="2">File</th>${ENVS.map((e) => `<th colspan="3" class="env-group-start">${e}</th>`).join("")}</tr>`;
+        html += `<tr>${ENVS.map(() => `<th class="env-group-start">Status</th><th>Time</th><th>Memory</th>`).join("")}</tr>`;
         for (const f of files) {
           const fullPath = `${problemDir}/${f}`;
           html += `<tr><td>${f}</td>`;
@@ -780,25 +785,25 @@
                   x.file === fullPath && !x.environment && x.status === "CE",
               );
             if (!r) {
-              html += "<td>-</td>";
+              html += `<td class="env-group-start">-</td><td>-</td><td>-</td>`;
               continue;
             }
             const tooltip = tooltipAttr(r.detail);
             if (r.status === "CE") {
-              html += `<td${tooltip}><span class="${statusClass("CE")}">CE</span></td>`;
+              html += `<td${tooltip} class="env-group-start"><span class="${statusClass("CE")}">CE</span></td><td>-</td><td>-</td>`;
               continue;
             }
             const best = bestByEnv[env];
-            let suffix = "";
+            let timeCell = formatTime(r.time_max_ms);
             if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
               if (r.time_max_ms === best) {
-                suffix = ' <span class="diff-better">★</span>';
+                timeCell += ' <span class="diff-better">★</span>';
               } else {
                 const d = r.time_max_ms - best;
-                suffix = ` <span class="diff-muted">(+${d}ms)</span>`;
+                timeCell += ` <span class="diff-muted">(+${d}ms)</span>`;
               }
             }
-            html += `<td${tooltip}><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)} / ${formatMemory(r.memory_max_kb)}${suffix}</td>`;
+            html += `<td${tooltip} class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td>${timeCell}</td><td>${formatMemory(r.memory_max_kb)}</td>`;
           }
           html += "</tr>";
         }
@@ -818,7 +823,9 @@
           }
 
           const caseNames = sample.cases.map((c) => c.name);
-          html += `<table><tr><th>Case</th>${ENVS.map((e) => `<th>${e}</th>`).join("")}</tr>`;
+          html += `<table>`;
+          html += `<tr><th rowspan="2">Case</th>${ENVS.map((e) => `<th colspan="3" class="env-group-start">${e}</th>`).join("")}</tr>`;
+          html += `<tr>${ENVS.map(() => `<th class="env-group-start">Status</th><th>Time</th><th>Memory</th>`).join("")}</tr>`;
           for (const cn of caseNames) {
             html += `<tr><td>${cn}</td>`;
             for (const env of ENVS) {
@@ -828,10 +835,10 @@
               const c =
                 r && r.cases ? r.cases.find((x) => x.name === cn) : null;
               if (!c) {
-                html += "<td>-</td>";
+                html += `<td class="env-group-start">-</td><td>-</td><td>-</td>`;
                 continue;
               }
-              html += `<td${tooltipAttr(c.detail)}><span class="${statusClass(c.status)}">${c.status}</span> ${formatTime(c.time_ms)} / ${formatMemory(c.memory_kb)}</td>`;
+              html += `<td${tooltipAttr(c.detail)} class="env-group-start"><span class="${statusClass(c.status)}">${c.status}</span></td><td>${formatTime(c.time_ms)}</td><td>${formatMemory(c.memory_kb)}</td>`;
             }
             html += "</tr>";
           }
