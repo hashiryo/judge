@@ -24,7 +24,7 @@ using MP_Mo64= MP_Mo<u64, u128, 64>;
 signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
- constexpr MP_Mo64 mp(998244353);
+ constexpr MP_Mo64 mp((1u << 31) - 1);
  u64 n, state, a, b, c, d;
  cin >> n >> state >> a >> b >> c >> d;
  state= mp.set(state);
