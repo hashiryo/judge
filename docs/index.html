@@ -284,6 +284,9 @@
   <body>
     <h1>Judge Dashboard</h1>
     <p class="subtitle" id="subtitle">Loading...</p>
+    <div class="filters" id="global-filters" style="display:none">
+      <label><input type="checkbox" id="show-archived" /> Show archived problems</label>
+    </div>
 
     <div class="tabs">
       <div class="tab active" data-tab="overview">Overview</div>
@@ -358,6 +361,15 @@
           if (allEntries.length === 0) throw new Error("No data");
           document.getElementById("subtitle").textContent =
             `${allEntries.length} push(es) recorded`;
+          // active_problems が記録されているエントリがある場合のみトグル表示
+          if (getActiveProblems() !== null) {
+            document.getElementById("global-filters").style.display = "";
+            document.getElementById("show-archived").onchange = (e) => {
+              showArchived = e.target.checked;
+              populateHistoryFilters();
+              populateDetailFilters();
+            };
+          }
           renderOverview();
           document.getElementById("overview-ac-only").onchange = renderOverview;
           populateHistoryFilters();
@@ -390,6 +402,27 @@
           }
         }
         return [...problems].sort();
+      }
+
+      // 最新 push 時点でアクティブな問題ディレクトリ一覧を返す。
+      // active_problems が記録されていない古いエントリのみの場合は null。
+      function getActiveProblems() {
+        for (let i = allEntries.length - 1; i >= 0; i--) {
+          const ap = allEntries[i].active_problems;
+          if (Array.isArray(ap)) return new Set(ap);
+        }
+        return null;
+      }
+
+      // アーカイブ表示トグルの状態 (UI 初期値は false)
+      let showArchived = false;
+
+      function getVisibleProblems() {
+        const all = getAllProblems();
+        if (showArchived) return all;
+        const active = getActiveProblems();
+        if (active === null) return all;
+        return all.filter((p) => active.has(p));
       }
 
       function getAllFiles() {
@@ -561,7 +594,7 @@
       // History tab
       // ============================================================
       function populateHistoryFilters() {
-        const problems = getAllProblems();
+        const problems = getVisibleProblems();
         const problemSel = document.getElementById("history-problem");
         problemSel.innerHTML = problems
           .map((p) => `<option value="${p}">${p}</option>`)
@@ -697,7 +730,7 @@
       // Detail tab
       // ============================================================
       function populateDetailFilters() {
-        const problems = getAllProblems();
+        const problems = getVisibleProblems();
         const problemSel = document.getElementById("detail-problem");
         problemSel.innerHTML = problems
           .map((p) => `<option value="${p}">${p}</option>`)

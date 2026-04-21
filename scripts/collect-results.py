@@ -18,6 +18,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RESULT_DIR = ROOT / ".cache" / "results"
 HISTORY_FILE = ROOT / ".results" / "history.jsonl"
+PROBLEMS_DIR = ROOT / "problems"
+
+
+def list_active_problems() -> list[str]:
+    """problem.toml を持つディレクトリをアクティブな問題として列挙する。"""
+    if not PROBLEMS_DIR.exists():
+        return []
+    dirs: list[str] = []
+    for toml_file in PROBLEMS_DIR.rglob("problem.toml"):
+        rel = toml_file.parent.relative_to(ROOT)
+        dirs.append(str(rel))
+    return sorted(dirs)
 
 
 def get_git_info() -> dict:
@@ -69,6 +81,7 @@ def main():
         "sha": git_info["sha"],
         "sha_short": git_info["sha_short"],
         "ref": git_info["ref"],
+        "active_problems": list_active_problems(),
         "results": all_results,
     }
 
