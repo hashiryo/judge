@@ -9,7 +9,7 @@ struct MP_Na {  // mod < 2^64
  u64 mod;
  constexpr MP_Na(): mod(0) {}
  constexpr MP_Na(u64 m): mod(m) {}
- constexpr inline u64 mul(u64 l, u64 r) const { return u64(l) * r % mod; }
+ constexpr inline u64 mul(u64 l, u64 r) const { return u128(l) * r % mod; }
  constexpr inline u64 set(u64 n) const { return n; }
  constexpr inline u64 get(u64 n) const { return n; }
  constexpr inline u64 norm(u64 n) const { return n; }

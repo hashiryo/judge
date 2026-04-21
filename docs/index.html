@@ -587,6 +587,9 @@
         switchTab("detail");
         const sel = document.getElementById("detail-problem");
         sel.value = problemDir;
+        detailSortEnv = null;
+        detailSortDir = "asc";
+        updateDetailPushes();
         renderDetail();
       }
 
