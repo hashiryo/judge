@@ -338,6 +338,9 @@
     <script>
       const ENVS = ["x64-g++", "x64-clang++", "arm-g++", "arm-clang++"];
       let allEntries = [];
+      // Detail タブの Summary テーブルのソート状態
+      let detailSortEnv = null; // null = File名順。env名文字列ならその環境の Time でソート
+      let detailSortDir = "asc"; // "asc" | "desc"
 
       // ============================================================
       // Data loading
@@ -701,6 +704,8 @@
           .join("");
 
         problemSel.onchange = () => {
+          detailSortEnv = null;
+          detailSortDir = "asc";
           updateDetailPushes();
           renderDetail();
         };
@@ -767,12 +772,39 @@
           bestByEnv[env] = best;
         }
 
+        // ソート: detailSortEnv が null なら File 名順、それ以外なら指定 env の Time でソート
+        // 非 AC / 未計測は常に末尾
+        const sortedFiles = files.slice();
+        if (detailSortEnv) {
+          sortedFiles.sort((fa, fb) => {
+            const ra = results.find(
+              (x) => x.file === `${problemDir}/${fa}` && x.environment === detailSortEnv,
+            );
+            const rb = results.find(
+              (x) => x.file === `${problemDir}/${fb}` && x.environment === detailSortEnv,
+            );
+            const sortable = (r) =>
+              r && r.status === "AC" && typeof r.time_max_ms === "number";
+            const sa = sortable(ra);
+            const sb = sortable(rb);
+            if (sa && !sb) return -1;
+            if (!sa && sb) return 1;
+            if (!sa && !sb) return fa.localeCompare(fb);
+            const diff = ra.time_max_ms - rb.time_max_ms;
+            return detailSortDir === "asc" ? diff : -diff;
+          });
+        }
+        const sortIndicator = (env) => {
+          if (detailSortEnv !== env) return "";
+          return detailSortDir === "asc" ? " ↑" : " ↓";
+        };
+
         // Summary table
         let html = `<h3>${entry.sha_short} - ${formatDate(entry.timestamp)}</h3>`;
         html += `<table>`;
         html += `<tr><th rowspan="2">File</th>${ENVS.map((e) => `<th colspan="3" class="env-group-start">${e}</th>`).join("")}</tr>`;
-        html += `<tr>${ENVS.map(() => `<th class="env-group-start">Status</th><th>Time</th><th>Memory</th>`).join("")}</tr>`;
-        for (const f of files) {
+        html += `<tr>${ENVS.map((e) => `<th class="env-group-start">Status</th><th class="detail-sort-time" data-env="${e}" style="cursor:pointer" title="Time でソート">Time${sortIndicator(e)}</th><th>Memory</th>`).join("")}</tr>`;
+        for (const f of sortedFiles) {
           const fullPath = `${problemDir}/${f}`;
           html += `<tr><td>${f}</td>`;
           for (const env of ENVS) {
@@ -810,7 +842,7 @@
         html += "</table>";
 
         // Per-case detail for each file
-        for (const f of files) {
+        for (const f of sortedFiles) {
           const fullPath = `${problemDir}/${f}`;
           html += `<h3>${f} - Per Case</h3>`;
           // Pick one env's cases for case names
@@ -846,6 +878,20 @@
         }
 
         container.innerHTML = html;
+
+        // Time ヘッダーにソート切り替えのクリックハンドラを付与
+        container.querySelectorAll(".detail-sort-time").forEach((th) => {
+          th.onclick = () => {
+            const env = th.dataset.env;
+            if (detailSortEnv === env) {
+              detailSortDir = detailSortDir === "asc" ? "desc" : "asc";
+            } else {
+              detailSortEnv = env;
+              detailSortDir = "asc";
+            }
+            renderDetail();
+          };
+        });
       }
 
       // ============================================================
