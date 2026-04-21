@@ -860,15 +860,17 @@
             }
             const best = bestByEnv[env];
             let timeCell = formatTime(r.time_max_ms);
+            let timeTip = "";
             if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
               if (r.time_max_ms === best) {
                 timeCell += ' <span class="diff-better">★</span>';
+                timeTip = ` title="best"`;
               } else {
                 const d = r.time_max_ms - best;
-                timeCell += ` <span class="diff-muted">(+${d}ms)</span>`;
+                timeTip = ` title="+${d}ms from best (${formatTime(best)})"`;
               }
             }
-            html += `<td${tooltip} class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td>${timeCell}</td><td>${formatMemory(r.memory_max_kb)}</td>`;
+            html += `<td${tooltip} class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td${timeTip} style="cursor:help">${timeCell}</td><td>${formatMemory(r.memory_max_kb)}</td>`;
           }
           html += "</tr>";
         }
