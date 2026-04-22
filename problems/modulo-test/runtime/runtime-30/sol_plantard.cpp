@@ -18,7 +18,7 @@ struct MP_Pl {  // mod < 2^32/phi
  constexpr inline u32 diff(u32 l, u32 r) const { return l-= r, l >> 31 ? l + mod : l; }
 private:
  u64 iv, r2;
- static constexpr u32 inv(u32 n, int e= 6, u32 x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
+ static constexpr u64 inv(u64 n, int e= 6, u64 x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
  constexpr inline u32 reduce(u64 w) const { return (u64(u32((w * iv) >> 32) + 1) * mod) >> 32; }
 };
 signed main() {
