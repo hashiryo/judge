@@ -18,7 +18,7 @@ template <class u_t, class du_t, u8 B> struct MP_Mo {  // mod < 2^30, mod < 2^62
 private:
  u_t iv, r2;
  static constexpr u_t inv(u_t n, int e= 6, u_t x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
- constexpr inline u_t reduce(const du_t& w) const { return u_t(w >> B) + mod - ((du_t(u_t(w) * iv) * mod) >> B); }
+ constexpr inline u_t reduce(const du_t& w) const { return u_t(w >> B) + mod - u_t((u_t(u_t(w) * iv) * du_t(mod)) >> B); }
 };
 using MP_Mo64= MP_Mo<u64, u128, 64>;
 signed main() {
