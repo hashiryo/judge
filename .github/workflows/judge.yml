@@ -107,33 +107,45 @@ jobs:
         env:
           - {
               os: ubuntu-24.04,
-              cxx: g++-13,
+              image: "gcc:15.2.0",
+              cxx: g++,
               name: x64-g++,
-              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -mavx2",
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread",
             }
           - {
               os: ubuntu-24.04,
-              cxx: clang++-18,
+              image: "silkeh/clang:21",
+              cxx: clang++,
               name: x64-clang++,
-              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -mavx2",
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024",
             }
           - {
               os: ubuntu-24.04-arm,
-              cxx: g++-13,
+              image: "gcc:15.2.0",
+              cxx: g++,
               name: arm-g++,
-              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
             }
           - {
               os: ubuntu-24.04-arm,
-              cxx: clang++-18,
+              image: "silkeh/clang:21",
+              cxx: clang++,
               name: arm-clang++,
-              cxxflags: "-std=c++17 -Wall -Wextra -O2 -mtune=native -march=native -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
             }
     runs-on: ${{ matrix.env.os }}
+    container: ${{ matrix.env.image }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
+      - name: Record runner CPU
+        run: |
+          echo "::group::CPU info"
+          (grep -m1 'model name' /proc/cpuinfo || grep -m1 'Model' /proc/cpuinfo || uname -m) || true
+          ${{ matrix.env.cxx }} --version || true
+          echo "::endgroup::"
 
       - name: Set up Python
         uses: actions/setup-python@v5
