@@ -158,8 +158,19 @@ jobs:
       - name: Record runner CPU
         run: |
           echo "::group::CPU info"
-          (grep -m1 'model name' /proc/cpuinfo || grep -m1 'Model' /proc/cpuinfo || uname -m) || true
-          ${{ matrix.env.cxx }} --version || true
+          cpu_model=$(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //' \
+            || grep -m1 'Model' /proc/cpuinfo | sed 's/.*: //' \
+            || uname -m)
+          cpu_arch=$(uname -m)
+          compiler_version=$(${{ matrix.env.cxx }} --version 2>/dev/null | head -1 || echo "")
+          echo "cpu_model=${cpu_model}"
+          echo "cpu_arch=${cpu_arch}"
+          echo "compiler_version=${compiler_version}"
+          {
+            echo "RUNNER_CPU_MODEL=${cpu_model}"
+            echo "RUNNER_CPU_ARCH=${cpu_arch}"
+            echo "COMPILER_VERSION=${compiler_version}"
+          } >> "$GITHUB_ENV"
           echo "::endgroup::"
 
       - name: Set up Python
@@ -179,6 +190,9 @@ jobs:
           CXXFLAGS: ${{ matrix.env.cxxflags }}
           ENV_NAME: ${{ matrix.env.name }}
           PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
+          RUNNER_CPU_MODEL: ${{ env.RUNNER_CPU_MODEL }}
+          RUNNER_CPU_ARCH: ${{ env.RUNNER_CPU_ARCH }}
+          COMPILER_VERSION: ${{ env.COMPILER_VERSION }}
         run: bash scripts/run-tests.sh
 
       - name: Upload results
