@@ -34,6 +34,19 @@ def add_handmade_cases() -> None:
     write_case("edge_01", 20, MAX_MOD, MAX_MOD - 1, 1, MAX_MOD - 2, 1, MAX_MOD - 2)
     write_case("edge_02", 100, MAX_MOD, 123456789, 0, MAX_MOD - 1, 0, MAX_MOD - 1)
 
+def add_fix_mod_random_cases() -> None:
+    rng = random.Random(32)
+    configs = [
+        ("heavy_998", 200_000_000, 998244353),
+        ("heavy_1e9%2B7", 200_000_000, 1_000_000_007),
+    ]
+    for name, n, mod in configs:
+        s = rng.randrange(mod)
+        a = rng.randrange(mod)
+        b = rng.randrange(mod)
+        c = rng.randrange(mod)
+        d = rng.randrange(mod)
+        write_case(name, n, mod, s, a, b, c, d)
 
 def sample_mod(rng: random.Random) -> int:
     mod = rng.randrange(MIN_MOD, MAX_MOD + 1)

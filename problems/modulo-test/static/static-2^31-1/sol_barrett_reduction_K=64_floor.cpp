@@ -8,7 +8,7 @@ using u128= __uint128_t;
 struct MP_Br {  // mod < 2^31
  u32 mod;
  constexpr MP_Br(): mod(0), x(0) {}
- constexpr MP_Br(u32 m): mod(m), x((u128(1) << 64) / m) {}
+ constexpr MP_Br(u32 m): mod(m), x(-u64(m) / m + 1) {}
  constexpr inline u32 mul(u32 l, u32 r) const { return rem(u64(l) * r); }
  static constexpr inline u32 set(u32 n) { return n; }
  constexpr inline u32 get(u32 n) const { return n >= mod ? n - mod : n; }
