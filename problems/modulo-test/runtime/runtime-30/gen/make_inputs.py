@@ -49,6 +49,8 @@ def add_random_cases() -> None:
         ("mid_01", 30_000_000),
         ("heavy_00", 100_000_000),
         ("heavy_01", 200_000_000),
+        ("heavy_02", 200_000_000),
+        ("heavy_03", 200_000_000),
     ]
     for name, n in configs:
         mod = sample_mod(rng)

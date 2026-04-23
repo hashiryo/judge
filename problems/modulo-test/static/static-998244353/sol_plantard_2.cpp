@@ -11,7 +11,7 @@ struct MP_Pl {  // mod < 2^32/phi
  constexpr MP_Pl(): mod(0), iv(0), r2(0) {}
  constexpr MP_Pl(u32 m): mod(m), iv(inv(m)), r2(-u128(mod) % mod) {}
  constexpr inline u32 mul(u32 l, u32 r) const { return reduce(u64(l) * r); }
- constexpr inline u32 set(u32 n) const { return mul(n, r2); }
+ constexpr inline u32 set(u32 n) const { return mul(n, r2); }  // r2 * iv をあらかじめ計算しておいた方がちょっとお得やね
  constexpr inline u32 get(u32 n) const { return reduce(n); }
  constexpr inline u32 norm(u32 n) const { return n; }
  constexpr inline u32 plus(u32 l, u32 r) const { return l+= r, l < mod ? l : l - mod; }
