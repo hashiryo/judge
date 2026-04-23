@@ -155,39 +155,6 @@ jobs:
             sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
           fi
 
-      - name: Diagnose valgrind/callgrind
-        run: |
-          echo "::group::Install valgrind"
-          sudo apt-get install -y valgrind
-          valgrind --version
-          echo "::endgroup::"
-
-          echo "::group::Build tiny sample"
-          cat > /tmp/cg_probe.cpp <<'EOF'
-          #include <cstdio>
-          int main(){
-              long long s = 0;
-              for (int i = 0; i < 1000000; ++i) s += i;
-              std::printf("%lld\n", s);
-              return 0;
-          }
-          EOF
-          ${{ matrix.env.cxx }} ${{ matrix.env.cxxflags }} -o /tmp/cg_probe /tmp/cg_probe.cpp
-          echo "::endgroup::"
-
-          echo "::group::Run under callgrind"
-          t0=$(date +%s%N)
-          valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out \
-            --collect-jumps=no --combine-dumps=yes \
-            /tmp/cg_probe > /tmp/cg.stdout 2> /tmp/cg.stderr || true
-          t1=$(date +%s%N)
-          echo "callgrind wall elapsed: $(( (t1 - t0) / 1000000 )) ms"
-          echo "stdout:"; cat /tmp/cg.stdout
-          echo "stderr tail:"; tail -30 /tmp/cg.stderr
-          echo "out file head:"; head -50 /tmp/cg.out
-          echo "totals line:"; grep -E '^(totals|summary):' /tmp/cg.out || true
-          echo "::endgroup::"
-
       - name: Record runner CPU
         run: |
           echo "::group::CPU info"
@@ -246,8 +213,75 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
+  callgrind:
+    needs: [detect, download]
+    if: needs.detect.outputs.has-problems == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        env:
+          - { os: ubuntu-24.04, toolchain: gcc, cxx: g++-15, name: x64-g++,
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread" }
+          - { os: ubuntu-24.04, toolchain: clang, cxx: clang++-21, name: x64-clang++,
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024" }
+          - { os: ubuntu-24.04-arm, toolchain: gcc, cxx: g++-15, name: arm-g++,
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
+          - { os: ubuntu-24.04-arm, toolchain: clang, cxx: clang++-21, name: arm-clang++,
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
+    runs-on: ${{ matrix.env.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install compiler
+        run: |
+          set -eux
+          sudo apt-get update
+          if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
+            sudo apt-get install -y software-properties-common
+            sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+            sudo apt-get update
+            sudo apt-get install -y g++-15
+          else
+            sudo apt-get install -y wget lsb-release software-properties-common gnupg
+            wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+            sudo bash /tmp/llvm.sh 21 all
+            sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
+          fi
+
+      - name: Install valgrind
+        run: sudo apt-get install -y valgrind
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download testcases
+        uses: actions/download-artifact@v4
+        with:
+          name: testcases
+          path: .cache
+
+      - name: Run callgrind
+        env:
+          CXX: ${{ matrix.env.cxx }}
+          CXXFLAGS: ${{ matrix.env.cxxflags }}
+          ENV_NAME: ${{ matrix.env.name }}
+          PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
+        run: bash scripts/run-callgrind.sh
+
+      - name: Upload callgrind results
+        uses: actions/upload-artifact@v4
+        with:
+          name: callgrind-${{ matrix.env.name }}
+          path: .cache/callgrind/
+          retention-days: 7
+
   collect:
-    needs: [detect, run]
+    needs: [detect, run, callgrind]
     if: "!cancelled()"
     runs-on: ubuntu-24.04
     steps:
@@ -267,6 +301,18 @@ jobs:
           pattern: result-*
           path: .cache/results/
           merge-multiple: true
+
+      - name: Download callgrind results
+        if: needs.detect.outputs.has-problems == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: callgrind-*
+          path: .cache/callgrind/
+          merge-multiple: true
+
+      - name: Merge callgrind into results
+        if: needs.detect.outputs.has-problems == 'true'
+        run: python3 scripts/merge-callgrind.py
 
       - name: Collect results
         if: needs.detect.outputs.has-problems == 'true'
