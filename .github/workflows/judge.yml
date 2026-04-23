@@ -158,9 +158,11 @@ jobs:
       - name: Record runner CPU
         run: |
           echo "::group::CPU info"
-          cpu_model=$(grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //' \
-            || grep -m1 'Model' /proc/cpuinfo | sed 's/.*: //' \
-            || uname -m)
+          cpu_model=$(lscpu 2>/dev/null | awk -F': +' '/^Model name/{print $2; exit}')
+          if [[ -z "${cpu_model}" ]]; then
+            cpu_model=$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | sed 's/.*: //')
+          fi
+          [[ -z "${cpu_model}" ]] && cpu_model=$(uname -m)
           cpu_arch=$(uname -m)
           compiler_version=$(${{ matrix.env.cxx }} --version 2>/dev/null | head -1 || echo "")
           echo "cpu_model=${cpu_model}"
