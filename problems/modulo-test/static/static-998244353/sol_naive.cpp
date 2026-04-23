@@ -19,6 +19,7 @@ struct MP_Na {  // mod < 2^32
 signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
+
  constexpr MP_Na mp(998244353);
  u32 n, state, a, b, c, d;
  cin >> n >> state >> a >> b >> c >> d;
