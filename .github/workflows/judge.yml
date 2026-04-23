@@ -168,15 +168,19 @@ jobs:
           perf --version || true
           echo "::endgroup::"
 
-          echo "::group::perf stat smoke tests"
-          echo '--- hardware events (cycles,instructions) ---'
+          echo "::group::try lowering perf_event_paranoid"
+          sudo sysctl -w kernel.perf_event_paranoid=1 2>&1 || true
+          cat /proc/sys/kernel/perf_event_paranoid || true
+          echo "::endgroup::"
+
+          echo "::group::perf stat as current user (after sysctl)"
           perf stat -e cycles,instructions -- /bin/true 2>&1 || true
-          echo '--- cache/branch events ---'
-          perf stat -e cache-misses,cache-references,branch-misses,branches -- /bin/true 2>&1 || true
-          echo '--- software events ---'
-          perf stat -e task-clock,context-switches,page-faults -- /bin/true 2>&1 || true
-          echo '--- combined (what we want) ---'
           perf stat -x, -e cycles,instructions,cache-misses,branch-misses -- /bin/true 2>&1 || true
+          echo "::endgroup::"
+
+          echo "::group::perf stat via sudo (fallback)"
+          sudo perf stat -e cycles,instructions -- /bin/true 2>&1 || true
+          sudo perf stat -x, -e cycles,instructions,cache-misses,branch-misses -- /bin/true 2>&1 || true
           echo "::endgroup::"
 
       - name: Record runner CPU
