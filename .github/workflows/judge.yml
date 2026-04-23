@@ -107,38 +107,53 @@ jobs:
         env:
           - {
               os: ubuntu-24.04,
-              image: "gcc:15.2.0",
-              cxx: g++,
+              toolchain: gcc,
+              cxx: g++-15,
               name: x64-g++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread",
             }
           - {
               os: ubuntu-24.04,
-              image: "silkeh/clang:21",
-              cxx: clang++,
+              toolchain: clang,
+              cxx: clang++-21,
               name: x64-clang++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024",
             }
           - {
               os: ubuntu-24.04-arm,
-              image: "gcc:15.2.0",
-              cxx: g++,
+              toolchain: gcc,
+              cxx: g++-15,
               name: arm-g++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
             }
           - {
               os: ubuntu-24.04-arm,
-              image: "silkeh/clang:21",
-              cxx: clang++,
+              toolchain: clang,
+              cxx: clang++-21,
               name: arm-clang++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde",
             }
     runs-on: ${{ matrix.env.os }}
-    container: ${{ matrix.env.image }}
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
+
+      - name: Install compiler
+        run: |
+          set -eux
+          sudo apt-get update
+          if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
+            sudo apt-get install -y software-properties-common
+            sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+            sudo apt-get update
+            sudo apt-get install -y g++-15
+          else
+            sudo apt-get install -y wget lsb-release software-properties-common gnupg
+            wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+            sudo bash /tmp/llvm.sh 21 all
+            sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
+          fi
 
       - name: Record runner CPU
         run: |
