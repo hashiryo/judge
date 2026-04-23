@@ -155,34 +155,6 @@ jobs:
             sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
           fi
 
-      - name: Diagnose perf availability
-        run: |
-          echo "::group::perf_event_paranoid"
-          cat /proc/sys/kernel/perf_event_paranoid || true
-          echo "::endgroup::"
-
-          echo "::group::Install perf"
-          sudo apt-get install -y linux-tools-common "linux-tools-$(uname -r)" 2>/dev/null \
-            || sudo apt-get install -y linux-tools-generic || true
-          which perf || true
-          perf --version || true
-          echo "::endgroup::"
-
-          echo "::group::try lowering perf_event_paranoid"
-          sudo sysctl -w kernel.perf_event_paranoid=1 2>&1 || true
-          cat /proc/sys/kernel/perf_event_paranoid || true
-          echo "::endgroup::"
-
-          echo "::group::perf stat as current user (after sysctl)"
-          perf stat -e cycles,instructions -- /bin/true 2>&1 || true
-          perf stat -x, -e cycles,instructions,cache-misses,branch-misses -- /bin/true 2>&1 || true
-          echo "::endgroup::"
-
-          echo "::group::perf stat via sudo (fallback)"
-          sudo perf stat -e cycles,instructions -- /bin/true 2>&1 || true
-          sudo perf stat -x, -e cycles,instructions,cache-misses,branch-misses -- /bin/true 2>&1 || true
-          echo "::endgroup::"
-
       - name: Record runner CPU
         run: |
           echo "::group::CPU info"
