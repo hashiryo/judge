@@ -155,6 +155,30 @@ jobs:
             sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
           fi
 
+      - name: Diagnose perf availability
+        run: |
+          echo "::group::perf_event_paranoid"
+          cat /proc/sys/kernel/perf_event_paranoid || true
+          echo "::endgroup::"
+
+          echo "::group::Install perf"
+          sudo apt-get install -y linux-tools-common "linux-tools-$(uname -r)" 2>/dev/null \
+            || sudo apt-get install -y linux-tools-generic || true
+          which perf || true
+          perf --version || true
+          echo "::endgroup::"
+
+          echo "::group::perf stat smoke tests"
+          echo '--- hardware events (cycles,instructions) ---'
+          perf stat -e cycles,instructions -- /bin/true 2>&1 || true
+          echo '--- cache/branch events ---'
+          perf stat -e cache-misses,cache-references,branch-misses,branches -- /bin/true 2>&1 || true
+          echo '--- software events ---'
+          perf stat -e task-clock,context-switches,page-faults -- /bin/true 2>&1 || true
+          echo '--- combined (what we want) ---'
+          perf stat -x, -e cycles,instructions,cache-misses,branch-misses -- /bin/true 2>&1 || true
+          echo "::endgroup::"
+
       - name: Record runner CPU
         run: |
           echo "::group::CPU info"
