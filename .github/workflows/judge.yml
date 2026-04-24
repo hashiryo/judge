@@ -219,12 +219,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Callgrind は x64 のみ。arm は Valgrind が 3-5x 遅く、Ir もアーキ依存で x64 と比較不可のため除外。
         env:
           - { os: ubuntu-24.04, toolchain: gcc, cxx: g++-15, name: x64-g++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread" }
           - { os: ubuntu-24.04, toolchain: clang, cxx: clang++-21, name: x64-clang++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024" }
+          - { os: ubuntu-24.04-arm, toolchain: gcc, cxx: g++-15, name: arm-g++,
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
+          - { os: ubuntu-24.04-arm, toolchain: clang, cxx: clang++-21, name: arm-clang++,
+              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
     runs-on: ${{ matrix.env.os }}
     timeout-minutes: 30
     steps:
