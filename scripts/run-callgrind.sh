@@ -28,13 +28,15 @@ OUT_JSONL="${OUT_DIR}/callgrind-${ENV_NAME}.jsonl"
 : > "${OUT_JSONL}"
 
 # FlameGraph ツールが利用可能か確認 (無ければ SVG 生成はスキップ)
+# stackcollapse-callgrind は自作 (scripts/stackcollapse-callgrind.py)、
+# flamegraph.pl は Brendan Gregg の FlameGraph リポジトリから取得
 FG_TOOLS_DIR="${FG_TOOLS_DIR:-/tmp/FlameGraph}"
+STACKCOLLAPSE="${ROOT}/scripts/stackcollapse-callgrind.py"
 HAVE_FG=0
-if [[ -f "${FG_TOOLS_DIR}/stackcollapse-callgrind.pl" ]] && [[ -f "${FG_TOOLS_DIR}/flamegraph.pl" ]]; then
+if [[ -f "${FG_TOOLS_DIR}/flamegraph.pl" ]] && [[ -f "${STACKCOLLAPSE}" ]]; then
   HAVE_FG=1
 fi
-echo "FlameGraph tools: HAVE_FG=${HAVE_FG} (checking ${FG_TOOLS_DIR})"
-ls -la "${FG_TOOLS_DIR}/stackcollapse-callgrind.pl" "${FG_TOOLS_DIR}/flamegraph.pl" 2>&1 | head -3 || true
+echo "FlameGraph: HAVE_FG=${HAVE_FG} (stackcollapse=${STACKCOLLAPSE}, flamegraph=${FG_TOOLS_DIR}/flamegraph.pl)"
 
 if [[ -z "${PROBLEMS_JSON:-}" ]]; then
   echo "Error: PROBLEMS_JSON required"
@@ -175,7 +177,7 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
         SVG_PATH="${FG_DIR}/${REL_PATH}.svg"
         mkdir -p "$(dirname "${SVG_PATH}")"
         FOLDED=$(mktemp)
-        if perl "${FG_TOOLS_DIR}/stackcollapse-callgrind.pl" "${CG_OUT}" > "${FOLDED}" 2>/dev/null \
+        if python3 "${STACKCOLLAPSE}" "${CG_OUT}" > "${FOLDED}" 2>/dev/null \
             && perl "${FG_TOOLS_DIR}/flamegraph.pl" --title "${REL_PATH} [${ENV_NAME}]" "${FOLDED}" > "${SVG_PATH}" 2>/dev/null; then
           FG_REL="flamegraphs/${ENV_NAME}/${REL_PATH}.svg"
           echo " + FG"
