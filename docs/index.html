@@ -191,6 +191,16 @@
         font-size: 0.75em;
         margin-left: 4px;
       }
+      .fg-link {
+        margin-left: 4px;
+        text-decoration: none;
+        font-size: 0.9em;
+        opacity: 0.7;
+      }
+      .fg-link:hover {
+        opacity: 1;
+        text-decoration: none;
+      }
 
       .status-ac {
         color: var(--green);
@@ -1090,7 +1100,10 @@
               }
             }
             const fullTip = escapeAttr(buildMetricTooltip(r, bestByEnv[env]));
-            html += `<td title="${fullTip}" style="cursor:help" class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td title="${fullTip}" style="cursor:help">${valueCell}${suffix}</td>`;
+            const fgLink = r.flamegraph_path
+              ? ` <a href="${escapeAttr(r.flamegraph_path)}" target="_blank" title="FlameGraph" class="fg-link">🔥</a>`
+              : "";
+            html += `<td title="${fullTip}" style="cursor:help" class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td title="${fullTip}" style="cursor:help">${valueCell}${suffix}${fgLink}</td>`;
           }
           html += "</tr>";
         }

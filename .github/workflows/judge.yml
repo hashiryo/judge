@@ -254,6 +254,9 @@ jobs:
       - name: Install valgrind
         run: sudo apt-get install -y valgrind
 
+      - name: Install FlameGraph tools
+        run: git clone --depth=1 https://github.com/brendangregg/FlameGraph /tmp/FlameGraph
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -279,6 +282,14 @@ jobs:
           name: callgrind-${{ matrix.env.name }}
           path: .cache/callgrind/
           retention-days: 7
+
+      - name: Upload flamegraphs
+        uses: actions/upload-artifact@v4
+        with:
+          name: flamegraphs-${{ matrix.env.name }}
+          path: .cache/flamegraphs/
+          retention-days: 7
+          if-no-files-found: ignore
 
   collect:
     needs: [detect, run, callgrind]
@@ -308,6 +319,14 @@ jobs:
         with:
           pattern: callgrind-*
           path: .cache/callgrind/
+          merge-multiple: true
+
+      - name: Download flamegraphs
+        if: needs.detect.outputs.has-problems == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: flamegraphs-*
+          path: .cache/flamegraphs/
           merge-multiple: true
 
       - name: Merge callgrind into results
@@ -343,6 +362,10 @@ jobs:
           mkdir -p _site
           cp docs/index.html _site/
           cp .results/history.jsonl _site/ 2>/dev/null || true
+          if [[ -d .cache/flamegraphs ]]; then
+            mkdir -p _site/flamegraphs
+            cp -r .cache/flamegraphs/. _site/flamegraphs/ 2>/dev/null || true
+          fi
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main'

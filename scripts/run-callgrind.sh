@@ -22,9 +22,17 @@ ENV_NAME="${ENV_NAME:-local}"
 TC_DIR="${ROOT}/.cache/testcases"
 CUSTOM_TC_DIR="${ROOT}/.cache/custom-testcases"
 OUT_DIR="${ROOT}/.cache/callgrind"
-mkdir -p "${OUT_DIR}"
+FG_DIR="${ROOT}/.cache/flamegraphs/${ENV_NAME}"
+mkdir -p "${OUT_DIR}" "${FG_DIR}"
 OUT_JSONL="${OUT_DIR}/callgrind-${ENV_NAME}.jsonl"
 : > "${OUT_JSONL}"
+
+# FlameGraph ツールが利用可能か確認 (無ければ SVG 生成はスキップ)
+FG_TOOLS_DIR="${FG_TOOLS_DIR:-/tmp/FlameGraph}"
+HAVE_FG=0
+if [[ -x "${FG_TOOLS_DIR}/stackcollapse-callgrind.pl" ]] && [[ -x "${FG_TOOLS_DIR}/flamegraph.pl" ]]; then
+  HAVE_FG=1
+fi
 
 if [[ -z "${PROBLEMS_JSON:-}" ]]; then
   echo "Error: PROBLEMS_JSON required"
@@ -157,8 +165,27 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
       IR=""
     fi
 
+    FG_REL=""
     if [[ -n "${IR}" ]]; then
-      echo "${IR}"
+      echo -n "${IR}"
+      # FlameGraph SVG 生成 (ツールがあれば)
+      if [[ ${HAVE_FG} -eq 1 ]]; then
+        SVG_PATH="${FG_DIR}/${REL_PATH}.svg"
+        mkdir -p "$(dirname "${SVG_PATH}")"
+        FOLDED=$(mktemp)
+        if "${FG_TOOLS_DIR}/stackcollapse-callgrind.pl" "${CG_OUT}" > "${FOLDED}" 2>/dev/null \
+            && "${FG_TOOLS_DIR}/flamegraph.pl" --title "${REL_PATH} [${ENV_NAME}]" "${FOLDED}" > "${SVG_PATH}" 2>/dev/null; then
+          FG_REL="flamegraphs/${ENV_NAME}/${REL_PATH}.svg"
+          echo " + FG"
+        else
+          echo " (FG failed)"
+          rm -f "${SVG_PATH}"
+        fi
+        rm -f "${FOLDED}"
+      else
+        echo ""
+      fi
+
       python3 -c "
 import json, sys
 print(json.dumps({
@@ -166,6 +193,7 @@ print(json.dumps({
     'environment': '${ENV_NAME}',
     'callgrind_case': '${CASE_NAME}',
     'callgrind_instructions': int('${IR}'),
+    'flamegraph_path': '${FG_REL}' or None,
 }))" >> "${OUT_JSONL}"
     else
       echo "FAILED"

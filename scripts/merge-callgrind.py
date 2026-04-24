@@ -40,6 +40,7 @@ def load_callgrind_map() -> dict[tuple[str, str], dict]:
                 mapping[key] = {
                     "callgrind_instructions": data.get("callgrind_instructions"),
                     "callgrind_case": data.get("callgrind_case"),
+                    "flamegraph_path": data.get("flamegraph_path"),
                 }
     return mapping
 
