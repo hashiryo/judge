@@ -417,6 +417,7 @@
         <button data-metric="D1_miss">D1_miss</button>
         <button data-metric="LL_miss">LL_miss</button>
         <button data-metric="branch_miss">branch_miss</button>
+        <button data-metric="SIMD_ratio">SIMD%</button>
         <span id="detail-sort-hint" class="sort-hint"></span>
       </div>
       <div id="detail-content"></div>
@@ -602,6 +603,20 @@
           formatRaw: formatIrRaw,
           unit: "",
         },
+        SIMD_ratio: {
+          label: "SIMD%",
+          field: "callgrind_simd_ratio",
+          // ratio (0..1) → "12.3%"。0 に近いと "0.01%"、大きいと "23.4%"
+          format: (v) => {
+            if (v === undefined || v === null) return "-";
+            const pct = v * 100;
+            return (pct >= 10 ? pct.toFixed(1) : pct.toFixed(2)) + "%";
+          },
+          formatRaw: (v) =>
+            v === undefined || v === null ? "-" : (v * 100).toFixed(4) + "%",
+          unit: "%",
+          higherIsBetter: true,
+        },
       };
 
       // 全メトリクスを見やすくまとめたツールチップ文字列 (best 比付き)
@@ -614,7 +629,11 @@
           let line = `${m.label}: ${m.formatRaw(v)}`;
           if (typeof v === "number" && typeof best === "number" && best !== null) {
             if (v === best) line += " (best)";
-            else line += ` (+${m.formatRaw(v - best)})`;
+            else {
+              const d = v - best;
+              const sign = d >= 0 ? "+" : "-";
+              line += ` (${sign}${m.formatRaw(Math.abs(d))})`;
+            }
           }
           lines.push(line);
         }
@@ -1013,13 +1032,14 @@
           return;
         }
 
-        // 環境ごとに 全メトリクスの best (最小値) を計算
-        // bestByEnv[env][metricKey] = 最小値 (AC の entry のみ対象)
+        // 環境ごとに 全メトリクスの best (通常は最小、higherIsBetter なら最大) を計算
+        // bestByEnv[env][metricKey] = best値 (AC の entry のみ対象)
         const bestByEnv = {};
         for (const env of ENVS) {
           bestByEnv[env] = {};
-          for (const metricKey of Object.keys(METRICS)) {
-            const field = METRICS[metricKey].field;
+          for (const [metricKey, metric] of Object.entries(METRICS)) {
+            const field = metric.field;
+            const higher = !!metric.higherIsBetter;
             let best = null;
             for (const f of files) {
               const fullPath = `${problemDir}/${f}`;
@@ -1027,7 +1047,9 @@
                 (x) => x.file === fullPath && x.environment === env,
               );
               if (r && r.status === "AC" && typeof r[field] === "number") {
-                if (best === null || r[field] < best) best = r[field];
+                if (best === null || (higher ? r[field] > best : r[field] < best)) {
+                  best = r[field];
+                }
               }
             }
             bestByEnv[env][metricKey] = best;
@@ -1110,7 +1132,10 @@
               if (v === best) {
                 suffix = ' <span class="diff-better">★</span>';
               } else {
-                suffix = ` <span class="diff-muted">(+${displayMetric.format(v - best)})</span>`;
+                // higherIsBetter: v < best → (-diff)、 通常: v > best → (+diff)
+                const d = v - best;
+                const sign = d >= 0 ? "+" : "-";
+                suffix = ` <span class="diff-muted">(${sign}${displayMetric.format(Math.abs(d))})</span>`;
               }
             }
             const fullTip = escapeAttr(buildMetricTooltip(r, bestByEnv[env]));
@@ -1170,7 +1195,10 @@
             } else {
               detailSortEnv = env;
               detailSortMetric = detailDisplayMetric;
-              detailSortDir = "asc";
+              // 初期ソート方向は best 優先 (higherIsBetter なら desc)
+              detailSortDir = METRICS[detailDisplayMetric]?.higherIsBetter
+                ? "desc"
+                : "asc";
             }
             renderDetail();
           };

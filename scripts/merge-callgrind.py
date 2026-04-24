@@ -43,6 +43,9 @@ def load_callgrind_map() -> dict[tuple[str, str], dict]:
                     "callgrind_d1_misses": data.get("callgrind_d1_misses"),
                     "callgrind_ll_misses": data.get("callgrind_ll_misses"),
                     "callgrind_branch_misses": data.get("callgrind_branch_misses"),
+                    "callgrind_simd_instructions": data.get("callgrind_simd_instructions"),
+                    "callgrind_binary_instructions": data.get("callgrind_binary_instructions"),
+                    "callgrind_simd_ratio": data.get("callgrind_simd_ratio"),
                 }
     return mapping
 

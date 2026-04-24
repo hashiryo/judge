@@ -152,6 +152,7 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     if valgrind --tool=callgrind --callgrind-out-file="${CG_OUT}" \
         --collect-jumps=no --combine-dumps=yes \
         --cache-sim=yes --branch-sim=yes \
+        --dump-instr=yes --compress-pos=no \
         "${BINARY}" < "${INPUT_FILE}" > /dev/null 2>/dev/null; then
       EVENTS_LINE=$(grep -m1 '^events:' "${CG_OUT}" | sed 's/^events: //')
       TOTALS_LINE=$(grep -m1 '^totals:' "${CG_OUT}" | sed 's/^totals: //')
@@ -161,13 +162,24 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     fi
 
     if [[ -n "${TOTALS_LINE}" ]]; then
+      # SIMD 命令の Ir 集計 (x86: v prefix, arm: vec reg)
+      # 出力: "<simd_ir> <binary_ir>" (binary_ir はライブラリ除くバイナリ本体の Ir)
+      SIMD_COUNTS=$(python3 "${ROOT}/scripts/count-simd.py" "${BINARY}" "${CG_OUT}" 2>/dev/null || echo "0 0")
+      SIMD_IR=$(echo "${SIMD_COUNTS}" | awk '{print $1}')
+      BINARY_IR=$(echo "${SIMD_COUNTS}" | awk '{print $2}')
+
       JSON_LINE=$(EVENTS="${EVENTS_LINE}" TOTALS="${TOTALS_LINE}" \
+        SIMD_IR="${SIMD_IR}" BINARY_IR="${BINARY_IR}" \
         REL_PATH="${REL_PATH}" ENV_NAME="${ENV_NAME}" CASE_NAME="${CASE_NAME}" \
         python3 -c '
 import json, os
 events = os.environ["EVENTS"].split()
 totals = list(map(int, os.environ["TOTALS"].split()))
 m = dict(zip(events, totals))
+simd_ir = int(os.environ["SIMD_IR"])
+binary_ir = int(os.environ["BINARY_IR"])
+# SIMD ratio: バイナリ本体 Ir に対する SIMD 命令の割合 (ライブラリコード除外)
+simd_ratio = (simd_ir / binary_ir) if binary_ir > 0 else 0.0
 print(json.dumps({
     "file": os.environ["REL_PATH"],
     "environment": os.environ["ENV_NAME"],
@@ -176,10 +188,13 @@ print(json.dumps({
     "callgrind_d1_misses": m.get("D1mr", 0) + m.get("D1mw", 0),
     "callgrind_ll_misses": m.get("DLmr", 0) + m.get("DLmw", 0),
     "callgrind_branch_misses": m.get("Bcm", 0),
+    "callgrind_simd_instructions": simd_ir,
+    "callgrind_binary_instructions": binary_ir,
+    "callgrind_simd_ratio": simd_ratio,
 }))')
       echo "${JSON_LINE}" >> "${OUT_JSONL}"
       IR=$(echo "${TOTALS_LINE}" | awk '{print $1}')
-      echo "Ir=${IR}"
+      echo "Ir=${IR} SIMD=${SIMD_IR}/${BINARY_IR}"
     else
       echo "FAILED"
     fi
