@@ -51,6 +51,7 @@ def enrich_result(entry: dict, *, cases_hash: str | None = None) -> dict:
     """結果エントリに judge 固有のフィールドを付与する。"""
     cases = entry.get("cases", [])
     entry["time_max_ms"] = max((c["time_ms"] for c in cases), default=0)
+    entry["time_total_ms"] = sum((c["time_ms"] for c in cases), start=0)
     entry["memory_max_kb"] = max((c["memory_kb"] for c in cases), default=0)
     entry["cases_hash"] = cases_hash if cases_hash else compute_cases_hash(cases)
     entry.update(_collect_runtime_env())

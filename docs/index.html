@@ -121,6 +121,77 @@
         border-left: 2px solid var(--border);
       }
 
+      /* Runtime environments セクション */
+      .runtime-envs {
+        margin: 12px 0 20px;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 12px;
+      }
+      .runtime-envs > summary {
+        cursor: pointer;
+        color: var(--text2);
+        font-size: 0.9em;
+        padding: 4px 0;
+      }
+      .runtime-envs > summary:hover {
+        color: var(--text);
+      }
+      .envs-table {
+        margin-top: 8px;
+        font-size: 0.8em;
+      }
+      .envs-table td,
+      .envs-table th {
+        padding: 4px 8px;
+        text-align: left;
+      }
+      .envs-table .cxxflags {
+        font-family: monospace;
+        color: var(--text2);
+        max-width: 600px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: help;
+      }
+
+      /* Metric トグル */
+      .metric-toggle {
+        display: flex;
+        gap: 4px;
+        margin: 12px 0;
+        align-items: center;
+        font-size: 0.9em;
+      }
+      .metric-toggle label {
+        color: var(--text2);
+        margin-right: 4px;
+      }
+      .metric-toggle button {
+        padding: 4px 12px;
+        background: var(--bg2);
+        color: var(--text2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9em;
+      }
+      .metric-toggle button:hover {
+        color: var(--text);
+      }
+      .metric-toggle button.active {
+        background: var(--blue);
+        color: white;
+        border-color: var(--blue);
+      }
+      .sort-hint {
+        color: var(--text2);
+        font-size: 0.75em;
+        margin-left: 4px;
+      }
+
       .status-ac {
         color: var(--green);
         font-weight: 600;
@@ -296,6 +367,7 @@
 
     <!-- Overview tab -->
     <div id="overview" class="tab-content active">
+      <div id="overview-runtime-envs"></div>
       <div class="filters">
         <label><input type="checkbox" id="overview-ac-only" /> AC only</label>
       </div>
@@ -335,6 +407,15 @@
           <select id="detail-push"></select
         ></label>
       </div>
+      <div id="detail-runtime-envs"></div>
+      <div class="metric-toggle">
+        <label>Metric:</label>
+        <button data-metric="time_max" class="active">time_max</button>
+        <button data-metric="time_total">time_total</button>
+        <button data-metric="memory_max">memory_max</button>
+        <button data-metric="Ir">Ir</button>
+        <span id="detail-sort-hint" class="sort-hint"></span>
+      </div>
       <div id="detail-content"></div>
     </div>
 
@@ -342,8 +423,12 @@
       const ENVS = ["x64-g++", "x64-clang++", "arm-g++", "arm-clang++"];
       let allEntries = [];
       // Detail タブの Summary テーブルのソート状態
-      let detailSortEnv = null; // null = File名順。env名文字列ならその環境の Time でソート
+      // 表示中メトリクスとは独立 (切替時に並び順は凍結される)
+      let detailSortEnv = null; // null = File 名順
+      let detailSortMetric = "time_max"; // ソートに使ったメトリクス
       let detailSortDir = "asc"; // "asc" | "desc"
+      // 表示中メトリクス (Summary テーブルの Value 列に表示)
+      let detailDisplayMetric = "time_max";
 
       // ============================================================
       // Data loading
@@ -447,6 +532,111 @@
         return kb >= 1024 ? (kb / 1024).toFixed(1) + "MB" : kb + "KB";
       }
 
+      // Ir (instructions) のコンパクト表示: 1.91G / 234M / 12.3K など (有効数字 3-4 桁)
+      function formatIr(n) {
+        if (n === undefined || n === null) return "-";
+        const abs = Math.abs(n);
+        if (abs >= 1e9) return (n / 1e9).toFixed(abs >= 1e10 ? 2 : 3) + "G";
+        if (abs >= 1e6) return (n / 1e6).toFixed(abs >= 1e7 ? 2 : 3) + "M";
+        if (abs >= 1e3) return (n / 1e3).toFixed(abs >= 1e4 ? 2 : 3) + "K";
+        return String(n);
+      }
+
+      // Ir の生値をカンマ区切りで
+      function formatIrRaw(n) {
+        if (n === undefined || n === null) return "-";
+        return n.toLocaleString();
+      }
+
+      // メトリクス定義
+      const METRICS = {
+        time_max: {
+          label: "time_max",
+          field: "time_max_ms",
+          format: formatTime,
+          formatRaw: (v) => (v === undefined || v === null ? "-" : v.toLocaleString() + " ms"),
+          unit: "ms",
+        },
+        time_total: {
+          label: "time_total",
+          field: "time_total_ms",
+          format: formatTime,
+          formatRaw: (v) => (v === undefined || v === null ? "-" : v.toLocaleString() + " ms"),
+          unit: "ms",
+        },
+        memory_max: {
+          label: "memory_max",
+          field: "memory_max_kb",
+          format: formatMemory,
+          formatRaw: (v) => (v === undefined || v === null ? "-" : v.toLocaleString() + " KB"),
+          unit: "KB",
+        },
+        Ir: {
+          label: "Ir",
+          field: "callgrind_instructions",
+          format: formatIr,
+          formatRaw: formatIrRaw,
+          unit: "",
+        },
+      };
+
+      // 全メトリクスを見やすくまとめたツールチップ文字列 (best 比付き)
+      function buildMetricTooltip(entry, bestsForEnv) {
+        if (!entry) return "";
+        const lines = [];
+        for (const [key, m] of Object.entries(METRICS)) {
+          const v = entry[m.field];
+          const best = bestsForEnv ? bestsForEnv[key] : null;
+          let line = `${m.label}: ${m.formatRaw(v)}`;
+          if (typeof v === "number" && typeof best === "number" && best !== null) {
+            if (v === best) line += " (best)";
+            else line += ` (+${m.formatRaw(v - best)})`;
+          }
+          lines.push(line);
+        }
+        if (entry.callgrind_case) {
+          lines.push(`callgrind_case: ${entry.callgrind_case}`);
+        }
+        if (entry.cases && entry.cases.length > 0) {
+          lines.push(`cases: ${entry.cases.length}`);
+        }
+        if (entry.detail) lines.push(`detail: ${entry.detail}`);
+        return lines.join("\n");
+      }
+
+      // Runtime environments セクションの HTML を組み立てる (entry 引数はその push の entry)
+      function renderRuntimeEnvs(entry) {
+        if (!entry) return "";
+        // entry.results のうち各 env で最初に見つかったものから環境情報を取得
+        const byEnv = {};
+        for (const r of entry.results || []) {
+          const env = r.environment;
+          if (!env || byEnv[env]) continue;
+          byEnv[env] = r;
+        }
+        const rows = ENVS.map((env) => {
+          const r = byEnv[env];
+          if (!r) {
+            return `<tr><th>${env}</th><td colspan="3" style="color:var(--text2)">-</td></tr>`;
+          }
+          return `<tr>
+            <th>${env}</th>
+            <td>${escapeAttr(r.cpu_model || "-")}</td>
+            <td>${escapeAttr(r.compiler_version || "-")}</td>
+            <td class="cxxflags" title="${escapeAttr(r.cxxflags || "")}">${escapeAttr(r.cxxflags || "-")}</td>
+          </tr>`;
+        }).join("");
+        return `
+          <details class="runtime-envs" open>
+            <summary>Runtime environments</summary>
+            <table class="envs-table">
+              <thead><tr><th>Env</th><th>CPU</th><th>Compiler</th><th>Flags</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </details>
+        `;
+      }
+
       function formatDate(ts) {
         const d = new Date(ts);
         return (
@@ -488,6 +678,8 @@
       // ============================================================
       function renderOverview() {
         const latest = allEntries[allEntries.length - 1];
+        document.getElementById("overview-runtime-envs").innerHTML =
+          renderRuntimeEnvs(latest);
         const problems = getProblems(latest);
         const container = document.getElementById("problem-list");
         container.innerHTML = "";
@@ -588,6 +780,7 @@
         const sel = document.getElementById("detail-problem");
         sel.value = problemDir;
         detailSortEnv = null;
+        detailSortMetric = detailDisplayMetric;
         detailSortDir = "asc";
         updateDetailPushes();
         renderDetail();
@@ -775,6 +968,10 @@
         const entry = allEntries[idx];
         if (!entry) return;
 
+        // Runtime envs は選択 push に連動
+        document.getElementById("detail-runtime-envs").innerHTML =
+          renderRuntimeEnvs(entry);
+
         const results = entry.results.filter((r) =>
           r.file.startsWith(problemDir + "/"),
         );
@@ -792,26 +989,35 @@
           return;
         }
 
-        // 環境ごとに AC の最速時間を計算
+        // 環境ごとに 全メトリクスの best (最小値) を計算
+        // bestByEnv[env][metricKey] = 最小値 (AC の entry のみ対象)
         const bestByEnv = {};
         for (const env of ENVS) {
-          let best = null;
-          for (const f of files) {
-            const fullPath = `${problemDir}/${f}`;
-            const r = results.find(
-              (x) => x.file === fullPath && x.environment === env,
-            );
-            if (r && r.status === "AC" && typeof r.time_max_ms === "number") {
-              if (best === null || r.time_max_ms < best) best = r.time_max_ms;
+          bestByEnv[env] = {};
+          for (const metricKey of Object.keys(METRICS)) {
+            const field = METRICS[metricKey].field;
+            let best = null;
+            for (const f of files) {
+              const fullPath = `${problemDir}/${f}`;
+              const r = results.find(
+                (x) => x.file === fullPath && x.environment === env,
+              );
+              if (r && r.status === "AC" && typeof r[field] === "number") {
+                if (best === null || r[field] < best) best = r[field];
+              }
             }
+            bestByEnv[env][metricKey] = best;
           }
-          bestByEnv[env] = best;
         }
 
-        // ソート: detailSortEnv が null なら File 名順、それ以外なら指定 env の Time でソート
-        // 非 AC / 未計測は常に末尾
+        const displayMetric = METRICS[detailDisplayMetric];
+
+        // ソート: detailSortEnv が null なら File 名順、
+        // それ以外なら (detailSortEnv, detailSortMetric) でソート
+        // 並び順は切替時に凍結されるので detailDisplayMetric とは独立
         const sortedFiles = files.slice();
-        if (detailSortEnv) {
+        if (detailSortEnv && METRICS[detailSortMetric]) {
+          const sortField = METRICS[detailSortMetric].field;
           sortedFiles.sort((fa, fb) => {
             const ra = results.find(
               (x) => x.file === `${problemDir}/${fa}` && x.environment === detailSortEnv,
@@ -820,26 +1026,37 @@
               (x) => x.file === `${problemDir}/${fb}` && x.environment === detailSortEnv,
             );
             const sortable = (r) =>
-              r && r.status === "AC" && typeof r.time_max_ms === "number";
+              r && r.status === "AC" && typeof r[sortField] === "number";
             const sa = sortable(ra);
             const sb = sortable(rb);
             if (sa && !sb) return -1;
             if (!sa && sb) return 1;
             if (!sa && !sb) return fa.localeCompare(fb);
-            const diff = ra.time_max_ms - rb.time_max_ms;
+            const diff = ra[sortField] - rb[sortField];
             return detailSortDir === "asc" ? diff : -diff;
           });
         }
         const sortIndicator = (env) => {
           if (detailSortEnv !== env) return "";
-          return detailSortDir === "asc" ? " ↑" : " ↓";
+          const arrow = detailSortDir === "asc" ? "↑" : "↓";
+          // ソートに使ったメトリクスと表示中メトリクスが違えば注記
+          if (detailSortMetric !== detailDisplayMetric) {
+            return ` <span class="sort-hint">${arrow} by ${METRICS[detailSortMetric].label}</span>`;
+          }
+          return " " + arrow;
         };
+
+        // Sort hint (トグル側)
+        document.getElementById("detail-sort-hint").textContent =
+          detailSortEnv && detailSortMetric !== detailDisplayMetric
+            ? `(sorted by ${METRICS[detailSortMetric].label} on ${detailSortEnv})`
+            : "";
 
         // Summary table
         let html = `<h3>${entry.sha_short} - ${formatDate(entry.timestamp)}</h3>`;
         html += `<table>`;
-        html += `<tr><th rowspan="2">File</th>${ENVS.map((e) => `<th colspan="3" class="env-group-start">${e}</th>`).join("")}</tr>`;
-        html += `<tr>${ENVS.map((e) => `<th class="env-group-start">Status</th><th class="detail-sort-time" data-env="${e}" style="cursor:pointer" title="Time でソート">Time${sortIndicator(e)}</th><th>Memory</th>`).join("")}</tr>`;
+        html += `<tr><th rowspan="2">File</th>${ENVS.map((e) => `<th colspan="2" class="env-group-start">${e}</th>`).join("")}</tr>`;
+        html += `<tr>${ENVS.map((e) => `<th class="env-group-start">Status</th><th class="detail-sort-value" data-env="${e}" style="cursor:pointer" title="${displayMetric.label} でソート">${displayMetric.label}${sortIndicator(e)}</th>`).join("")}</tr>`;
         for (const f of sortedFiles) {
           const fullPath = `${problemDir}/${f}`;
           html += `<tr><td>${f}</td>`;
@@ -853,27 +1070,27 @@
                   x.file === fullPath && !x.environment && x.status === "CE",
               );
             if (!r) {
-              html += `<td class="env-group-start">-</td><td>-</td><td>-</td>`;
+              html += `<td class="env-group-start">-</td><td>-</td>`;
               continue;
             }
-            const tooltip = tooltipAttr(r.detail);
             if (r.status === "CE") {
-              html += `<td${tooltip} class="env-group-start"><span class="${statusClass("CE")}">CE</span></td><td>-</td><td>-</td>`;
+              const tooltip = tooltipAttr(r.detail);
+              html += `<td${tooltip} class="env-group-start"><span class="${statusClass("CE")}">CE</span></td><td>-</td>`;
               continue;
             }
-            const best = bestByEnv[env];
-            let timeCell = formatTime(r.time_max_ms);
-            let timeTip = "";
-            if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
-              if (r.time_max_ms === best) {
-                timeCell += ' <span class="diff-better">★</span>';
-                timeTip = ` title="best"`;
+            const best = bestByEnv[env][detailDisplayMetric];
+            const v = r[displayMetric.field];
+            let valueCell = displayMetric.format(v);
+            let suffix = "";
+            if (r.status === "AC" && typeof v === "number" && best !== null) {
+              if (v === best) {
+                suffix = ' <span class="diff-better">★</span>';
               } else {
-                const d = r.time_max_ms - best;
-                timeTip = ` title="+${d}ms from best (${formatTime(best)})"`;
+                suffix = ` <span class="diff-muted">(+${displayMetric.format(v - best)})</span>`;
               }
             }
-            html += `<td${tooltip} class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td${timeTip} style="cursor:help">${timeCell}</td><td>${formatMemory(r.memory_max_kb)}</td>`;
+            const fullTip = escapeAttr(buildMetricTooltip(r, bestByEnv[env]));
+            html += `<td title="${fullTip}" style="cursor:help" class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td title="${fullTip}" style="cursor:help">${valueCell}${suffix}</td>`;
           }
           html += "</tr>";
         }
@@ -917,20 +1134,41 @@
 
         container.innerHTML = html;
 
-        // Time ヘッダーにソート切り替えのクリックハンドラを付与
-        container.querySelectorAll(".detail-sort-time").forEach((th) => {
+        // Value 列ヘッダーにソート切り替えのクリックハンドラを付与
+        container.querySelectorAll(".detail-sort-value").forEach((th) => {
           th.onclick = () => {
             const env = th.dataset.env;
-            if (detailSortEnv === env) {
+            if (
+              detailSortEnv === env &&
+              detailSortMetric === detailDisplayMetric
+            ) {
               detailSortDir = detailSortDir === "asc" ? "desc" : "asc";
             } else {
               detailSortEnv = env;
+              detailSortMetric = detailDisplayMetric;
               detailSortDir = "asc";
             }
             renderDetail();
           };
         });
       }
+
+      // Metric トグルのクリックハンドラ
+      document.querySelectorAll(".metric-toggle button[data-metric]").forEach(
+        (btn) => {
+          btn.onclick = () => {
+            const m = btn.dataset.metric;
+            if (!METRICS[m]) return;
+            detailDisplayMetric = m;
+            document
+              .querySelectorAll(".metric-toggle button[data-metric]")
+              .forEach((b) =>
+                b.classList.toggle("active", b.dataset.metric === m),
+              );
+            renderDetail();
+          };
+        },
+      );
 
       // ============================================================
       // Tab switching
