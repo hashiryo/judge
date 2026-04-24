@@ -11,8 +11,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# Library submodule の共通関数を読み込み
-SCRIPTS_DIR="${ROOT}/lib/scripts"
+# 共通関数を読み込み
+SCRIPTS_DIR="${ROOT}/scripts"
 source "${SCRIPTS_DIR}/lib/run-lib.sh"
 
 # macOS ではデフォルトで clang++ を使う (include/bits/stdc++.h を自前で用意済み)
