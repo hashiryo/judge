@@ -22,21 +22,9 @@ ENV_NAME="${ENV_NAME:-local}"
 TC_DIR="${ROOT}/.cache/testcases"
 CUSTOM_TC_DIR="${ROOT}/.cache/custom-testcases"
 OUT_DIR="${ROOT}/.cache/callgrind"
-FG_DIR="${ROOT}/.cache/flamegraphs/${ENV_NAME}"
-mkdir -p "${OUT_DIR}" "${FG_DIR}"
+mkdir -p "${OUT_DIR}"
 OUT_JSONL="${OUT_DIR}/callgrind-${ENV_NAME}.jsonl"
 : > "${OUT_JSONL}"
-
-# FlameGraph ツールが利用可能か確認 (無ければ SVG 生成はスキップ)
-# stackcollapse-callgrind は自作 (scripts/stackcollapse-callgrind.py)、
-# flamegraph.pl は Brendan Gregg の FlameGraph リポジトリから取得
-FG_TOOLS_DIR="${FG_TOOLS_DIR:-/tmp/FlameGraph}"
-STACKCOLLAPSE="${ROOT}/scripts/stackcollapse-callgrind.py"
-HAVE_FG=0
-if [[ -f "${FG_TOOLS_DIR}/flamegraph.pl" ]] && [[ -f "${STACKCOLLAPSE}" ]]; then
-  HAVE_FG=1
-fi
-echo "FlameGraph: HAVE_FG=${HAVE_FG} (stackcollapse=${STACKCOLLAPSE}, flamegraph=${FG_TOOLS_DIR}/flamegraph.pl)"
 
 if [[ -z "${PROBLEMS_JSON:-}" ]]; then
   echo "Error: PROBLEMS_JSON required"
@@ -163,42 +151,35 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     echo -n "  [CG] ${REL_PATH} ... "
     if valgrind --tool=callgrind --callgrind-out-file="${CG_OUT}" \
         --collect-jumps=no --combine-dumps=yes \
+        --cache-sim=yes --branch-sim=yes \
         "${BINARY}" < "${INPUT_FILE}" > /dev/null 2>/dev/null; then
-      IR=$(grep -m1 '^totals:' "${CG_OUT}" | awk '{print $2}')
+      EVENTS_LINE=$(grep -m1 '^events:' "${CG_OUT}" | sed 's/^events: //')
+      TOTALS_LINE=$(grep -m1 '^totals:' "${CG_OUT}" | sed 's/^totals: //')
     else
-      IR=""
+      EVENTS_LINE=""
+      TOTALS_LINE=""
     fi
 
-    FG_REL=""
-    if [[ -n "${IR}" ]]; then
-      echo -n "${IR}"
-      # FlameGraph SVG 生成 (ツールがあれば)
-      if [[ ${HAVE_FG} -eq 1 ]]; then
-        SVG_PATH="${FG_DIR}/${REL_PATH}.svg"
-        mkdir -p "$(dirname "${SVG_PATH}")"
-        FOLDED=$(mktemp)
-        if python3 "${STACKCOLLAPSE}" "${CG_OUT}" > "${FOLDED}" 2>/dev/null \
-            && perl "${FG_TOOLS_DIR}/flamegraph.pl" --title "${REL_PATH} [${ENV_NAME}]" "${FOLDED}" > "${SVG_PATH}" 2>/dev/null; then
-          FG_REL="flamegraphs/${ENV_NAME}/${REL_PATH}.svg"
-          echo " + FG"
-        else
-          echo " (FG failed)"
-          rm -f "${SVG_PATH}"
-        fi
-        rm -f "${FOLDED}"
-      else
-        echo ""
-      fi
-
-      python3 -c "
-import json, sys
+    if [[ -n "${TOTALS_LINE}" ]]; then
+      JSON_LINE=$(EVENTS="${EVENTS_LINE}" TOTALS="${TOTALS_LINE}" \
+        REL_PATH="${REL_PATH}" ENV_NAME="${ENV_NAME}" CASE_NAME="${CASE_NAME}" \
+        python3 -c '
+import json, os
+events = os.environ["EVENTS"].split()
+totals = list(map(int, os.environ["TOTALS"].split()))
+m = dict(zip(events, totals))
 print(json.dumps({
-    'file': '${REL_PATH}',
-    'environment': '${ENV_NAME}',
-    'callgrind_case': '${CASE_NAME}',
-    'callgrind_instructions': int('${IR}'),
-    'flamegraph_path': '${FG_REL}' or None,
-}))" >> "${OUT_JSONL}"
+    "file": os.environ["REL_PATH"],
+    "environment": os.environ["ENV_NAME"],
+    "callgrind_case": os.environ["CASE_NAME"],
+    "callgrind_instructions": m.get("Ir", 0),
+    "callgrind_d1_misses": m.get("D1mr", 0) + m.get("D1mw", 0),
+    "callgrind_ll_misses": m.get("DLmr", 0) + m.get("DLmw", 0),
+    "callgrind_branch_misses": m.get("Bcm", 0),
+}))')
+      echo "${JSON_LINE}" >> "${OUT_JSONL}"
+      IR=$(echo "${TOTALS_LINE}" | awk '{print $1}')
+      echo "Ir=${IR}"
     else
       echo "FAILED"
     fi

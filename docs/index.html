@@ -191,16 +191,6 @@
         font-size: 0.75em;
         margin-left: 4px;
       }
-      .fg-link {
-        margin-left: 4px;
-        text-decoration: none;
-        font-size: 0.9em;
-        opacity: 0.7;
-      }
-      .fg-link:hover {
-        opacity: 1;
-        text-decoration: none;
-      }
 
       .status-ac {
         color: var(--green);
@@ -424,6 +414,9 @@
         <button data-metric="time_total">time_total</button>
         <button data-metric="memory_max">memory_max</button>
         <button data-metric="Ir">Ir</button>
+        <button data-metric="D1_miss">D1_miss</button>
+        <button data-metric="LL_miss">LL_miss</button>
+        <button data-metric="branch_miss">branch_miss</button>
         <span id="detail-sort-hint" class="sort-hint"></span>
       </div>
       <div id="detail-content"></div>
@@ -584,6 +577,27 @@
         Ir: {
           label: "Ir",
           field: "callgrind_instructions",
+          format: formatIr,
+          formatRaw: formatIrRaw,
+          unit: "",
+        },
+        D1_miss: {
+          label: "D1_miss",
+          field: "callgrind_d1_misses",
+          format: formatIr,
+          formatRaw: formatIrRaw,
+          unit: "",
+        },
+        LL_miss: {
+          label: "LL_miss",
+          field: "callgrind_ll_misses",
+          format: formatIr,
+          formatRaw: formatIrRaw,
+          unit: "",
+        },
+        branch_miss: {
+          label: "branch_miss",
+          field: "callgrind_branch_misses",
           format: formatIr,
           formatRaw: formatIrRaw,
           unit: "",
@@ -1100,10 +1114,7 @@
               }
             }
             const fullTip = escapeAttr(buildMetricTooltip(r, bestByEnv[env]));
-            const fgLink = r.flamegraph_path
-              ? ` <a href="${escapeAttr(r.flamegraph_path)}" target="_blank" title="FlameGraph" class="fg-link">🔥</a>`
-              : "";
-            html += `<td title="${fullTip}" style="cursor:help" class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td title="${fullTip}" style="cursor:help">${valueCell}${suffix}${fgLink}</td>`;
+            html += `<td title="${fullTip}" style="cursor:help" class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td title="${fullTip}" style="cursor:help">${valueCell}${suffix}</td>`;
           }
           html += "</tr>";
         }
