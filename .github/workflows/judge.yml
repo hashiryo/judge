@@ -229,7 +229,7 @@ jobs:
           - { os: ubuntu-24.04-arm, toolchain: clang, cxx: clang++-21, name: arm-clang++,
               cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
     runs-on: ${{ matrix.env.os }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -271,7 +271,9 @@ jobs:
       - name: Run callgrind
         env:
           CXX: ${{ matrix.env.cxx }}
-          CXXFLAGS: ${{ matrix.env.cxxflags }}
+          # 通常 run と同じフラグ + -g を追加 (debug info でインライン関数の名前解決)
+          # -g は最適化に影響しないので Ir 値は変わらない
+          CXXFLAGS: ${{ matrix.env.cxxflags }} -g
           ENV_NAME: ${{ matrix.env.name }}
           PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
         run: bash scripts/run-callgrind.sh
