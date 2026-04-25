@@ -15,6 +15,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPTS_DIR="${ROOT}/scripts"
+# shellcheck source=lib/run-lib.sh
+source "${SCRIPTS_DIR}/lib/run-lib.sh"
 
 CXX="${CXX:-g++}"
 CXXFLAGS="${CXXFLAGS:--std=c++17 -O2}"
@@ -30,75 +33,6 @@ if [[ -z "${PROBLEMS_JSON:-}" ]]; then
   echo "Error: PROBLEMS_JSON required"
   exit 1
 fi
-
-# testcase ディレクトリ取得 (run-tests.sh と同ロジック)
-get_testcase_dir() {
-  local url="$1"
-  local md5
-  md5=$(echo -n "${url}" | md5sum 2>/dev/null | cut -c1-32 || echo -n "${url}" | md5 -q 2>/dev/null)
-  local dir="${TC_DIR}/${md5}"
-  if [[ -d "${dir}" ]] && [[ "$(ls -A "${dir}" 2>/dev/null)" ]]; then
-    echo "${dir}"
-  fi
-}
-
-get_custom_testcase_dir() {
-  local problem_dir="$1"
-  local key="${problem_dir//\//_}"
-  local dir="${CUSTOM_TC_DIR}/${key}"
-  if [[ -d "${dir}" ]] && [[ "$(ls -A "${dir}" 2>/dev/null)" ]]; then
-    echo "${dir}"
-  fi
-}
-
-parse_problem_toml() {
-  local toml="${ROOT}/$1/problem.toml"
-  PROBLEM_URL=""
-  CALLGRIND_CASE=""
-  [[ -f "${toml}" ]] || return
-  while IFS= read -r line; do
-    if [[ "${line}" =~ ^url\ *=\ *\"([^\"]+)\" ]]; then
-      PROBLEM_URL="${BASH_REMATCH[1]}"
-    elif [[ "${line}" =~ ^callgrind_case\ *=\ *\"([^\"]+)\" ]]; then
-      CALLGRIND_CASE="${BASH_REMATCH[1]}"
-    fi
-  done < "${toml}"
-}
-
-# 代表ケースの入力ファイルパスを決定
-pick_representative_input() {
-  local hint="$1"
-  shift
-  local tc_dirs=("$@")
-
-  # ヒント指定があれば優先
-  if [[ -n "${hint}" ]]; then
-    for d in "${tc_dirs[@]}"; do
-      local candidate="${d}/${hint}.in"
-      if [[ -f "${candidate}" ]]; then
-        echo "${candidate}"
-        return
-      fi
-    done
-    echo "  [WARN] callgrind_case=${hint} not found, falling back to largest" >&2
-  fi
-
-  # サイズ最大の .in を選択
-  local largest=""
-  local largest_size=0
-  for d in "${tc_dirs[@]}"; do
-    shopt -s nullglob
-    for f in "${d}"/*.in; do
-      local sz
-      sz=$(stat -c%s "${f}" 2>/dev/null || stat -f%z "${f}" 2>/dev/null || echo 0)
-      if [[ ${sz} -gt ${largest_size} ]]; then
-        largest_size=${sz}
-        largest="${f}"
-      fi
-    done
-  done
-  echo "${largest}"
-}
 
 echo "Callgrind environment: ${ENV_NAME} (${CXX})"
 echo "---"

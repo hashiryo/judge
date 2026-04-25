@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
 # =============================================================================
-# テスト実行共通関数 (Library / judge 共有)
+# テスト実行共通関数
 #
-# 使い方: source scripts/lib/run-lib.sh  (または source lib/scripts/lib/run-lib.sh)
+# 使い方: source scripts/lib/run-lib.sh
 #
 # 呼び出し元が設定すべき変数:
-#   SCRIPTS_DIR     scripts/ ディレクトリのパス (compare-float-output.py の位置特定用)
+#   ROOT            リポジトリルート (problem.toml 読み取り起点)
+#   SCRIPTS_DIR     scripts/ ディレクトリのパス (compare-float-output.py 位置特定用)
+#   TC_DIR          testcase キャッシュディレクトリ (get_testcase_dir 用)
+#   CUSTOM_TC_DIR   custom testcase ディレクトリ (get_custom_testcase_dir 用)
 #
 # 任意設定:
 #   MLE_MB          メモリ制限 (MB)。未設定なら MLE 判定しない
 #   DETAIL_LOG_DIR  エラーログ出力先。未設定ならログ出力しない
+#
+# 提供関数:
+#   parse_problem_toml <problem_dir>   PROBLEM_URL/TLE_SEC/MLE_MB/ERROR_TOL/CALLGRIND_CASE を設定
+#   get_testcase_dir <url>             URL の md5 キャッシュディレクトリを echo
+#   get_custom_testcase_dir <dir>      custom-testcases/<key> を echo
+#   pick_representative_input <hint> <dirs..>  代表テストケース入力 .in を echo
+#   append_case_record ...             ケース記録追記 (\x1f 区切り)
+#   compile_checker <tc_dir>           checker.cpp のコンパイル
+#   run_single_case ...                1 テストケース実行・判定
 # =============================================================================
 
 # SCRIPTS_DIR が未設定なら、このファイルの親の親を使う
@@ -24,6 +36,113 @@ else
   echo "Error: 'timeout' (or 'gtimeout') not found. On macOS: brew install coreutils" >&2
   exit 1
 fi
+
+# =============================================================================
+# problem.toml を解析
+# 入力: <problem_dir>  (ROOT からの相対パス)
+# 出力変数: PROBLEM_URL / TLE_SEC / MLE_MB / ERROR_TOL / CALLGRIND_CASE
+# =============================================================================
+parse_problem_toml() {
+  local problem_dir="$1"
+  local toml_file="${ROOT}/${problem_dir}/problem.toml"
+  PROBLEM_URL=""
+  TLE_SEC="10"
+  MLE_MB="256"
+  ERROR_TOL=""
+  CALLGRIND_CASE=""
+
+  if [[ ! -f "${toml_file}" ]]; then
+    return
+  fi
+
+  while IFS= read -r line; do
+    if [[ "${line}" =~ ^url\ *=\ *\"([^\"]+)\" ]]; then
+      PROBLEM_URL="${BASH_REMATCH[1]}"
+    elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
+      TLE_SEC="${BASH_REMATCH[1]}"
+    elif [[ "${line}" =~ ^mle\ *=\ *([0-9]+) ]]; then
+      export MLE_MB="${BASH_REMATCH[1]}"
+    elif [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
+      ERROR_TOL="${BASH_REMATCH[1]}"
+    elif [[ "${line}" =~ ^callgrind_case\ *=\ *\"([^\"]+)\" ]]; then
+      CALLGRIND_CASE="${BASH_REMATCH[1]}"
+    fi
+  done < "${toml_file}"
+}
+
+# =============================================================================
+# testcase ディレクトリ取得 (URL の md5 ベース)
+# 入力: <problem_url>
+# 出力: 対応する TC_DIR/<md5> を stdout。存在しなければ無出力 + exit 1
+# =============================================================================
+get_testcase_dir() {
+  local problem_url="$1"
+  local url_md5
+  url_md5=$(echo -n "${problem_url}" | md5sum 2>/dev/null | cut -c1-32 \
+    || echo -n "${problem_url}" | md5 -q 2>/dev/null)
+
+  local cache_dir="${TC_DIR}/${url_md5}"
+  if [[ -d "${cache_dir}" ]] && [[ "$(ls -A "${cache_dir}" 2>/dev/null)" ]]; then
+    echo "${cache_dir}"
+    return 0
+  fi
+  return 1
+}
+
+# =============================================================================
+# custom testcase ディレクトリ取得 (problem dir を key 化)
+# 入力: <problem_dir>
+# 出力: CUSTOM_TC_DIR/<key> を stdout。存在しなければ無出力 + exit 1
+# =============================================================================
+get_custom_testcase_dir() {
+  local problem_dir="$1"
+  local key="${problem_dir//\//_}"
+  local custom_dir="${CUSTOM_TC_DIR}/${key}"
+  if [[ -d "${custom_dir}" ]] && [[ "$(ls -A "${custom_dir}" 2>/dev/null)" ]]; then
+    echo "${custom_dir}"
+    return 0
+  fi
+  return 1
+}
+
+# =============================================================================
+# 代表テストケースの入力ファイルを決定
+# 入力: <hint_name> <tc_dirs...>
+#   hint_name が指定され、かつ <hint>.in が見つかればそれを返す。
+#   見つからなければ .in ファイルサイズ最大のものを返す。
+# 出力: 入力ファイルパスを stdout
+# =============================================================================
+pick_representative_input() {
+  local hint="$1"
+  shift
+  local tc_dirs=("$@")
+
+  if [[ -n "${hint}" ]]; then
+    for d in "${tc_dirs[@]}"; do
+      local candidate="${d}/${hint}.in"
+      if [[ -f "${candidate}" ]]; then
+        echo "${candidate}"
+        return
+      fi
+    done
+    echo "  [WARN] hint=${hint} not found, falling back to largest" >&2
+  fi
+
+  local largest=""
+  local largest_size=0
+  for d in "${tc_dirs[@]}"; do
+    shopt -s nullglob
+    for f in "${d}"/*.in; do
+      local sz
+      sz=$(stat -c%s "${f}" 2>/dev/null || stat -f%z "${f}" 2>/dev/null || echo 0)
+      if [[ ${sz} -gt ${largest_size} ]]; then
+        largest_size=${sz}
+        largest="${f}"
+      fi
+    done
+  done
+  echo "${largest}"
+}
 
 # =============================================================================
 # ケース記録の追記 (\x1f 区切り)

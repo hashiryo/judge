@@ -45,60 +45,7 @@ mkdir -p "${RESULT_DIR}"
 
 EXECUTION_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 
-# =============================================================================
-# テストケースディレクトリを取得
-# =============================================================================
-get_testcase_dir() {
-  local problem_url="$1"
-  local url_md5
-  url_md5=$(echo -n "${problem_url}" | md5sum 2>/dev/null | cut -c1-32 || echo -n "${problem_url}" | md5 -q 2>/dev/null)
-
-  local cache_dir="${TC_DIR}/${url_md5}"
-  if [[ -d "${cache_dir}" ]] && [[ "$(ls -A "${cache_dir}" 2>/dev/null)" ]]; then
-    echo "${cache_dir}"
-    return 0
-  fi
-  return 1
-}
-
-get_custom_testcase_dir() {
-  local problem_dir="$1"
-  local key="${problem_dir//\//_}"
-  local custom_dir="${CUSTOM_TC_DIR}/${key}"
-  if [[ -d "${custom_dir}" ]] && [[ "$(ls -A "${custom_dir}" 2>/dev/null)" ]]; then
-    echo "${custom_dir}"
-    return 0
-  fi
-  return 1
-}
-
-# =============================================================================
-# problem.toml を解析
-# =============================================================================
-parse_problem_toml() {
-  local problem_dir="$1"
-  local toml_file="${ROOT}/${problem_dir}/problem.toml"
-  PROBLEM_URL=""
-  TLE_SEC="10"
-  MLE_MB="256"
-  ERROR_TOL=""
-
-  if [[ ! -f "${toml_file}" ]]; then
-    return
-  fi
-
-  while IFS= read -r line; do
-    if [[ "${line}" =~ ^url\ *=\ *\"([^\"]+)\" ]]; then
-      PROBLEM_URL="${BASH_REMATCH[1]}"
-    elif [[ "${line}" =~ ^tle\ *=\ *([0-9.]+) ]]; then
-      TLE_SEC="${BASH_REMATCH[1]}"
-    elif [[ "${line}" =~ ^mle\ *=\ *([0-9]+) ]]; then
-      export MLE_MB="${BASH_REMATCH[1]}"
-    elif [[ "${line}" =~ ^error\ *=\ *([0-9.eE+-]+) ]]; then
-      ERROR_TOL="${BASH_REMATCH[1]}"
-    fi
-  done < "${toml_file}"
-}
+# parse_problem_toml / get_testcase_dir / get_custom_testcase_dir は run-lib.sh で提供
 
 # =============================================================================
 # テストケースに対して1つの cpp ファイルを実行
