@@ -1,4 +1,5 @@
 #pragma once
+#include "_common.hpp"
 // mod < 2^32
 struct MP {
     u32 mod;

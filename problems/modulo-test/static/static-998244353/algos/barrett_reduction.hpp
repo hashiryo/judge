@@ -1,4 +1,5 @@
 #pragma once
+#include "_common.hpp"
 // 2^20 < mod <= 2^41
 struct MP {
     u64 mod;

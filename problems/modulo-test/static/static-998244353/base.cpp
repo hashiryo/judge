@@ -1,11 +1,12 @@
 // harness: 各 algos/*.hpp が定義する struct MP を使って計測する
-#include <bits/stdc++.h>
-using namespace std;
-using u32 = unsigned;
-using u64 = unsigned long long;
-using u128 = __uint128_t;
+#include "algos/_common.hpp"
 
-#include ALGO_HPP   // -DALGO_HPP="\"algos/xxx.hpp\""
+// CI では -DALGO_HPP="\"algos/xxx.hpp\"" で上書きされる。
+// ここでのデフォルトは IDE で base.cpp 単独表示時に補完を効かせるため。
+#ifndef ALGO_HPP
+#define ALGO_HPP "algos/naive.hpp"
+#endif
+#include ALGO_HPP
 
 signed main() {
     cin.tie(0);
