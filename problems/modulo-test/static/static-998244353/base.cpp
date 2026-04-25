@@ -14,7 +14,9 @@ signed main() {
     u32 n_, state_, a_, b_, c_, d_;
     cin >> n_ >> state_ >> a_ >> b_ >> c_ >> d_;
 
-    constexpr int REPEAT = 5;
+    // REPEAT は wall time を REPEAT 倍するので TLE と相談して決める。
+    // ここは重ループで 1 回でも十分長く動くので REPEAT=1 で十分な精度。
+    constexpr int REPEAT = 1;
     uint64_t best_ns = ~uint64_t(0);
     u64 result_out = 0;
 
