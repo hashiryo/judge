@@ -24,7 +24,6 @@ private:
 signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
-
  constexpr MP_Pl mp(998244353);
  u32 n, state, a, b, c, d;
  cin >> n >> state >> a >> b >> c >> d;
