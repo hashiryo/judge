@@ -37,11 +37,10 @@ fi
 echo "Callgrind environment: ${ENV_NAME} (${CXX})"
 echo "---"
 
-PROBLEM_COUNT=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['problems']))")
-
-for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
-  PROBLEM_DIR=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; print(json.load(sys.stdin)['problems'][$i]['dir'])")
-  FILE_COUNT=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; print(len(json.load(sys.stdin)['problems'][$i]['files']))")
+# PROBLEMS_JSON を TSV 展開: 1 行 = "<dir>\t<file1>\t<file2>..."
+while IFS=$'\t' read -r -a PARTS; do
+  PROBLEM_DIR="${PARTS[0]}"
+  FILES=("${PARTS[@]:1}")
 
   echo ""
   echo "=== ${PROBLEM_DIR} ==="
@@ -68,8 +67,7 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
   CASE_NAME=$(basename "${INPUT_FILE}" .in)
   echo "  case: ${CASE_NAME} ($(stat -c%s "${INPUT_FILE}" 2>/dev/null || stat -f%z "${INPUT_FILE}") bytes)"
 
-  for j in $(seq 0 $((FILE_COUNT - 1))); do
-    FILENAME=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; print(json.load(sys.stdin)['problems'][$i]['files'][$j])")
+  for FILENAME in "${FILES[@]}"; do
     CPP_FILE="${ROOT}/${PROBLEM_DIR}/${FILENAME}"
     REL_PATH="${PROBLEM_DIR}/${FILENAME}"
     [[ -f "${CPP_FILE}" ]] || { echo "  [SKIP] ${REL_PATH}"; continue; }
@@ -96,36 +94,15 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
     fi
 
     if [[ -n "${TOTALS_LINE}" ]]; then
-      # SIMD 命令の Ir 集計 (x86: v prefix, arm: vec reg)
-      # 出力: "<simd_ir> <binary_ir>" (binary_ir はライブラリ除くバイナリ本体の Ir)
-      SIMD_COUNTS=$(python3 "${ROOT}/scripts/count-simd.py" "${BINARY}" "${CG_OUT}" 2>/dev/null || echo "0 0")
+      # SIMD 命令 Ir 集計 (x86: v prefix, arm: vec reg) → "<simd_ir> <binary_ir>"
+      SIMD_COUNTS=$(python3 "${SCRIPTS_DIR}/count-simd.py" "${BINARY}" "${CG_OUT}" 2>/dev/null || echo "0 0")
       SIMD_IR=$(echo "${SIMD_COUNTS}" | awk '{print $1}')
       BINARY_IR=$(echo "${SIMD_COUNTS}" | awk '{print $2}')
 
       JSON_LINE=$(EVENTS="${EVENTS_LINE}" TOTALS="${TOTALS_LINE}" \
         SIMD_IR="${SIMD_IR}" BINARY_IR="${BINARY_IR}" \
         REL_PATH="${REL_PATH}" ENV_NAME="${ENV_NAME}" CASE_NAME="${CASE_NAME}" \
-        python3 -c '
-import json, os
-events = os.environ["EVENTS"].split()
-totals = list(map(int, os.environ["TOTALS"].split()))
-m = dict(zip(events, totals))
-simd_ir = int(os.environ["SIMD_IR"])
-binary_ir = int(os.environ["BINARY_IR"])
-# SIMD ratio: バイナリ本体 Ir に対する SIMD 命令の割合 (ライブラリコード除外)
-simd_ratio = (simd_ir / binary_ir) if binary_ir > 0 else 0.0
-print(json.dumps({
-    "file": os.environ["REL_PATH"],
-    "environment": os.environ["ENV_NAME"],
-    "callgrind_case": os.environ["CASE_NAME"],
-    "callgrind_instructions": m.get("Ir", 0),
-    "callgrind_d1_misses": m.get("D1mr", 0) + m.get("D1mw", 0),
-    "callgrind_ll_misses": m.get("DLmr", 0) + m.get("DLmw", 0),
-    "callgrind_branch_misses": m.get("Bcm", 0),
-    "callgrind_simd_instructions": simd_ir,
-    "callgrind_binary_instructions": binary_ir,
-    "callgrind_simd_ratio": simd_ratio,
-}))')
+        python3 "${SCRIPTS_DIR}/lib/build-callgrind-entry.py")
       echo "${JSON_LINE}" >> "${OUT_JSONL}"
       IR=$(echo "${TOTALS_LINE}" | awk '{print $1}')
       echo "Ir=${IR} SIMD=${SIMD_IR}/${BINARY_IR}"
@@ -135,7 +112,7 @@ print(json.dumps({
 
     rm -f "${BINARY}" "${CG_OUT}"
   done
-done
+done < <(printf '%s' "${PROBLEMS_JSON}" | python3 "${SCRIPTS_DIR}/lib/problems-json.py")
 
 echo ""
 echo "Callgrind results: ${OUT_JSONL} ($(wc -l < "${OUT_JSONL}") entries)"

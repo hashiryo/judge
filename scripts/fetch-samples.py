@@ -26,25 +26,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-
-def parse_problem_toml(problem_dir: Path) -> dict:
-    """problem.toml を読み取る"""
-    toml_path = problem_dir / "problem.toml"
-    config = {}
-    if not toml_path.exists():
-        return config
-    for line in toml_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        m = re.match(r'(\w+)\s*=\s*"([^"]*)"', line)
-        if m:
-            config[m.group(1)] = m.group(2)
-            continue
-        m = re.match(r'(\w+)\s*=\s*(\S+)', line)
-        if m:
-            config[m.group(1)] = m.group(2)
-    return config
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.problem_toml import parse_problem_toml  # noqa: E402
 
 
 # ============================================================

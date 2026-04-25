@@ -143,12 +143,10 @@ RESULT_JSONL="${RESULT_DIR}/result-${ENV_NAME}.jsonl"
 RESULT_FILE="${RESULT_DIR}/result-${ENV_NAME}.json"
 : > "${RESULT_JSONL}"
 
-# PROBLEMS_JSON をパースして問題ごとに処理
-PROBLEM_COUNT=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d['problems']))")
-
-for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
-  PROBLEM_DIR=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['problems'][$i]['dir'])")
-  FILE_COUNT=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d['problems'][$i]['files']))")
+# PROBLEMS_JSON を TSV 展開: 1 行 = "<dir>\t<file1>\t<file2>..."
+while IFS=$'\t' read -r -a PARTS; do
+  PROBLEM_DIR="${PARTS[0]}"
+  FILES=("${PARTS[@]:1}")
 
   echo ""
   echo "=== ${PROBLEM_DIR} ==="
@@ -156,18 +154,12 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
   parse_problem_toml "${PROBLEM_DIR}"
 
   TC_DIRS=()
-
   if [[ -n "${PROBLEM_URL}" ]]; then
     tc_dir=$(get_testcase_dir "${PROBLEM_URL}" || true)
-    if [[ -n "${tc_dir}" ]]; then
-      TC_DIRS+=("${tc_dir}")
-    fi
+    [[ -n "${tc_dir}" ]] && TC_DIRS+=("${tc_dir}")
   fi
-
   custom_dir=$(get_custom_testcase_dir "${PROBLEM_DIR}" || true)
-  if [[ -n "${custom_dir}" ]]; then
-    TC_DIRS+=("${custom_dir}")
-  fi
+  [[ -n "${custom_dir}" ]] && TC_DIRS+=("${custom_dir}")
 
   if [[ ${#TC_DIRS[@]} -eq 0 ]]; then
     echo "  [SKIP] No testcases available"
@@ -177,9 +169,7 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
   # テストケース入力ファイルの内容からハッシュを計算
   CASES_HASH=$(find "${TC_DIRS[@]}" -name '*.in' -print0 | sort -z | xargs -0 cat 2>/dev/null | shasum -a 256 | cut -c1-16)
 
-
-  for j in $(seq 0 $((FILE_COUNT - 1))); do
-    FILENAME=$(echo "${PROBLEMS_JSON}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['problems'][$i]['files'][$j])")
+  for FILENAME in "${FILES[@]}"; do
     CPP_FILE="${ROOT}/${PROBLEM_DIR}/${FILENAME}"
     if [[ ! -f "${CPP_FILE}" ]]; then
       echo "  [SKIP] ${PROBLEM_DIR}/${FILENAME} (not found)"
@@ -188,10 +178,10 @@ for i in $(seq 0 $((PROBLEM_COUNT - 1))); do
 
     result_json=$(run_cpp_file "${CPP_FILE}" "${TC_DIRS[@]}")
     if [[ -n "${result_json}" ]]; then
-      echo "${result_json}" | python3 "${ROOT}/scripts/lib/enrich_result.py" --cases-hash "${CASES_HASH}" >> "${RESULT_JSONL}"
+      echo "${result_json}" | python3 "${SCRIPTS_DIR}/lib/enrich_result.py" --cases-hash "${CASES_HASH}" >> "${RESULT_JSONL}"
     fi
   done
-done
+done < <(printf '%s' "${PROBLEMS_JSON}" | python3 "${SCRIPTS_DIR}/lib/problems-json.py")
 
 # JSONL → JSON 配列に変換
 python3 "${SCRIPTS_DIR}/collect-run-results.py" finalize \

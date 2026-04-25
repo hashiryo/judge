@@ -10,7 +10,6 @@ Library リポジトリの共通ダウンロードモジュール (lib/download.
 """
 import json
 import os
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -20,6 +19,9 @@ TC_CACHE_DIR = ROOT / ".cache" / "testcases"
 CUSTOM_TC_DIR = ROOT / ".cache" / "custom-testcases"
 
 YUKICODER_TOKEN = os.environ.get("YUKICODER_TOKEN", "")
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lib.problem_toml import parse_problem_toml  # noqa: E402
 
 
 def load_download_module():
@@ -34,26 +36,6 @@ def load_download_module():
         yukicoder_token=YUKICODER_TOKEN,
     )
     return download_batch, config
-
-
-def parse_problem_toml(problem_dir: Path) -> dict:
-    """problem.toml を読み取る (toml パーサーなしの簡易実装)"""
-    toml_path = problem_dir / "problem.toml"
-    config: dict[str, str] = {}
-    if not toml_path.exists():
-        return config
-    for line in toml_path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        m = re.match(r'(\w+)\s*=\s*"([^"]*)"', line)
-        if m:
-            config[m.group(1)] = m.group(2)
-            continue
-        m = re.match(r"(\w+)\s*=\s*(\S+)", line)
-        if m:
-            config[m.group(1)] = m.group(2)
-    return config
 
 
 def collect_problem_urls(problems_json: dict) -> dict[str, list[str]]:
