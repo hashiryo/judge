@@ -412,6 +412,7 @@
         <label>Metric:</label>
         <button data-metric="time_max" class="active">time_max</button>
         <button data-metric="time_total">time_total</button>
+        <button data-metric="algo_time_max">algo_time_max</button>
         <button data-metric="memory_max">memory_max</button>
         <button data-metric="Ir">Ir</button>
         <button data-metric="D1_miss">D1_miss</button>
@@ -552,6 +553,20 @@
         return n.toLocaleString();
       }
 
+      // ns → 短縮表示 (123ns / 12.3μs / 12.3ms / 12.3s)
+      function formatNs(ns) {
+        if (ns === undefined || ns === null) return "-";
+        const abs = Math.abs(ns);
+        if (abs >= 1e9) return (ns / 1e9).toFixed(2) + "s";
+        if (abs >= 1e6) return (ns / 1e6).toFixed(2) + "ms";
+        if (abs >= 1e3) return (ns / 1e3).toFixed(2) + "μs";
+        return ns + "ns";
+      }
+      function formatNsRaw(ns) {
+        if (ns === undefined || ns === null) return "-";
+        return ns.toLocaleString() + " ns";
+      }
+
       // メトリクス定義
       const METRICS = {
         time_max: {
@@ -567,6 +582,13 @@
           format: formatTime,
           formatRaw: (v) => (v === undefined || v === null ? "-" : v.toLocaleString() + " ms"),
           unit: "ms",
+        },
+        algo_time_max: {
+          label: "algo_time_max",
+          field: "algo_time_max_ns",
+          format: formatNs,
+          formatRaw: formatNsRaw,
+          unit: "ns",
         },
         memory_max: {
           label: "memory_max",

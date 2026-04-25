@@ -146,6 +146,8 @@ pick_representative_input() {
 
 # =============================================================================
 # ケース記録の追記 (\x1f 区切り)
+# 列: name | status | time_ms | memory_kb | detail | algo_time_ns
+# (algo_time_ns は最後尾の追加列。harness モードでない場合は 0)
 # =============================================================================
 append_case_record() {
   local records_file="$1"
@@ -154,8 +156,9 @@ append_case_record() {
   local case_time="$4"
   local case_mem="$5"
   local case_detail="${6:-}"
-  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
-    "${case_name}" "${case_status}" "${case_time}" "${case_mem}" "${case_detail}" \
+  local case_algo_ns="${7:-0}"
+  printf '%s\x1f%s\x1f%s\x1f%s\x1f%s\x1f%s\n' \
+    "${case_name}" "${case_status}" "${case_time}" "${case_mem}" "${case_detail}" "${case_algo_ns}" \
     >> "${records_file}"
 }
 
@@ -201,7 +204,9 @@ compile_checker() {
 #   MLE_MB          メモリ制限 (MB)
 #   DETAIL_LOG_DIR  エラーログ出力先
 #
-# stdout: "STATUS TIME_MS MEMORY_KB [DETAIL]"
+# stdout: "STATUS TIME_MS MEMORY_KB ALGO_TIME_NS [DETAIL]"
+#   ALGO_TIME_NS は被測定バイナリが stderr に "ALGO_TIME_NS=N" を出した場合のみ N、
+#   それ以外は 0。harness モード (base.cpp) で計測値を取得する用途。
 # =============================================================================
 run_single_case() {
   local binary="$1"
@@ -333,13 +338,23 @@ run_single_case() {
     } > "${log_file}" 2>/dev/null
   fi
 
+  # harness が stderr に出した ALGO_TIME_NS=N を拾う (無ければ 0)
+  local algo_time_ns=0
+  if [[ -f "${stderr_file}" ]]; then
+    local raw
+    raw=$(grep -m1 '^ALGO_TIME_NS=' "${stderr_file}" 2>/dev/null | sed 's/^ALGO_TIME_NS=//')
+    if [[ "${raw}" =~ ^[0-9]+$ ]]; then
+      algo_time_ns="${raw}"
+    fi
+  fi
+
   rm -f "${output_file}" "${stderr_file}"
 
   # detail 内の改行や特殊文字をエスケープ
   if [[ -n "${detail}" ]]; then
     detail=$(echo "${detail}" | head -3 | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-200)
-    echo "${status} ${elapsed_ms} ${memory_kb} ${detail}"
+    echo "${status} ${elapsed_ms} ${memory_kb} ${algo_time_ns} ${detail}"
   else
-    echo "${status} ${elapsed_ms} ${memory_kb}"
+    echo "${status} ${elapsed_ms} ${memory_kb} ${algo_time_ns}"
   fi
 }

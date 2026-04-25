@@ -54,6 +54,13 @@ def enrich_result(entry: dict, *, cases_hash: str | None = None) -> dict:
     entry["time_total_ms"] = sum((c["time_ms"] for c in cases), start=0)
     entry["memory_max_kb"] = max((c["memory_kb"] for c in cases), default=0)
     entry["cases_hash"] = cases_hash if cases_hash else compute_cases_hash(cases)
+
+    # harness モード由来の純アルゴリズム実行時間 (ns)。
+    # 1 つでも algo_time_ns を持つ case があれば集計、無ければ未付与。
+    algo_times = [c["algo_time_ns"] for c in cases if "algo_time_ns" in c]
+    if algo_times:
+        entry["algo_time_max_ns"] = max(algo_times)
+        entry["algo_time_total_ns"] = sum(algo_times)
     entry.update(_collect_runtime_env())
     return entry
 

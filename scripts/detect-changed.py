@@ -3,12 +3,15 @@
 # requires-python = ">=3.12"
 # ///
 """
-変更された問題ディレクトリを検出し、同じ問題の全 .cpp ファイルを含めて出力する。
+変更された問題ディレクトリを検出し、提出候補ファイル一覧を出力する。
 
-問題ディレクトリは、problems/ 以下で problem.toml を持つディレクトリとみなす。
+提出候補:
+  旧形式: <problem>/**/*.cpp (gen/, testcases/, base.cpp は除外)
+  新形式 (harness): <problem>/algos/*.hpp (アンダースコア始まりは除外)
+            base.cpp が存在する問題のみ algos/*.hpp が対象になる
 
 出力: JSON (GitHub Actions の matrix 用)
-    {"problems": [{"dir": "problems/yosupo-unionfind", "files": ["sol_a.cpp", "sol_b.cpp"]}]}
+    {"problems": [{"dir": "problems/foo", "files": ["sol_a.cpp", "algos/barrett.hpp"]}]}
 
 使い方:
     # push の差分から検出
@@ -90,8 +93,38 @@ def find_problem_dirs_from_files(files: list[str]) -> set[str]:
     return dirs
 
 
+def collect_submission_files(problem_dir: str) -> list[str]:
+    """問題ディレクトリ内の提出候補ファイルを収集する。
+
+    旧形式: *.cpp (gen/, testcases/, base.cpp は除外)
+    新形式: algos/*.hpp (アンダースコア始まりは除外、base.cpp 必須)
+    """
+    d = ROOT / problem_dir
+    files: list[str] = []
+
+    # 旧形式: 提出 .cpp ファイル (base.cpp 除外)
+    for cpp in sorted(d.rglob("*.cpp")):
+        rel = cpp.relative_to(d)
+        if any(part in EXCLUDED_CPP_DIR_NAMES for part in rel.parts):
+            continue
+        if str(rel) == "base.cpp":
+            continue
+        files.append(str(rel))
+
+    # 新形式: harness モード (base.cpp ありの場合のみ algos/*.hpp 対象)
+    if (d / "base.cpp").is_file():
+        algos_dir = d / "algos"
+        if algos_dir.is_dir():
+            for hpp in sorted(algos_dir.glob("*.hpp")):
+                if hpp.name.startswith("_"):
+                    continue
+                files.append(str(hpp.relative_to(d)))
+
+    return files
+
+
 def find_all_problem_dirs() -> set[str]:
-    """全問題ディレクトリを検出"""
+    """全問題ディレクトリを検出 (提出候補を持つもののみ)"""
     dirs = set()
     if not PROBLEMS_DIR.exists():
         return dirs
@@ -99,19 +132,10 @@ def find_all_problem_dirs() -> set[str]:
         child = toml_file.parent
         if child.name.startswith("."):
             continue
-        if any(is_submission_cpp(child, cpp) for cpp in child.rglob("*.cpp")):
-            dirs.add(str(child.relative_to(ROOT)))
+        rel = str(child.relative_to(ROOT))
+        if collect_submission_files(rel):
+            dirs.add(rel)
     return dirs
-
-
-def collect_cpp_files(problem_dir: str) -> list[str]:
-    """問題ディレクトリ内の提出候補 .cpp ファイルを収集する"""
-    d = ROOT / problem_dir
-    files = []
-    for cpp in sorted(d.rglob("*.cpp")):
-        if is_submission_cpp(d, cpp):
-            files.append(str(cpp.relative_to(d)))
-    return files
 
 
 def main():
@@ -132,7 +156,7 @@ def main():
 
     problems = []
     for d in sorted(problem_dirs):
-        files = collect_cpp_files(d)
+        files = collect_submission_files(d)
         if files:
             problems.append({"dir": d, "files": files})
 

@@ -56,12 +56,24 @@ run_cpp_file() {
   local rel_path
   rel_path="${cpp_file#${ROOT}/}"
 
+  # harness モード判定: 対象が .hpp なら base.cpp + -DALGO_HPP=... でビルド
+  local source_cpp
+  local -a build_extra=()
+  if [[ "${cpp_file}" == *.hpp ]]; then
+    local problem_root_abs="${ROOT}/${PROBLEM_DIR}"
+    source_cpp="${problem_root_abs}/base.cpp"
+    local algo_rel="${cpp_file#"${problem_root_abs}"/}"
+    build_extra=(-DALGO_HPP="\"${algo_rel}\"")
+  else
+    source_cpp="${cpp_file}"
+  fi
+
   # コンパイル
   local binary
   binary=$(mktemp)
   local compile_err
   compile_err=$(mktemp)
-  if ! ${CXX} ${CXXFLAGS} -o "${binary}" "${cpp_file}" 2>"${compile_err}"; then
+  if ! ${CXX} ${CXXFLAGS} "${build_extra[@]}" -o "${binary}" "${source_cpp}" 2>"${compile_err}"; then
     echo "  [CE] ${rel_path}" >&2
     head -20 "${compile_err}" | sed 's/^/    /' >&2
     local compile_error_excerpt
@@ -105,14 +117,14 @@ run_cpp_file() {
 
       local result
       result=$(case_name="${case_name}" run_single_case "${binary}" "${input_file}" "${expected_file}" "${TLE_SEC}" "${ERROR_TOL}" "${checker_bin}")
-      local case_status case_time case_mem case_detail
-      read -r case_status case_time case_mem case_detail <<< "${result}"
+      local case_status case_time case_mem case_algo_ns case_detail
+      read -r case_status case_time case_mem case_algo_ns case_detail <<< "${result}"
 
       if [[ "${case_status}" != "AC" ]] && [[ "${overall_status}" == "AC" ]]; then
         overall_status="${case_status}"
       fi
 
-      append_case_record "${case_records_file}" "${case_name}" "${case_status}" "${case_time}" "${case_mem}" "${case_detail:-}"
+      append_case_record "${case_records_file}" "${case_name}" "${case_status}" "${case_time}" "${case_mem}" "${case_detail:-}" "${case_algo_ns:-0}"
       case_count=$((case_count + 1))
     done
   done

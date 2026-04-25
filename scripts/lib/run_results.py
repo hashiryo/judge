@@ -77,7 +77,11 @@ def _load_lines_as_set(file_path: str) -> set[str]:
 
 
 def load_case_records(path: str | None) -> list[dict]:
-    """ケース記録ファイル (\x1f 区切り) を読み取る"""
+    """ケース記録ファイル (\x1f 区切り) を読み取る。
+
+    列: name | status | time_ms | memory_kb | [detail] | [algo_time_ns]
+    後ろの 2 列はオプショナル (古い形式でも互換)。
+    """
     if not path or not os.path.exists(path):
         return []
     cases: list[dict] = []
@@ -91,6 +95,7 @@ def load_case_records(path: str | None) -> list[dict]:
                 continue
             name, status, time_ms, memory_kb = parts[0], parts[1], parts[2], parts[3]
             detail = parts[4] if len(parts) > 4 else ""
+            algo_time_ns_raw = parts[5] if len(parts) > 5 else ""
             entry: dict = {
                 "name": name,
                 "status": status,
@@ -99,6 +104,10 @@ def load_case_records(path: str | None) -> list[dict]:
             }
             if detail:
                 entry["detail"] = detail
+            if algo_time_ns_raw and algo_time_ns_raw.isdigit():
+                v = int(algo_time_ns_raw)
+                if v > 0:
+                    entry["algo_time_ns"] = v
             cases.append(entry)
     return cases
 
