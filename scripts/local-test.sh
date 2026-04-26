@@ -5,8 +5,12 @@ set -euo pipefail
 # ローカルでサンプルテストケースに対してテストを実行する
 #
 # 使い方:
-#   ./scripts/local-test.sh problems/yosupo-unionfind/sol_naive.cpp
-#   ./scripts/local-test.sh problems/yosupo-unionfind/   # 全 cpp を実行
+#   旧形式:
+#     ./scripts/local-test.sh problems/yosupo-unionfind/sol_naive.cpp
+#   新形式 (harness):
+#     ./scripts/local-test.sh problems/yosupo-unionfind/algos/naive.hpp
+#   ディレクトリ指定 (旧/新形式の提出を全て実行):
+#     ./scripts/local-test.sh problems/yosupo-unionfind/
 # =============================================================================
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -40,25 +44,74 @@ fi
 
 TARGET="$1"
 
-# 対象ファイルを決定
-CPP_FILES=()
+# 提出候補を決定
+# 並列配列:
+#   DISPLAY_NAMES[i] : 表示名 (例: "sol_naive.cpp" / "algos/naive.hpp")
+#   SOURCES[i]       : コンパイル対象 (.cpp パス。新形式は base.cpp)
+#   EXTRA_FLAGS[i]   : 追加フラグ (新形式は -DALGO_HPP=...)
+DISPLAY_NAMES=()
+SOURCES=()
+EXTRA_FLAGS=()
 PROBLEM_DIR=""
 
+add_old() {
+  local cpp_file="$1"
+  DISPLAY_NAMES+=("$(basename "${cpp_file}")")
+  SOURCES+=("${cpp_file}")
+  EXTRA_FLAGS+=("")
+}
+
+add_new() {
+  # 新形式: base.cpp を ALGO_HPP=algos/xxx.hpp で再コンパイル
+  local prob_dir="$1"
+  local hpp_rel="$2"  # 例: algos/naive.hpp
+  DISPLAY_NAMES+=("${hpp_rel}")
+  SOURCES+=("${prob_dir}/base.cpp")
+  # C プリプロセッサに "algos/xxx.hpp" (引用符込み) を渡す必要があるため、
+  # シェルレベルで一段エスケープする。
+  EXTRA_FLAGS+=("-DALGO_HPP=\"${hpp_rel}\"")
+}
+
+collect_dir() {
+  local prob_dir="$1"
+  shopt -s nullglob
+  # 旧形式: <prob_dir>/*.cpp (base.cpp は除外)
+  for f in "${prob_dir}"/*.cpp; do
+    [[ "$(basename "${f}")" == "base.cpp" ]] && continue
+    add_old "${f}"
+  done
+  # 新形式: base.cpp がある場合のみ algos/*.hpp を列挙 (_ 始まりは除外)
+  if [[ -f "${prob_dir}/base.cpp" ]] && [[ -d "${prob_dir}/algos" ]]; then
+    for h in "${prob_dir}"/algos/*.hpp; do
+      local name
+      name="$(basename "${h}")"
+      [[ "${name}" == _* ]] && continue
+      add_new "${prob_dir}" "algos/${name}"
+    done
+  fi
+}
+
 if [[ -f "${TARGET}" ]] && [[ "${TARGET}" == *.cpp ]]; then
-  CPP_FILES=("${TARGET}")
   PROBLEM_DIR="$(dirname "${TARGET}")"
+  add_old "${TARGET}"
+elif [[ -f "${TARGET}" ]] && [[ "${TARGET}" == *.hpp ]]; then
+  # algos/*.hpp 直接指定 (新形式)
+  algos_dir="$(dirname "${TARGET}")"
+  PROBLEM_DIR="$(dirname "${algos_dir}")"
+  if [[ "$(basename "${algos_dir}")" != "algos" ]] || [[ ! -f "${PROBLEM_DIR}/base.cpp" ]]; then
+    echo "Error: ${TARGET} is not under <problem>/algos/ or base.cpp is missing"
+    exit 1
+  fi
+  add_new "${PROBLEM_DIR}" "algos/$(basename "${TARGET}")"
 elif [[ -d "${TARGET}" ]]; then
   PROBLEM_DIR="${TARGET%/}"
-  shopt -s nullglob
-  for f in "${PROBLEM_DIR}"/*.cpp; do
-    CPP_FILES+=("${f}")
-  done
-  if [[ ${#CPP_FILES[@]} -eq 0 ]]; then
-    echo "Error: No .cpp files in ${PROBLEM_DIR}"
+  collect_dir "${PROBLEM_DIR}"
+  if [[ ${#SOURCES[@]} -eq 0 ]]; then
+    echo "Error: No submission files in ${PROBLEM_DIR}"
     exit 1
   fi
 else
-  echo "Error: ${TARGET} is not a .cpp file or directory"
+  echo "Error: ${TARGET} is not a .cpp/.hpp file or directory"
   exit 1
 fi
 
@@ -98,13 +151,24 @@ fi
 # 各 cpp ファイルを実行
 PASS_ALL=true
 
-for cpp_file in "${CPP_FILES[@]}"; do
-  filename=$(basename "${cpp_file}")
-  echo "=== ${filename} ==="
+for i in "${!SOURCES[@]}"; do
+  display_name="${DISPLAY_NAMES[$i]}"
+  source_file="${SOURCES[$i]}"
+  extra="${EXTRA_FLAGS[$i]}"
+  echo "=== ${display_name} ==="
 
   # コンパイル
+  # 新形式は base.cpp が "algos/xxx.hpp" を相対参照するため、PROBLEM_DIR を -I に追加
   binary=$(mktemp)
-  if ! ${CXX} ${CXXFLAGS} -o "${binary}" "${cpp_file}" 2>&1; then
+  cmd=("${CXX}")
+  # shellcheck disable=SC2206
+  cmd+=(${CXXFLAGS})
+  cmd+=("-I${PROBLEM_DIR}")
+  if [[ -n "${extra}" ]]; then
+    cmd+=("${extra}")
+  fi
+  cmd+=(-o "${binary}" "${source_file}")
+  if ! "${cmd[@]}" 2>&1; then
     echo "  CE (Compile Error)"
     echo ""
     PASS_ALL=false
