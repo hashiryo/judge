@@ -5,13 +5,11 @@
 """
 変更された問題ディレクトリを検出し、提出候補ファイル一覧を出力する。
 
-提出候補:
-  旧形式: <problem>/**/*.cpp (gen/, testcases/, base.cpp は除外)
-  新形式 (harness): <problem>/algos/*.hpp (アンダースコア始まりは除外)
-            base.cpp が存在する問題のみ algos/*.hpp が対象になる
+提出候補: <problem>/algos/*.hpp (アンダースコア始まりは除外)
+          base.cpp が存在する問題のみ対象。
 
 出力: JSON (GitHub Actions の matrix 用)
-    {"problems": [{"dir": "problems/foo", "files": ["sol_a.cpp", "algos/barrett.hpp"]}]}
+    {"problems": [{"dir": "problems/foo", "files": ["algos/barrett.hpp"]}]}
 
 使い方:
     # push の差分から検出
@@ -30,13 +28,6 @@ from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 PROBLEMS_DIR = ROOT / "problems"
-EXCLUDED_CPP_DIR_NAMES = {"gen", "testcases"}
-
-
-def is_submission_cpp(problem_root: Path, cpp_path: Path) -> bool:
-    """提出候補に含める .cpp かを判定する"""
-    rel = cpp_path.relative_to(problem_root)
-    return not any(part in EXCLUDED_CPP_DIR_NAMES for part in rel.parts)
 
 
 def is_problem_root(path: Path) -> bool:
@@ -94,33 +85,21 @@ def find_problem_dirs_from_files(files: list[str]) -> set[str]:
 
 
 def collect_submission_files(problem_dir: str) -> list[str]:
-    """問題ディレクトリ内の提出候補ファイルを収集する。
+    """問題ディレクトリ内の提出候補 (algos/*.hpp) を収集する。
 
-    旧形式: *.cpp (gen/, testcases/, base.cpp は除外)
-    新形式: algos/*.hpp (アンダースコア始まりは除外、base.cpp 必須)
+    base.cpp が存在しない問題はスキップ。アンダースコア始まりも除外。
     """
     d = ROOT / problem_dir
-    files: list[str] = []
-
-    # 旧形式: 提出 .cpp ファイル (base.cpp 除外)
-    for cpp in sorted(d.rglob("*.cpp")):
-        rel = cpp.relative_to(d)
-        if any(part in EXCLUDED_CPP_DIR_NAMES for part in rel.parts):
-            continue
-        if str(rel) == "base.cpp":
-            continue
-        files.append(str(rel))
-
-    # 新形式: harness モード (base.cpp ありの場合のみ algos/*.hpp 対象)
-    if (d / "base.cpp").is_file():
-        algos_dir = d / "algos"
-        if algos_dir.is_dir():
-            for hpp in sorted(algos_dir.glob("*.hpp")):
-                if hpp.name.startswith("_"):
-                    continue
-                files.append(str(hpp.relative_to(d)))
-
-    return files
+    if not (d / "base.cpp").is_file():
+        return []
+    algos_dir = d / "algos"
+    if not algos_dir.is_dir():
+        return []
+    return [
+        str(hpp.relative_to(d))
+        for hpp in sorted(algos_dir.glob("*.hpp"))
+        if not hpp.name.startswith("_")
+    ]
 
 
 def find_all_problem_dirs() -> set[str]:

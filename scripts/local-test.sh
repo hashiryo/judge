@@ -5,11 +5,9 @@ set -euo pipefail
 # ローカルでサンプルテストケースに対してテストを実行する
 #
 # 使い方:
-#   旧形式:
-#     ./scripts/local-test.sh problems/yosupo-unionfind/sol_naive.cpp
-#   新形式 (harness):
+#   単一 algo:
 #     ./scripts/local-test.sh problems/yosupo-unionfind/algos/naive.hpp
-#   ディレクトリ指定 (旧/新形式の提出を全て実行):
+#   ディレクトリ指定 (algos/*.hpp 全て実行):
 #     ./scripts/local-test.sh problems/yosupo-unionfind/
 # =============================================================================
 
@@ -38,80 +36,43 @@ if [[ "$(uname -m)" != "x86_64" ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  echo "Usage: $0 <cpp-file-or-problem-dir>"
+  echo "Usage: $0 <hpp-file-or-problem-dir>"
   exit 1
 fi
 
 TARGET="$1"
 
-# 提出候補を決定
-# 並列配列:
-#   DISPLAY_NAMES[i] : 表示名 (例: "sol_naive.cpp" / "algos/naive.hpp")
-#   SOURCES[i]       : コンパイル対象 (.cpp パス。新形式は base.cpp)
-#   EXTRA_FLAGS[i]   : 追加フラグ (新形式は -DALGO_HPP=...)
-DISPLAY_NAMES=()
-SOURCES=()
-EXTRA_FLAGS=()
+# 提出候補 (algos/*.hpp) を ALGOS 配列に集める。
+# 各 entry は base.cpp + -DALGO_HPP="algos/xxx.hpp" でコンパイルされる。
+ALGOS=()
 PROBLEM_DIR=""
 
-add_old() {
-  local cpp_file="$1"
-  DISPLAY_NAMES+=("$(basename "${cpp_file}")")
-  SOURCES+=("${cpp_file}")
-  EXTRA_FLAGS+=("")
-}
-
-add_new() {
-  # 新形式: base.cpp を ALGO_HPP=algos/xxx.hpp で再コンパイル
-  local prob_dir="$1"
-  local hpp_rel="$2"  # 例: algos/naive.hpp
-  DISPLAY_NAMES+=("${hpp_rel}")
-  SOURCES+=("${prob_dir}/base.cpp")
-  # C プリプロセッサに "algos/xxx.hpp" (引用符込み) を渡す必要があるため、
-  # シェルレベルで一段エスケープする。
-  EXTRA_FLAGS+=("-DALGO_HPP=\"${hpp_rel}\"")
-}
-
-collect_dir() {
-  local prob_dir="$1"
-  shopt -s nullglob
-  # 旧形式: <prob_dir>/*.cpp (base.cpp は除外)
-  for f in "${prob_dir}"/*.cpp; do
-    [[ "$(basename "${f}")" == "base.cpp" ]] && continue
-    add_old "${f}"
-  done
-  # 新形式: base.cpp がある場合のみ algos/*.hpp を列挙 (_ 始まりは除外)
-  if [[ -f "${prob_dir}/base.cpp" ]] && [[ -d "${prob_dir}/algos" ]]; then
-    for h in "${prob_dir}"/algos/*.hpp; do
-      local name
-      name="$(basename "${h}")"
-      [[ "${name}" == _* ]] && continue
-      add_new "${prob_dir}" "algos/${name}"
-    done
-  fi
-}
-
-if [[ -f "${TARGET}" ]] && [[ "${TARGET}" == *.cpp ]]; then
-  PROBLEM_DIR="$(dirname "${TARGET}")"
-  add_old "${TARGET}"
-elif [[ -f "${TARGET}" ]] && [[ "${TARGET}" == *.hpp ]]; then
-  # algos/*.hpp 直接指定 (新形式)
+if [[ -f "${TARGET}" ]] && [[ "${TARGET}" == *.hpp ]]; then
   algos_dir="$(dirname "${TARGET}")"
   PROBLEM_DIR="$(dirname "${algos_dir}")"
   if [[ "$(basename "${algos_dir}")" != "algos" ]] || [[ ! -f "${PROBLEM_DIR}/base.cpp" ]]; then
     echo "Error: ${TARGET} is not under <problem>/algos/ or base.cpp is missing"
     exit 1
   fi
-  add_new "${PROBLEM_DIR}" "algos/$(basename "${TARGET}")"
+  ALGOS+=("algos/$(basename "${TARGET}")")
 elif [[ -d "${TARGET}" ]]; then
   PROBLEM_DIR="${TARGET%/}"
-  collect_dir "${PROBLEM_DIR}"
-  if [[ ${#SOURCES[@]} -eq 0 ]]; then
-    echo "Error: No submission files in ${PROBLEM_DIR}"
+  if [[ ! -f "${PROBLEM_DIR}/base.cpp" ]] || [[ ! -d "${PROBLEM_DIR}/algos" ]]; then
+    echo "Error: ${PROBLEM_DIR} に base.cpp / algos/ がありません"
+    exit 1
+  fi
+  shopt -s nullglob
+  for h in "${PROBLEM_DIR}"/algos/*.hpp; do
+    name="$(basename "${h}")"
+    [[ "${name}" == _* ]] && continue
+    ALGOS+=("algos/${name}")
+  done
+  if [[ ${#ALGOS[@]} -eq 0 ]]; then
+    echo "Error: No algos/*.hpp in ${PROBLEM_DIR}"
     exit 1
   fi
 else
-  echo "Error: ${TARGET} is not a .cpp/.hpp file or directory"
+  echo "Error: ${TARGET} is not a .hpp file or directory"
   exit 1
 fi
 
@@ -148,26 +109,21 @@ if [[ -f "${TOML_FILE}" ]]; then
   done < "${TOML_FILE}"
 fi
 
-# 各 cpp ファイルを実行
+# 各 algo を実行
 PASS_ALL=true
+SOURCE_CPP="${PROBLEM_DIR}/base.cpp"
 
-for i in "${!SOURCES[@]}"; do
-  display_name="${DISPLAY_NAMES[$i]}"
-  source_file="${SOURCES[$i]}"
-  extra="${EXTRA_FLAGS[$i]}"
-  echo "=== ${display_name} ==="
+for algo_rel in "${ALGOS[@]}"; do
+  echo "=== ${algo_rel} ==="
 
-  # コンパイル
-  # 新形式は base.cpp が "algos/xxx.hpp" を相対参照するため、PROBLEM_DIR を -I に追加
+  # コンパイル: base.cpp + -DALGO_HPP="algos/xxx.hpp"
+  # base.cpp が "algos/xxx.hpp" を相対 include するため -I${PROBLEM_DIR} を追加
   binary=$(mktemp)
   cmd=("${CXX}")
   # shellcheck disable=SC2206
   cmd+=(${CXXFLAGS})
-  cmd+=("-I${PROBLEM_DIR}")
-  if [[ -n "${extra}" ]]; then
-    cmd+=("${extra}")
-  fi
-  cmd+=(-o "${binary}" "${source_file}")
+  cmd+=("-I${PROBLEM_DIR}" "-DALGO_HPP=\"${algo_rel}\"")
+  cmd+=(-o "${binary}" "${SOURCE_CPP}")
   if ! "${cmd[@]}" 2>&1; then
     echo "  CE (Compile Error)"
     echo ""

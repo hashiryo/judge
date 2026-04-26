@@ -72,14 +72,10 @@ while IFS=$'\t' read -r -a PARTS; do
     REL_PATH="${PROBLEM_DIR}/${FILENAME}"
     [[ -f "${CPP_FILE}" ]] || { echo "  [SKIP] ${REL_PATH}"; continue; }
 
-    # harness モード判定: .hpp なら base.cpp + -DALGO_HPP=... でビルド
-    SOURCE_CPP="${CPP_FILE}"
-    BUILD_EXTRA=()
-    if [[ "${CPP_FILE}" == *.hpp ]]; then
-      SOURCE_CPP="${ROOT}/${PROBLEM_DIR}/base.cpp"
-      ALGO_REL="${CPP_FILE#"${ROOT}/${PROBLEM_DIR}/"}"
-      BUILD_EXTRA=(-DALGO_HPP="\"${ALGO_REL}\"")
-    fi
+    # base.cpp + -DALGO_HPP="algos/xxx.hpp" でビルド
+    SOURCE_CPP="${ROOT}/${PROBLEM_DIR}/base.cpp"
+    ALGO_REL="${CPP_FILE#"${ROOT}/${PROBLEM_DIR}/"}"
+    BUILD_EXTRA=(-DALGO_HPP="\"${ALGO_REL}\"")
 
     BINARY=$(mktemp)
     if ! ${CXX} ${CXXFLAGS} "${BUILD_EXTRA[@]}" -o "${BINARY}" "${SOURCE_CPP}" 2>/dev/null; then

@@ -147,7 +147,7 @@ pick_representative_input() {
 # =============================================================================
 # ケース記録の追記 (\x1f 区切り)
 # 列: name | status | time_ms | memory_kb | detail | algo_time_ns
-# (algo_time_ns は最後尾の追加列。harness モードでない場合は 0)
+# (algo_time_ns は base.cpp が stderr に出した値。出力がなければ 0)
 # =============================================================================
 append_case_record() {
   local records_file="$1"
@@ -206,7 +206,7 @@ compile_checker() {
 #
 # stdout: "STATUS TIME_MS MEMORY_KB ALGO_TIME_NS [DETAIL]"
 #   ALGO_TIME_NS は被測定バイナリが stderr に "ALGO_TIME_NS=N" を出した場合のみ N、
-#   それ以外は 0。harness モード (base.cpp) で計測値を取得する用途。
+#   それ以外は 0。base.cpp の計測ループ部分の純実行時間取得に使われる。
 # =============================================================================
 run_single_case() {
   local binary="$1"

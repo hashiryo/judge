@@ -4,8 +4,9 @@ set -euo pipefail
 # =============================================================================
 # テスト実行スクリプト (judge 用)
 #
-# 問題ディレクトリ内の全 .cpp ファイルをコンパイル・実行し、結果を JSON で出力する。
-# 同じ問題の複数提出を同一マシン・同一タイミングで実行して公平に比較する。
+# 各問題の algos/*.hpp を base.cpp + -DALGO_HPP="..." でビルド・実行し、
+# 結果を JSON で出力する。同じ問題の複数提出を同一マシン・同一タイミングで
+# 実行して公平に比較する。
 #
 # 環境変数:
 #   CXX        コンパイラ (default: g++)
@@ -48,25 +49,19 @@ EXECUTION_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S+00:00")
 # parse_problem_toml / get_testcase_dir / get_custom_testcase_dir は run-lib.sh で提供
 
 # =============================================================================
-# テストケースに対して1つの cpp ファイルを実行
+# テストケースに対して 1 つの algos/*.hpp を実行
 # =============================================================================
 run_cpp_file() {
-  local cpp_file="$1"
+  local hpp_file="$1"
   local tc_dirs=("${@:2}")
   local rel_path
-  rel_path="${cpp_file#${ROOT}/}"
+  rel_path="${hpp_file#${ROOT}/}"
 
-  # harness モード判定: 対象が .hpp なら base.cpp + -DALGO_HPP=... でビルド
-  local source_cpp
-  local -a build_extra=()
-  if [[ "${cpp_file}" == *.hpp ]]; then
-    local problem_root_abs="${ROOT}/${PROBLEM_DIR}"
-    source_cpp="${problem_root_abs}/base.cpp"
-    local algo_rel="${cpp_file#"${problem_root_abs}"/}"
-    build_extra=(-DALGO_HPP="\"${algo_rel}\"")
-  else
-    source_cpp="${cpp_file}"
-  fi
+  # base.cpp + -DALGO_HPP="algos/xxx.hpp" でビルド
+  local problem_root_abs="${ROOT}/${PROBLEM_DIR}"
+  local source_cpp="${problem_root_abs}/base.cpp"
+  local algo_rel="${hpp_file#"${problem_root_abs}"/}"
+  local -a build_extra=(-DALGO_HPP="\"${algo_rel}\"")
 
   # コンパイル
   local binary

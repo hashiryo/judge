@@ -7,7 +7,7 @@
 
 使い方:
   python3 scripts/fetch-samples.py problems/yosupo-unionfind/
-  python3 scripts/fetch-samples.py problems/yosupo-unionfind/sol_naive.cpp
+  python3 scripts/fetch-samples.py problems/yosupo-unionfind/algos/naive.hpp
 
 対応サービス:
   - yosupo judge: GitHub の example_*.in + sol/correct.cpp で出力生成
