@@ -11,19 +11,17 @@
 signed main() {
     cin.tie(0);
     ios::sync_with_stdio(false);
-    constexpr u32 MOD = 998244353;
+    constexpr u32 MOD = 1000000007;
     u32 n_, state_, a_, b_, c_, d_;
     cin >> n_ >> state_ >> a_ >> b_ >> c_ >> d_;
 
     // REPEAT は wall time を REPEAT 倍するので TLE と相談して決める。
-    // ここは重ループで 1 回でも十分長く動くので REPEAT=1 で十分な精度。
     constexpr int REPEAT = 1;
     uint64_t best_ns = ~uint64_t(0);
     u64 result_out = 0;
 
     for (int rep = 0; rep < REPEAT; ++rep) {
-        // const にしているのは volatile 系の MP (constexpr 不可) を許容するため。
-        const MP mp(MOD);
+    const MP mp(MOD);
         auto state = mp.set(state_);
         auto a = mp.set(a_);
         auto b = mp.set(b_);

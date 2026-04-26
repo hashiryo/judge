@@ -1,0 +1,21 @@
+#pragma once
+#include "_common.hpp"
+template <class u_t, class du_t, u8 B> struct MP_Mo {  // mod < 2^31, mod < 2^62
+ u_t mod;
+ constexpr MP_Mo(): mod(0), iv(0), r2(0) {}
+ constexpr MP_Mo(u_t m): mod(m), iv(inv(m)), r2(-du_t(mod) % mod) {}
+ constexpr inline u_t mul(u_t l, u_t r) const {
+  r= reduce(du_t(l) * r);
+  return r-= -u_t(r >= mod) & mod;
+ }
+ constexpr inline u_t set(u_t n) const { return mul(n, r2); }
+ constexpr inline u_t get(u_t n) const { return n= reduce(n), n >= mod ? n - mod : n; }
+ constexpr inline u_t norm(u_t n) const { return n >= mod ? n - mod : n; }
+ constexpr inline u_t plus(u_t l, u_t r) const { return l+= r, l < mod ? l : l - mod; }
+ constexpr inline u_t diff(u_t l, u_t r) const { return l-= r, l >> (B - 1) ? l + mod : l; }
+private:
+ u_t iv, r2;
+ static constexpr u_t inv(u_t n, int e= 6, u_t x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
+ constexpr inline u_t reduce(const du_t& w) const { return u_t(w >> B) + mod - ((du_t(u_t(w) * iv) * mod) >> B); }
+};
+using MP= MP_Mo<u32, u64, 32>;
