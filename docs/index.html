@@ -817,10 +817,11 @@
                     x.file === fullPath && !x.environment && x.status === "CE",
                 );
               if (!r) return "<td>-</td>";
-              const tip = tooltipAttr(r.detail);
               if (r.status === "CE") {
+                const tip = tooltipAttr(r.compile_error || r.detail);
                 return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span></td>`;
               }
+              const tip = tooltipAttr(r.detail);
               const best = bestByEnv[env];
               let suffix = "";
               if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
@@ -1145,7 +1146,7 @@
               continue;
             }
             if (r.status === "CE") {
-              const tooltip = tooltipAttr(r.detail);
+              const tooltip = tooltipAttr(r.compile_error || r.detail);
               html += `<td${tooltip} class="env-group-start"><span class="${statusClass("CE")}">CE</span></td><td>-</td>`;
               continue;
             }
