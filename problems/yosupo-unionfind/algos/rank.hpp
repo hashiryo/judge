@@ -1,6 +1,6 @@
-#include <bits/stdc++.h>
-using namespace std;
-
+#pragma once
+#include "_common.hpp"
+// 経路圧縮 + union by rank。
 struct UnionFind {
     vector<int> par, rank_;
     UnionFind(int n) : par(n), rank_(n, 0) { iota(par.begin(), par.end(), 0); }
@@ -15,15 +15,3 @@ struct UnionFind {
     }
     bool same(int x, int y) { return find(x) == find(y); }
 };
-
-int main() {
-    int n, q;
-    scanf("%d %d", &n, &q);
-    UnionFind uf(n);
-    while (q--) {
-        int t, u, v;
-        scanf("%d %d %d", &t, &u, &v);
-        if (t == 0) uf.unite(u, v);
-        else printf("%d\n", uf.same(u, v) ? 1 : 0);
-    }
-}
