@@ -410,9 +410,10 @@
       <div id="detail-runtime-envs"></div>
       <div class="metric-toggle">
         <label>Metric:</label>
-        <button data-metric="time_max" class="active">time_max</button>
+        <button data-metric="time_max">time_max</button>
         <button data-metric="time_total">time_total</button>
-        <button data-metric="algo_time_max">algo_time_max</button>
+        <button data-metric="algo_time_max" class="active">algo_time_max</button>
+        <button data-metric="algo_time_total">algo_time_total</button>
         <button data-metric="memory_max">memory_max</button>
         <button data-metric="Ir">Ir</button>
         <button data-metric="D1_miss">D1_miss</button>
@@ -430,10 +431,10 @@
       // Detail タブの Summary テーブルのソート状態
       // 表示中メトリクスとは独立 (切替時に並び順は凍結される)
       let detailSortEnv = null; // null = File 名順
-      let detailSortMetric = "time_max"; // ソートに使ったメトリクス
+      let detailSortMetric = "algo_time_max"; // ソートに使ったメトリクス
       let detailSortDir = "asc"; // "asc" | "desc"
       // 表示中メトリクス (Summary テーブルの Value 列に表示)
-      let detailDisplayMetric = "time_max";
+      let detailDisplayMetric = "algo_time_max";
 
       // ============================================================
       // Data loading
@@ -586,6 +587,13 @@
         algo_time_max: {
           label: "algo_time_max",
           field: "algo_time_max_ns",
+          format: formatNs,
+          formatRaw: formatNsRaw,
+          unit: "ns",
+        },
+        algo_time_total: {
+          label: "algo_time_total",
+          field: "algo_time_total_ns",
           format: formatNs,
           formatRaw: formatNsRaw,
           unit: "ns",
@@ -776,7 +784,12 @@
             : files;
           if (acOnly && filteredFiles.length === 0) continue;
 
-          // 環境ごとに AC の最速時間を計算
+          // 環境ごとに AC の最速時間 (algo_time_max_ns、無ければ time_max_ms にフォールバック) を計算
+          const overviewMetric = typeof results.find(
+            (x) => x.status === "AC" && typeof x.algo_time_max_ns === "number",
+          ) === "object"
+            ? { field: "algo_time_max_ns", format: formatNs, suffix: "ns" }
+            : { field: "time_max_ms", format: formatTime, suffix: "ms" };
           const bestByEnv = {};
           for (const env of ENVS) {
             let best = null;
@@ -785,8 +798,9 @@
               const r = results.find(
                 (x) => x.file === fullPath && x.environment === env,
               );
-              if (r && r.status === "AC" && typeof r.time_max_ms === "number") {
-                if (best === null || r.time_max_ms < best) best = r.time_max_ms;
+              if (r && r.status === "AC" && typeof r[overviewMetric.field] === "number") {
+                const v = r[overviewMetric.field];
+                if (best === null || v < best) best = v;
               }
             }
             bestByEnv[env] = best;
@@ -823,16 +837,17 @@
               }
               const tip = tooltipAttr(r.detail);
               const best = bestByEnv[env];
+              const v = r[overviewMetric.field];
               let suffix = "";
-              if (r.status === "AC" && best !== null && typeof r.time_max_ms === "number") {
-                if (r.time_max_ms === best) {
+              if (r.status === "AC" && best !== null && typeof v === "number") {
+                if (v === best) {
                   suffix = ' <span class="diff-better">★</span>';
                 } else {
-                  const d = r.time_max_ms - best;
-                  suffix = ` <span class="diff-muted">(+${d}ms)</span>`;
+                  const d = v - best;
+                  suffix = ` <span class="diff-muted">(+${overviewMetric.format(d)})</span>`;
                 }
               }
-              return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span> ${formatTime(r.time_max_ms)}${suffix}</td>`;
+              return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span> ${overviewMetric.format(v)}${suffix}</td>`;
             }).join("");
             return `<tr><td>${f}</td>${row}</tr>`;
           })
