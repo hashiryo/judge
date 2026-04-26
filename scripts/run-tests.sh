@@ -173,8 +173,23 @@ while IFS=$'\t' read -r -a PARTS; do
     continue
   fi
 
-  # テストケース入力ファイルの内容からハッシュを計算
-  CASES_HASH=$(find "${TC_DIRS[@]}" -name '*.in' -print0 | sort -z | xargs -0 cat 2>/dev/null | shasum -a 256 | cut -c1-16)
+  # 問題定義 (テストケース + 計測フレーム + 制約) のハッシュを計算。
+  # 内訳: testcases/*.in の内容 + base.cpp (計測ループ) + problem.toml (TLE/MLE 等)。
+  # algos/_*.hpp は algo 側の共通ヘッダなので含めない (含めるとリグレッション
+  # 比較したい変更で履歴比較がリセットされてしまう)。
+  PROBLEM_DEF_FILES=()
+  for f in "${ROOT}/${PROBLEM_DIR}/base.cpp" "${ROOT}/${PROBLEM_DIR}/problem.toml"; do
+    [[ -f "${f}" ]] && PROBLEM_DEF_FILES+=("${f}")
+  done
+  CASES_HASH=$(
+    {
+      find "${TC_DIRS[@]}" -name '*.in' -print0 | sort -z | xargs -0 cat 2>/dev/null
+      for f in "${PROBLEM_DEF_FILES[@]}"; do
+        printf 'PROBLEM_DEF:%s\n' "${f#"${ROOT}/"}"
+        cat "${f}"
+      done
+    } | shasum -a 256 | cut -c1-16
+  )
 
   for FILENAME in "${FILES[@]}"; do
     CPP_FILE="${ROOT}/${PROBLEM_DIR}/${FILENAME}"

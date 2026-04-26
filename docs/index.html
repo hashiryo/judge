@@ -276,46 +276,67 @@
         color: var(--red);
       }
 
-      /* History chart (simple bar) */
+      /* History chart (vertical bars, time flowing left→right) */
       .chart-container {
-        margin: 12px 0;
-      }
-      .chart-row {
         display: flex;
-        align-items: center;
-        gap: 8px;
-        margin: 3px 0;
-        font-size: 0.8em;
-      }
-      .chart-label {
-        width: 80px;
-        text-align: right;
-        color: var(--text2);
-        flex-shrink: 0;
-      }
-      .chart-bar-bg {
-        flex: 1;
-        height: 18px;
+        align-items: flex-end;
+        gap: 2px;
+        height: 200px;
+        margin: 12px 0;
+        padding: 8px 8px 28px;
         background: var(--bg);
         border-radius: 3px;
+        overflow-x: auto;
         position: relative;
-        overflow: hidden;
       }
-      .chart-bar {
-        height: 100%;
-        border-radius: 3px;
+      .chart-col {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        padding-left: 6px;
-        font-size: 0.75em;
-        color: var(--text);
-        min-width: 1px;
+        justify-content: flex-end;
+        height: 100%;
+        flex: 1 0 32px;
+        min-width: 32px;
+        position: relative;
       }
-      .chart-bar.ac {
-        background: rgba(63, 185, 80, 0.5);
+      .chart-bar-v {
+        width: 70%;
+        min-height: 1px;
+        border-radius: 2px 2px 0 0;
       }
-      .chart-bar.fail {
-        background: rgba(248, 81, 73, 0.5);
+      .chart-bar-v.ac {
+        background: rgba(63, 185, 80, 0.55);
+      }
+      .chart-bar-v.fail {
+        background: rgba(248, 81, 73, 0.55);
+      }
+      .chart-col-label {
+        position: absolute;
+        bottom: -22px;
+        font-size: 0.7em;
+        color: var(--text2);
+        white-space: nowrap;
+        font-family: ui-monospace, monospace;
+      }
+      .chart-bar-value {
+        font-size: 0.65em;
+        color: var(--text2);
+        margin-bottom: 2px;
+        white-space: nowrap;
+      }
+      .history-group {
+        margin: 24px 0;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+      .history-group-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .history-group-meta {
+        font-size: 0.85em;
+        color: var(--text2);
+        margin-bottom: 8px;
       }
 
       /* Filters */
@@ -390,9 +411,9 @@
           <select id="history-env"></select
         ></label>
         <label><input type="checkbox" id="history-ac-only" /> AC only</label>
+        <label><input type="checkbox" id="history-show-archived" /> Show archived (古い cases_hash)</label>
       </div>
-      <div id="history-chart"></div>
-      <div id="history-table-container"></div>
+      <div id="history-content"></div>
     </div>
 
     <!-- Detail tab -->
@@ -893,6 +914,7 @@
         document.getElementById("history-file").onchange = renderHistory;
         envSel.onchange = renderHistory;
         document.getElementById("history-ac-only").onchange = renderHistory;
+        document.getElementById("history-show-archived").onchange = renderHistory;
         renderHistory();
       }
 
@@ -920,16 +942,17 @@
         if (!file || !env) return;
 
         const acOnly = document.getElementById("history-ac-only").checked;
+        const showArchived = document.getElementById("history-show-archived").checked;
 
         // Collect history for this file+env
-        const history = [];
+        const allHistory = [];
         for (const entry of allEntries) {
           const r = entry.results.find(
             (x) => x.file === file && x.environment === env,
           );
           if (r) {
             if (acOnly && r.status !== "AC") continue;
-            history.push({
+            allHistory.push({
               ...r,
               sha_short: entry.sha_short,
               timestamp: entry.timestamp,
@@ -938,72 +961,142 @@
           }
         }
 
-        // Compute best time per cases_hash group (AC only)
-        const bestByHash = {};
-        for (const h of history) {
-          if (h.status !== "AC" || !h.cases_hash || !h.time_max_ms) continue;
-          if (!(h.cases_hash in bestByHash) || h.time_max_ms < bestByHash[h.cases_hash]) {
-            bestByHash[h.cases_hash] = h.time_max_ms;
+        // 最新 cases_hash を特定 (一番新しい AC エントリの hash を採用、無ければ末尾の hash)
+        let latestHash = null;
+        for (let i = allHistory.length - 1; i >= 0; --i) {
+          if (allHistory[i].cases_hash) {
+            latestHash = allHistory[i].cases_hash;
+            break;
           }
         }
 
-        // Chart
-        const maxTime = Math.max(...history.map((h) => h.time_max_ms || 0), 1);
-        const chartHtml = history
+        // archived (古い cases_hash) を除外
+        const history = showArchived
+          ? allHistory
+          : allHistory.filter(
+              (h) => !h.cases_hash || h.cases_hash === latestHash,
+            );
+
+        // メトリクス選択 (algo_time_max_ns 優先、なければ time_max_ms にフォールバック)
+        const metric = history.some(
+          (h) => typeof h.algo_time_max_ns === "number",
+        )
+          ? { field: "algo_time_max_ns", format: formatNs, unit: "ns", label: "algo_time_max" }
+          : { field: "time_max_ms", format: formatTime, unit: "ms", label: "time_max" };
+
+        // cpu_model でグループ化 (未記録は "(unknown)")
+        const groupsMap = new Map();
+        for (const h of history) {
+          const key = h.cpu_model || "(unknown)";
+          if (!groupsMap.has(key)) groupsMap.set(key, []);
+          groupsMap.get(key).push(h);
+        }
+        // グループ順: 各グループの最新エントリ timestamp 降順 (最近活発な順)
+        const groups = [...groupsMap.entries()].sort((a, b) => {
+          const lastA = a[1][a[1].length - 1].timestamp;
+          const lastB = b[1][b[1].length - 1].timestamp;
+          return lastB.localeCompare(lastA);
+        });
+
+        const container = document.getElementById("history-content");
+        container.innerHTML = "";
+        if (history.length === 0) {
+          container.innerHTML = `<div class="history-group-meta">該当エントリなし</div>`;
+          return;
+        }
+
+        for (const [cpuModel, groupHistory] of groups) {
+          container.appendChild(renderHistoryGroup(cpuModel, groupHistory, metric));
+        }
+      }
+
+      function renderHistoryGroup(cpuModel, history, metric) {
+        // ベスト (グループ + cases_hash 内、AC のみ)
+        const bestByHash = {};
+        for (const h of history) {
+          const v = h[metric.field];
+          if (h.status !== "AC" || !h.cases_hash || typeof v !== "number") continue;
+          if (!(h.cases_hash in bestByHash) || v < bestByHash[h.cases_hash]) {
+            bestByHash[h.cases_hash] = v;
+          }
+        }
+
+        // チャート: 縦バー (左→右が時系列)
+        const maxV = Math.max(
+          ...history.map((h) => h[metric.field] || 0),
+          1,
+        );
+        const chartCols = history
           .map((h) => {
-            const pct = (((h.time_max_ms || 0) / maxTime) * 100).toFixed(1);
-            const isBest = h.status === "AC" && h.cases_hash && h.time_max_ms === bestByHash[h.cases_hash];
+            const v = h[metric.field] || 0;
+            const heightPct = ((v / maxV) * 100).toFixed(1);
+            const isBest =
+              h.status === "AC" && h.cases_hash && v === bestByHash[h.cases_hash];
             const cls = h.status === "AC" ? "ac" : "fail";
-            return `<div class="chart-row">
-      <span class="chart-label">${h.sha_short}</span>
-      <div class="chart-bar-bg">
-        <div class="chart-bar ${cls}" style="width:${pct}%">${formatTime(h.time_max_ms)}${isBest ? " ★" : ""}</div>
-      </div>
+            const tooltip = `${h.sha_short}\n${formatDate(h.timestamp)}\n${h.status}: ${metric.format(v)}${isBest ? " ★" : ""}`;
+            return `<div class="chart-col" title="${escapeAttr(tooltip)}">
+      <div class="chart-bar-value">${metric.format(v)}${isBest ? " ★" : ""}</div>
+      <div class="chart-bar-v ${cls}" style="height:${heightPct}%"></div>
+      <div class="chart-col-label">${h.sha_short}</div>
     </div>`;
           })
           .join("");
-        document.getElementById("history-chart").innerHTML =
-          `<div class="chart-container">${chartHtml}</div>`;
 
-        // Table
-        let tableHtml = `<table>
-    <tr><th>Push</th><th>Date</th><th>Status</th><th>Max Time</th><th>Max Memory</th><th>vs Prev</th><th>Best</th></tr>`;
+        // テーブル
+        let tableHtml = `<table style="margin-top:32px">
+    <tr><th>Push</th><th>Date</th><th>Status</th><th>${metric.label}</th><th>Max Memory</th><th>vs Prev</th><th>Best</th></tr>`;
         for (let i = 0; i < history.length; i++) {
           const h = history[i];
+          const v = h[metric.field];
           let diff = "-";
           if (i > 0) {
             const prev = history[i - 1];
+            const prevV = prev[metric.field];
             const bothHaveHash = h.cases_hash && prev.cases_hash;
             if (bothHaveHash && h.cases_hash !== prev.cases_hash) {
-              diff = '<span class="diff-same" title="テストケースが変更されました">cases changed</span>';
+              diff = '<span class="diff-same" title="問題定義 (cases_hash) が変更されました">cases changed</span>';
             } else if (!bothHaveHash) {
               diff = '<span class="diff-same" title="cases_hash が不明のため比較不可">-</span>';
+            } else if (typeof v !== "number" || typeof prevV !== "number") {
+              diff = '<span class="diff-same">-</span>';
             } else {
-              const d = (h.time_max_ms || 0) - (prev.time_max_ms || 0);
-              if (Math.abs(d) < 3) diff = '<span class="diff-same">=</span>';
-              else if (d > 0) diff = `<span class="diff-worse">+${d}ms</span>`;
-              else diff = `<span class="diff-better">${d}ms</span>`;
+              const d = v - prevV;
+              const threshold = metric.unit === "ns" ? 3000 : 3;
+              if (Math.abs(d) < threshold) diff = '<span class="diff-same">=</span>';
+              else if (d > 0) diff = `<span class="diff-worse">+${metric.format(d)}</span>`;
+              else diff = `<span class="diff-better">-${metric.format(-d)}</span>`;
             }
           }
-          const isBest = h.status === "AC" && h.cases_hash && h.time_max_ms === bestByHash[h.cases_hash];
+          const isBest =
+            h.status === "AC" &&
+            h.cases_hash &&
+            v === bestByHash[h.cases_hash];
           const bestCell = isBest
             ? '<span class="diff-better">★ best</span>'
-            : (h.cases_hash && bestByHash[h.cases_hash] != null
-              ? formatTime(bestByHash[h.cases_hash])
-              : "-");
+            : h.cases_hash && bestByHash[h.cases_hash] != null
+              ? metric.format(bestByHash[h.cases_hash])
+              : "-";
           tableHtml += `<tr>
       <td>${h.sha_short}</td>
       <td>${formatDate(h.timestamp)}</td>
       <td><span class="${statusClass(h.status)}">${h.status}</span></td>
-      <td>${formatTime(h.time_max_ms)}</td>
+      <td>${typeof v === "number" ? metric.format(v) : "-"}</td>
       <td>${formatMemory(h.memory_max_kb)}</td>
       <td>${diff}</td>
       <td>${bestCell}</td>
     </tr>`;
         }
         tableHtml += "</table>";
-        document.getElementById("history-table-container").innerHTML =
-          tableHtml;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "history-group";
+        wrapper.innerHTML = `
+      <div class="history-group-title">${escapeAttr(cpuModel)}</div>
+      <div class="history-group-meta">${history.length} push(es) · metric: ${metric.label}</div>
+      <div class="chart-container">${chartCols}</div>
+      ${tableHtml}
+    `;
+        return wrapper;
       }
 
       // ============================================================
