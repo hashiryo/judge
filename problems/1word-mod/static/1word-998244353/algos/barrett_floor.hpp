@@ -1,10 +1,12 @@
 #pragma once
 #include "_common.hpp"
 struct DIV {
- static constexpr u32 X = -u32(B) / B + 1;
- constexpr DIV() {}
+ u32 b;
+ constexpr DIV(u32 b): b(b), x(-u32(b) / b + 1) {}
  constexpr u32 mod(u32 a) const {
-  u32 r= a - u64(u32(u64(a) * X >> 32)) * B;
-  return r >= B ? r - B : r;
+  u32 r= a - u64(u32(u64(a) * x >> 32)) * b;
+  return r >= b ? r - b : r;
  }
+private:
+ u32 x;
 };
