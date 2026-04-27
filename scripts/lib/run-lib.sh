@@ -109,7 +109,10 @@ get_custom_testcase_dir() {
 # 代表テストケースの入力ファイルを決定
 # 入力: <hint_name> <tc_dirs...>
 #   hint_name が指定され、かつ <hint>.in が見つかればそれを返す。
-#   見つからなければ .in ファイルサイズ最大のものを返す。
+#   見つからなければワークロード (.in の先頭整数 = N) の中央値 (upper-median) を返す。
+#   callgrind は重いので最大ケースだとジョブが timeout しがち。
+#   algo 間の Ir/D1_miss/branch_miss 比較が目的なので中規模ケースで十分。
+#   先頭整数が読めない問題ではファイルサイズを代替指標として利用。
 # 出力: 入力ファイルパスを stdout
 # =============================================================================
 pick_representative_input() {
@@ -125,23 +128,35 @@ pick_representative_input() {
         return
       fi
     done
-    echo "  [WARN] hint=${hint} not found, falling back to largest" >&2
+    echo "  [WARN] hint=${hint} not found, falling back to median" >&2
   fi
 
-  local largest=""
-  local largest_size=0
+  # 各 .in を (workload, path) ペアにする。
+  # workload = 先頭の整数 N (読めない場合は file size にフォールバック)。
+  local entries=()
   for d in "${tc_dirs[@]}"; do
     shopt -s nullglob
     for f in "${d}"/*.in; do
-      local sz
-      sz=$(stat -c%s "${f}" 2>/dev/null || stat -f%z "${f}" 2>/dev/null || echo 0)
-      if [[ ${sz} -gt ${largest_size} ]]; then
-        largest_size=${sz}
-        largest="${f}"
+      local n
+      n=$(awk 'NR==1 { for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+$/) { print $i; exit } }' "${f}" 2>/dev/null)
+      if [[ -z "${n}" ]]; then
+        n=$(stat -c%s "${f}" 2>/dev/null || stat -f%z "${f}" 2>/dev/null || echo 0)
       fi
+      entries+=("${n}"$'\t'"${f}")
     done
   done
-  echo "${largest}"
+
+  if [[ ${#entries[@]} -eq 0 ]]; then
+    echo ""
+    return
+  fi
+
+  # workload 昇順に並べ、中央 (n 要素なら index n/2 = upper-median) を選ぶ。
+  local sorted
+  sorted=$(printf '%s\n' "${entries[@]}" | sort -n)
+  local n=${#entries[@]}
+  local idx=$((n / 2))
+  echo "${sorted}" | awk -v line="$((idx + 1))" 'NR == line { sub(/^[0-9]+\t/, ""); print }'
 }
 
 # =============================================================================
