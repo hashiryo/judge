@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTCASES_DIR = ROOT / "testcases"
 
 U64_MAX = (1 << 64) - 1
-B_MIN = 1
+B_MIN = 2
 B_MAX = (1 << 63) - 1
 
 
