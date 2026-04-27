@@ -10,7 +10,7 @@
 signed main() {
  cin.tie(0);
  ios::sync_with_stdio(false);
- constexpr u64 MOD= (1ull << 32) - 1;
+ constexpr u64 MOD= (1ull << 61) - 1;
  u64 n_, state_, a_, b_, c_, d_;
  cin >> n_ >> state_ >> a_ >> b_ >> c_ >> d_;
 
