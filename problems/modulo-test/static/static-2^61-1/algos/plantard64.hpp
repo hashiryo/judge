@@ -3,8 +3,8 @@
 // https://zenn.dev/yatyou/articles/f8a3969c6e9f7b
 struct MP {  // mod < 2^64/phi
  u64 mod;
- constexpr MP(): mod(0), iv(0), r2(0) {}
- constexpr MP(u64 m): mod(m), iv(inv(m)), r2(-u128(mod) % mod) {}
+ constexpr MP(): mod(0), r2(0), iv(0) {}
+ constexpr MP(u64 m): mod(m), r2(R2(m)), iv(inv(m)) {}
  constexpr inline u64 mul(u64 l, u64 r) const { return reduce(u128(l) * r); }
  constexpr inline u64 set(u64 n) const { return mul(n, r2); }
  constexpr inline u64 get(u64 n) const { return n= reduce(n), n >= mod ? n - mod : n; }
@@ -12,7 +12,12 @@ struct MP {  // mod < 2^64/phi
  constexpr inline u64 plus(u64 l, u64 r) const { return l+= r, l < mod ? l : l - mod; }
  constexpr inline u64 diff(u64 l, u64 r) const { return l-= r, l >> 63 ? l + mod : l; }
 private:
- u128 iv, r2;
+ u64 r2;
+ u128 iv;
  static constexpr u128 inv(u128 n, int e= 7, u128 x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
- constexpr inline u64 reduce(u128 w) const { return (u128(u64((w * iv) >> 64) + 1) * mod) >> 64; }
+ constexpr inline u64 reduce(const u128& w) const { return (u128(u64((w * iv) >> 64) + 1) * mod) >> 64; }
+ static constexpr u64 R2(u64 n) {
+  u64 r= -u128(n) % n;
+  return u128(r) * r % n;
+ }
 };
