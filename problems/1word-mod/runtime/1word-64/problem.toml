@@ -1,0 +1,3 @@
+tle = 5
+# pre-generation の a 配列が u64 × 2*10^8 ≈ 1.6GB 必要なので余裕を見て 2GB
+mle = 2048
