@@ -18,7 +18,7 @@ struct MP {  // mod < 2^30
 private:
  u8 s;
  u32 mo, d, mask, c, iv;
- static constexpr u64 inv(u32 n, int e= 6, u64 x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
+ static constexpr u32 inv(u32 n, int e= 5, u32 x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
  constexpr inline u32 reduce(u64 w) const {
   u32 p= u32(w) & mask;
   u64 x= (w >> s) + u64(p) * d;
