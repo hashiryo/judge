@@ -12,7 +12,7 @@ struct MP {  // mod < 2^30
  constexpr inline u32 get(u32 n) const { return n= reduce(n), n >= mod ? n - mod : n; }
  constexpr inline u32 norm(u32 n) const { return n >= mod ? n - mod : n; }
  constexpr inline u32 plus(u32 l, u32 r) const { return l+= r, l < (mod << 1) ? l : l - (mod << 1); }
- constexpr inline u32 diff(u32 l, u32 r) const { return l-= r, l >> (32 - 1) ? l + (mod << 1) : l; }
+ constexpr inline u32 diff(u32 l, u32 r) const { return l-= r, l >> 31 ? l + (mod << 1) : l; }
 private:
  u8 s;
  u32 mo, r2;
