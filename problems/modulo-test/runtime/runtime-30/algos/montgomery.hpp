@@ -3,7 +3,7 @@
 template <class u_t, class du_t, u8 B> struct MP_Mo {  // mod < 2^30, mod < 2^62
  u_t mod;
  constexpr MP_Mo(): mod(0), iv(0), r2(0) {}
- constexpr MP_Mo(u_t m): mod(m), iv(inv(m)), r2(-du_t(mod) % mod) {}
+ constexpr MP_Mo(u_t m): mod(m), iv(inv(m)), r2(-du_t(m) % m) {}
  constexpr inline u_t mul(u_t l, u_t r) const { return reduce(du_t(l) * r); }
  constexpr inline u_t set(u_t n) const { return mul(n, r2); }
  constexpr inline u_t get(u_t n) const { return n= reduce(n), n >= mod ? n - mod : n; }
