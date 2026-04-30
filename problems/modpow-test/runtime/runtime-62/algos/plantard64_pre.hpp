@@ -27,14 +27,14 @@ struct MP {  // mod < 2^64/phi
  constexpr inline u64 plus(u64 l, u64 r) const { return l+= r, l < mod ? l : l - mod; }
  constexpr inline u64 diff(u64 l, u64 r) const { return l-= r, l >> 63 ? l + mod : l; }
  inline u64 pow(u64 base, u64 e) const {
-  u64 r = set(1);
-  if (!e) return r;
-  u128 base_pre = to_pre(base);
-  for (;;) {
-   if (e & 1) r = mul_pre(r, base_pre);
-   if (!(e >>= 1)) break;
-   base = mul_pre(base, base_pre);
-   base_pre = to_pre(base);
+  u64 r= set(1);
+  if(!e) return r;
+  u128 base_pre= to_pre(base);
+  for(;;) {
+   if(e & 1) r= mul_pre(r, base_pre);
+   if(!(e>>= 1)) break;
+   base= mul_pre(base, base_pre);
+   base_pre= to_pre(base);
   }
   return r;
  }
@@ -43,9 +43,7 @@ private:
  u128 iv;
  // l * r_pre mod 2^128 → reduce した値 (∈ [0, mod])。
  // l は u64 なので u128(l)*r_pre は実質 2 mul (hi(l)*... が 0 で潰れる)。
- inline u64 mul_pre(u64 l,const u128& r_pre) const {
-  return (u128(u64((l * r_pre) >> 64) + 1) * mod) >> 64;
- }
+ inline u64 mul_pre(u64 l, const u128& r_pre) const { return (u128(u64((l * r_pre) >> 64) + 1) * mod) >> 64; }
  // x * iv mod 2^128。x ∈ [0, mod) なら preconditioned 形。
  inline u128 to_pre(u64 x) const { return x * iv; }
  static constexpr u128 inv(u128 n, int e, u128 x) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
