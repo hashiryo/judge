@@ -37,19 +37,10 @@ signed main() {
 
     for (int rep = 0; rep < REPEAT; ++rep) {
         const MP mp(mod_);
-        const auto one = mp.set(1);
         u64 acc = 0;
         auto t0 = chrono::steady_clock::now();
         for (u64 i = 0; i < n_; ++i) {
-            auto base = mp.set(as[i]);
-            u64 e = bs[i];
-            auto r = one;
-            while (e) {
-                if (e & 1) r = mp.mul(r, base);
-                base = mp.mul(base, base);
-                e >>= 1;
-            }
-            acc ^= mp.get(r);
+            acc ^= mp.get(mp.pow(mp.set(as[i]), bs[i]));
         }
         auto t1 = chrono::steady_clock::now();
         result_out = acc;

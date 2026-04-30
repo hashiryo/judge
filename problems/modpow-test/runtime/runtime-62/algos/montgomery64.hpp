@@ -10,6 +10,15 @@ template <class u_t, class du_t, u8 B> struct MP_Mo {  // mod < 2^62
  constexpr inline u_t norm(u_t n) const { return n >= mod ? n - mod : n; }
  constexpr inline u_t plus(u_t l, u_t r) const { return l+= r, l < (mod << 1) ? l : l - (mod << 1); }
  constexpr inline u_t diff(u_t l, u_t r) const { return l-= r, l >> (B - 1) ? l + (mod << 1) : l; }
+ inline u_t pow(u_t base, u64 e) const {
+  u_t r = set(1);
+  while (e) {
+   if (e & 1) r = mul(r, base);
+   base = mul(base, base);
+   e >>= 1;
+  }
+  return r;
+ }
 private:
  u_t iv, r2;
  static constexpr u_t inv(u_t n, int e= 6, u_t x= 1) { return e ? inv(n, e - 1, x * (2 - x * n)) : x; }
