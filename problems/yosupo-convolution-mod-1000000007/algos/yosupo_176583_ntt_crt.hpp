@@ -1,23 +1,21 @@
 #pragma once
-#include "_common.hpp"
 // =============================================================================
 // Source: yosupo judge "Convolution (mod 10^9+7)" 提出 176583 を抽出。
 //   https://judge.yosupo.jp/submission/176583
 //   方式: 3 つの NTT-friendly 素数 (998244353, 897581057, 754974721) で個別に
 //   Montgomery + AVX2 NTT して、Garner CRT で 10^9+7 に復元する multi-prime NTT。
-//   複素 FFT (cp_algo) と異なり丸め誤差が無く、丸ごと整数演算で済む。
 // 抽出方針:
 //   - I/O 部分 (__io namespace) は base.cpp に移譲して削除
 //   - main() の中の CRT 統合ロジックは Conv::run に移植
-//   - cum_timer は不要なので削除
-//   - 全体を namespace yosupo_176583 で囲んで識別子衝突を避ける
-//   - C++17 以上 (gnu++23 で動作確認)
+//   - 全体を namespace yosupo_176583 で囲む
 // ライセンス: 不明 (yosupo judge の慣習に従い参照、改造は最小限)
 // =============================================================================
 
+// !!! _common.hpp より先に simde を include する !!!
+// _common.hpp が using namespace std を実行すると std::float16_t (C++23 <stdfloat>) が
+// グローバルに持ち込まれ、aarch64 で simde 経由で arm_neon.h が引かれた時にその中の
+// float16_t typedef と衝突して ambiguous エラーになる。simde を先に通すことで回避。
 #pragma GCC optimize("O3")
-// AVX2 target pragma は x86 のみで有効。aarch64 + gcc では「pragma not valid」エラーになる。
-// USE_SIMDE 環境 (ARM) では simde が AVX2 intrinsics を NEON にエミュレートするので不要。
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #pragma GCC target("avx2,bmi")
 #endif
@@ -27,6 +25,8 @@
 #else
 #include <immintrin.h>
 #endif
+
+#include "_common.hpp"
 
 // _mm_malloc/_mm_free shim。Apple clang on macOS には <mm_malloc.h> が無いので shim する。
 // Linux clang/gcc には <mm_malloc.h> があるので素直に include。

@@ -1,23 +1,21 @@
 #pragma once
-#include "_common.hpp"
 // =============================================================================
 // Source: yosupo "Convolution (mod 2^64)" 提出 190648 を抽出。
 //   https://judge.yosupo.jp/submission/190648
 //   方式: 5 つの NTT-friendly 素数 (~2^30) で Montgomery + AVX2 NTT を回し、
 //   Garner CRT (5 段) で u64 ラップアラウンドの結果を復元。
-//   入力 u64 を 2 つの u32 (low/high) に split して Montgomery 領域で結合する
-//   `trans` 変換が前段にある。
 // 抽出方針:
 //   - I/O 部分 (__io namespace) は base.cpp に移譲
 //   - main() の中の trans / convolve2 / CRT 統合を Conv::run に移植
-//   - cum_timer は不要なので削除
 //   - 全体を namespace yosupo_190648 で囲む
-//   - C++17 以上 (gnu++23 で動作確認)
 // ライセンス: 不明 (yosupo judge の慣習に従い参照、改造は最小限)
 // =============================================================================
 
+// !!! _common.hpp より先に simde を include する !!!
+// _common.hpp が using namespace std で std::float16_t (C++23 <stdfloat>) を
+// グローバルに持ち込むため、aarch64 で simde 経由で arm_neon.h を引いた時に
+// float16_t が ambiguous になる。simde を先に通して回避。
 #pragma GCC optimize("O3")
-// AVX2 target pragma は x86 のみで有効。USE_SIMDE 環境 (ARM) では不要。
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #pragma GCC target("avx2,bmi")
 #endif
@@ -27,6 +25,8 @@
 #else
 #include <immintrin.h>
 #endif
+
+#include "_common.hpp"
 
 // _mm_malloc/_mm_free shim。Apple clang on macOS には <mm_malloc.h> が無いので shim する。
 #if __has_include(<mm_malloc.h>)
