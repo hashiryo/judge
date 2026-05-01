@@ -19,7 +19,7 @@ source "${SCRIPTS_DIR}/lib/run-lib.sh"
 
 # macOS ではデフォルトで clang++ を使う (include/bits/stdc++.h を自前で用意済み)
 CXX="${CXX:-c++}"
-CXXFLAGS="${CXXFLAGS:--std=c++17 -O2}"
+CXXFLAGS="${CXXFLAGS:--std=gnu++23 -O2}"
 
 # Library submodule の include を追加 (bits/stdc++.h, debug.hpp)
 LIB_INCLUDE="${ROOT}/lib/include"
