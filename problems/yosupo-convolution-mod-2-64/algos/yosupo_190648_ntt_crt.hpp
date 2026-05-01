@@ -17,7 +17,10 @@
 // =============================================================================
 
 #pragma GCC optimize("O3")
+// AVX2 target pragma は x86 のみで有効。USE_SIMDE 環境 (ARM) では不要。
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #pragma GCC target("avx2,bmi")
+#endif
 #ifdef USE_SIMDE
 #include <simde/x86/avx2.h>
 #include <simde/x86/bmi.h>
@@ -25,8 +28,10 @@
 #include <immintrin.h>
 #endif
 
-// _mm_malloc/_mm_free shim (clang+macOS では未定義のため)
-#if defined(__clang__) && !defined(_mm_malloc)
+// _mm_malloc/_mm_free shim。Apple clang on macOS には <mm_malloc.h> が無いので shim する。
+#if __has_include(<mm_malloc.h>)
+#include <mm_malloc.h>
+#else
 #include <cstdlib>
 static inline void* _mm_malloc(size_t sz, size_t al) {
  void* p = nullptr;
