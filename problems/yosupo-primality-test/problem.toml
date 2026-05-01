@@ -1,0 +1,3 @@
+url = "https://judge.yosupo.jp/problem/primality_test"
+tle = 5
+mle = 256
