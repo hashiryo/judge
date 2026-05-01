@@ -20,9 +20,9 @@
 #include <bits/stdc++.h>
 #include <ranges>
 #include <bit>
-#if __has_include(<experimental/simd>)
-#include <experimental/simd>
-#endif
+// 元の cp_algo コードは `namespace stdx = std::experimental;` を作るが実際には未使用。
+// gcc-14 + aarch64 で <experimental/simd> を include すると arm_neon.h の float16_t と
+// <stdfloat> の std::float16_t が衝突するので、ここでは include しない。
 // USE_SIMDE 環境 (ARM 上で AVX2 をエミュレーション) では `__AVX2__` が立たないが、
 // simde が `_mm256_mul_epu32` 等を提供しているので AVX2 パスを使うべき。
 // fallback の `u64x4 * u64x4` は別計算になり WA になるため、AVX2 マクロを立てて
