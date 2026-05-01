@@ -77,7 +77,13 @@ def main() -> None:
         else:
             i += 1
 
-    entry = json.loads(sys.stdin.read())
+    raw = sys.stdin.read().strip()
+    if not raw:
+        # 空 stdin (上流の build_result_entry が失敗した等) → 何も書かずに正常終了。
+        # JSONDecodeError で CI 全体を巻き込むのを避ける。
+        sys.stderr.write("enrich_result: empty stdin, skipping\n")
+        return
+    entry = json.loads(raw)
     enrich_result(entry, cases_hash=cases_hash)
     sys.stdout.write(json.dumps(entry, ensure_ascii=False) + "\n")
 

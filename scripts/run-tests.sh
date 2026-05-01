@@ -198,9 +198,14 @@ while IFS=$'\t' read -r -a PARTS; do
       continue
     fi
 
-    result_json=$(run_cpp_file "${CPP_FILE}" "${TC_DIRS[@]}")
-    if [[ -n "${result_json}" ]]; then
-      echo "${result_json}" | python3 "${SCRIPTS_DIR}/lib/enrich_result.py" --cases-hash "${CASES_HASH}" >> "${RESULT_JSONL}"
+    result_json=$(run_cpp_file "${CPP_FILE}" "${TC_DIRS[@]}") || true
+    # JSON 形式 (`{` 始まり) であることを確認してから enrich に渡す。
+    # 上流の build-entry が失敗して空/壊れた出力になった場合に、
+    # enrich の JSONDecodeError で CI 全体を巻き込むのを避ける。
+    if [[ "${result_json}" == \{* ]]; then
+      echo "${result_json}" | python3 "${SCRIPTS_DIR}/lib/enrich_result.py" --cases-hash "${CASES_HASH}" >> "${RESULT_JSONL}" || true
+    elif [[ -n "${result_json}" ]]; then
+      echo "  [WARN] non-JSON result for ${FILENAME} (skipping enrich): ${result_json:0:80}" >&2
     fi
   done
 done < <(printf '%s' "${PROBLEMS_JSON}" | python3 "${SCRIPTS_DIR}/lib/problems-json.py")
