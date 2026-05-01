@@ -144,14 +144,25 @@ jobs:
           set -eux
           sudo apt-get update
           if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
-            sudo apt-get install -y software-properties-common
-            # Launchpad の API がハングすることがあるので timeout + retry。
+            sudo apt-get install -y gnupg ca-certificates
+            # add-apt-repository は Launchpad API (api.launchpad.net) に依存し、
+            # API がハングすると詰む。代わりに sources.list を直書き + 公開鍵を
+            # 鍵サーバから取得する経路で PPA を追加する (API 非経由)。
+            UBUNTU_TOOLCHAIN_KEY=60C317803A41BA51845E371A1E9377A2BA9EF27F
+            CODENAME=$(lsb_release -sc 2>/dev/null || echo noble)
+            sudo install -m 0755 -d /etc/apt/keyrings
             for i in 1 2 3; do
-              sudo timeout 90 add-apt-repository -y ppa:ubuntu-toolchain-r/test && break
-              echo "add-apt-repository failed (attempt $i/3)" >&2
+              sudo timeout 60 gpg --no-default-keyring \
+                --keyring /etc/apt/keyrings/ubuntu-toolchain-r.gpg \
+                --keyserver keyserver.ubuntu.com \
+                --recv-keys "$UBUNTU_TOOLCHAIN_KEY" && break
+              echo "gpg recv-keys failed (attempt $i/3)" >&2
               [[ "$i" == "3" ]] && exit 1
               sleep 10
             done
+            sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.gpg] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
+              | sudo tee /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list
             sudo apt-get update
             sudo apt-get install -y g++-15
           else
@@ -246,14 +257,25 @@ jobs:
           set -eux
           sudo apt-get update
           if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
-            sudo apt-get install -y software-properties-common
-            # Launchpad の API がハングすることがあるので timeout + retry。
+            sudo apt-get install -y gnupg ca-certificates
+            # add-apt-repository は Launchpad API (api.launchpad.net) に依存し、
+            # API がハングすると詰む。代わりに sources.list を直書き + 公開鍵を
+            # 鍵サーバから取得する経路で PPA を追加する (API 非経由)。
+            UBUNTU_TOOLCHAIN_KEY=60C317803A41BA51845E371A1E9377A2BA9EF27F
+            CODENAME=$(lsb_release -sc 2>/dev/null || echo noble)
+            sudo install -m 0755 -d /etc/apt/keyrings
             for i in 1 2 3; do
-              sudo timeout 90 add-apt-repository -y ppa:ubuntu-toolchain-r/test && break
-              echo "add-apt-repository failed (attempt $i/3)" >&2
+              sudo timeout 60 gpg --no-default-keyring \
+                --keyring /etc/apt/keyrings/ubuntu-toolchain-r.gpg \
+                --keyserver keyserver.ubuntu.com \
+                --recv-keys "$UBUNTU_TOOLCHAIN_KEY" && break
+              echo "gpg recv-keys failed (attempt $i/3)" >&2
               [[ "$i" == "3" ]] && exit 1
               sleep 10
             done
+            sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.gpg] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
+              | sudo tee /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list
             sudo apt-get update
             sudo apt-get install -y g++-15
           else
