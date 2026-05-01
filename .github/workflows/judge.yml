@@ -144,24 +144,27 @@ jobs:
           set -eux
           sudo apt-get update
           if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
-            sudo apt-get install -y gnupg ca-certificates
+            sudo apt-get install -y curl ca-certificates
             # add-apt-repository は Launchpad API (api.launchpad.net) に依存し、
             # API がハングすると詰む。代わりに sources.list を直書き + 公開鍵を
-            # 鍵サーバから取得する経路で PPA を追加する (API 非経由)。
+            # keyserver の HTTPS エンドポイントから curl で取得する経路で PPA を追加する。
+            # gpg --recv-keys は sudo 下で /root/.gnupg や dirmngr が無くて落ちるので不可。
             UBUNTU_TOOLCHAIN_KEY=60C317803A41BA51845E371A1E9377A2BA9EF27F
             CODENAME=$(lsb_release -sc 2>/dev/null || echo noble)
             sudo install -m 0755 -d /etc/apt/keyrings
             for i in 1 2 3; do
-              sudo timeout 60 gpg --no-default-keyring \
-                --keyring /etc/apt/keyrings/ubuntu-toolchain-r.gpg \
-                --keyserver keyserver.ubuntu.com \
-                --recv-keys "$UBUNTU_TOOLCHAIN_KEY" && break
-              echo "gpg recv-keys failed (attempt $i/3)" >&2
+              if curl -fsSL --max-time 60 \
+                "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${UBUNTU_TOOLCHAIN_KEY}" \
+                | sudo tee /etc/apt/keyrings/ubuntu-toolchain-r.asc > /dev/null \
+                && [ -s /etc/apt/keyrings/ubuntu-toolchain-r.asc ]; then
+                break
+              fi
+              echo "key fetch failed (attempt $i/3)" >&2
               [[ "$i" == "3" ]] && exit 1
               sleep 10
             done
-            sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.gpg] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
+            sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.asc
+            echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.asc] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
               | sudo tee /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list
             sudo apt-get update
             sudo apt-get install -y g++-15
@@ -257,24 +260,27 @@ jobs:
           set -eux
           sudo apt-get update
           if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
-            sudo apt-get install -y gnupg ca-certificates
+            sudo apt-get install -y curl ca-certificates
             # add-apt-repository は Launchpad API (api.launchpad.net) に依存し、
             # API がハングすると詰む。代わりに sources.list を直書き + 公開鍵を
-            # 鍵サーバから取得する経路で PPA を追加する (API 非経由)。
+            # keyserver の HTTPS エンドポイントから curl で取得する経路で PPA を追加する。
+            # gpg --recv-keys は sudo 下で /root/.gnupg や dirmngr が無くて落ちるので不可。
             UBUNTU_TOOLCHAIN_KEY=60C317803A41BA51845E371A1E9377A2BA9EF27F
             CODENAME=$(lsb_release -sc 2>/dev/null || echo noble)
             sudo install -m 0755 -d /etc/apt/keyrings
             for i in 1 2 3; do
-              sudo timeout 60 gpg --no-default-keyring \
-                --keyring /etc/apt/keyrings/ubuntu-toolchain-r.gpg \
-                --keyserver keyserver.ubuntu.com \
-                --recv-keys "$UBUNTU_TOOLCHAIN_KEY" && break
-              echo "gpg recv-keys failed (attempt $i/3)" >&2
+              if curl -fsSL --max-time 60 \
+                "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${UBUNTU_TOOLCHAIN_KEY}" \
+                | sudo tee /etc/apt/keyrings/ubuntu-toolchain-r.asc > /dev/null \
+                && [ -s /etc/apt/keyrings/ubuntu-toolchain-r.asc ]; then
+                break
+              fi
+              echo "key fetch failed (attempt $i/3)" >&2
               [[ "$i" == "3" ]] && exit 1
               sleep 10
             done
-            sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.gpg
-            echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.gpg] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
+            sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.asc
+            echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.asc] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
               | sudo tee /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list
             sudo apt-get update
             sudo apt-get install -y g++-15
