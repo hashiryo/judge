@@ -4,10 +4,10 @@
 struct Conv {
  static vector<u32> run(const vector<u32>& a, const vector<u32>& b) {
   int n= (int)a.size(), m= (int)b.size();
-  if (!n || !m) return {};
+  if(!n || !m) return {};
   vector<u32> c(n + m - 1, 0);
-  for (int i= 0; i < n; ++i)
-   for (int j= 0; j < m; ++j) c[i + j]= (u32)((c[i + j] + (u64)a[i] * b[j]) % MOD);
+  for(int i= 0; i < n; ++i)
+   for(int j= 0; j < m; ++j) c[i + j]= (u32)((c[i + j] + (u64)a[i] * b[j]) % MOD);
   return c;
  }
 };
