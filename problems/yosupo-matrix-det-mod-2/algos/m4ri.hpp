@@ -38,8 +38,11 @@ struct Det {
     if (sel != target_row) {
      for (int w = 0; w < W; ++w) std::swap(M[(size_t) sel * W + w], M[(size_t) target_row * W + w]);
     }
-    // ブロック内の他の k-1 行から target_col を消去
-    for (int i = pivot_top; i < pivot_top + k; ++i) {
+    // 重要: in-batch elim は全行 [pt, n) を対象にする。
+    // 範囲を [pt, pt+k) に絞ると、後の batch col で外部から swap してきた
+    // pivot 行が earlier batch col のビットを汚染した状態で他行に XOR してしまい、
+    // 既存のピボット行の pivot ビットを破壊するバグになる。
+    for (int i = pivot_top; i < n; ++i) {
      if (i != target_row && ((M[(size_t) i * W + target_col / 64] >> (target_col % 64)) & 1)) {
       for (int w = 0; w < W; ++w) M[(size_t) i * W + w] ^= M[(size_t) target_row * W + w];
      }

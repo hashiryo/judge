@@ -36,8 +36,10 @@ struct Inv {
     if (sel != target_row) {
      for (int w = 0; w < W; ++w) std::swap(M[(size_t) sel * W + w], M[(size_t) target_row * W + w]);
     }
-    // batch 内の他行から target_col を消去
-    for (int i = c; i < c + k; ++i) {
+    // 重要: in-batch elim は全行 [c, N) を対象にする (= 前進消去 + 後退準備)。
+    // 範囲を [c, c+k) に絞ると、外部から swap してきた pivot 行が earlier batch
+    // col のビットを汚染した状態で他行に XOR してしまうバグになる。
+    for (int i = c; i < N; ++i) {
      if (i != target_row && ((M[(size_t) i * W + target_col / 64] >> (target_col % 64)) & 1)) {
       for (int w = 0; w < W; ++w) M[(size_t) i * W + w] ^= M[(size_t) target_row * W + w];
      }

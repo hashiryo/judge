@@ -42,9 +42,15 @@ struct Rank {
     if (sel != target_row) {
      for (int w = 0; w < W; ++w) std::swap(M[(size_t) sel * W + w], M[(size_t) target_row * W + w]);
     }
-    // batch 全体 [pt, pt+K_eff) から col cc を消去 (未来のピボット候補も含めてクリーンに)。
-    // これによりブロック内残行は cc 列が 0 になり、後続のピボット探索が壊れない。
-    for (int i = pivot_top; i < pivot_top + K_eff; ++i) {
+    // 重要: in-batch elim は pt 以下の全行 [pt, rows) を対象にする。
+    // 範囲を [pt, pt+K_eff) に絞ると、後の batch col で「外から swap してきた
+    // pivot 行が earlier batch col のビットを汚染した状態」で他行に XOR して
+    // しまい、既存のピボット行の pivot ビットを破壊するバグになる。
+    // 全行 elim にすれば外から swap してきた行は事前に earlier batch col 全部
+    // クリーン済みなので安全。M4RI の "k 倍速化" は失われるが、これは
+    // upper-triangular Gauss では本質的に避けられない (M4RI は本来 RREF
+    // 後段の clean up を加速するもの)。
+    for (int i = pivot_top; i < rows; ++i) {
      if (i != target_row && ((M[(size_t) i * W + cc / 64] >> (cc % 64)) & 1)) {
       for (int w = 0; w < W; ++w) M[(size_t) i * W + w] ^= M[(size_t) target_row * W + w];
      }
