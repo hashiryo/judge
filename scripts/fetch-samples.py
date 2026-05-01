@@ -71,6 +71,9 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
         print(f"  Problem {problem_id} not found in repo", file=sys.stderr)
         return 0
 
+    checker_path = None
+    common_dir = None  # 問題群共通の testlib.h などが置かれる common/
+
     for item in tree.get("tree", []):
         path = item["path"]
         if path.startswith(problem_prefix + "/"):
@@ -79,6 +82,11 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
                 example_files.append(path)
             elif rel == "sol/correct.cpp":
                 sol_correct_path = path
+            elif rel == "checker.cpp":
+                checker_path = path
+        # トップ階層 common/ を一度だけ覚える
+        if common_dir is None and path == "common":
+            common_dir = path
 
     if not example_files:
         print(f"  No example files found for {problem_id}", file=sys.stderr)
@@ -168,6 +176,32 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
                 print(f"  {in_name}: timeout", file=sys.stderr)
             except Exception as e:
                 print(f"  {in_name}: {e}", file=sys.stderr)
+
+        # 複数解が許される問題用に checker.cpp / testlib.h も取得
+        if checker_path:
+            try:
+                with urllib.request.urlopen(f"{base_raw}/{checker_path}", timeout=30) as resp:
+                    (out_dir / "checker.cpp").write_text(resp.read().decode())
+                print(f"  Fetched checker.cpp")
+                # testlib.h は common/testlib.h にあるはず (yosupo は common/ を共有)
+                if not (out_dir / "testlib.h").exists():
+                    try:
+                        with urllib.request.urlopen(f"{base_raw}/common/testlib.h", timeout=30) as resp:
+                            (out_dir / "testlib.h").write_text(resp.read().decode())
+                        print(f"  Fetched common/testlib.h")
+                    except Exception:
+                        # 念のため fallback で MikeMirzayanov 本家から
+                        try:
+                            with urllib.request.urlopen(
+                                "https://raw.githubusercontent.com/MikeMirzayanov/testlib/master/testlib.h",
+                                timeout=30,
+                            ) as resp:
+                                (out_dir / "testlib.h").write_text(resp.read().decode())
+                            print(f"  Fetched testlib.h (MikeMirzayanov fallback)")
+                        except Exception as e:
+                            print(f"  Failed to fetch testlib.h: {e}", file=sys.stderr)
+            except Exception as e:
+                print(f"  Failed to fetch checker.cpp: {e}", file=sys.stderr)
 
         return count
 
