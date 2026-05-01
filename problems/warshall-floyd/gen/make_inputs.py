@@ -30,17 +30,23 @@ def add_handmade_cases() -> None:
 
 def add_random_cases() -> None:
     rng = random.Random(32)
+    # W は i32 dist のオーバフローを避けるため、V * W < WF_INF = 10^9 を満たす範囲。
+    # 余裕みて max_path = V * W <= 10^8 程度を狙う。
     configs = [
-        ("rand_00", 50),
-        ("rand_01", 100),
-        ("mid_00", 256),     # SIMD 整列
-        ("mid_01", 300),
-        ("heavy_00", 512),   # SIMD 整列、512^3 = 1.34e8
-        ("heavy_01", 768),   # 768^3 = 4.5e8
+        # (name, V, W) — W を小さめ / 中間 / 大きめに散らす
+        ("rand_w_small", 100, 10),         # 重み小、経路が縮みやすい
+        ("rand_w_mid", 100, 10**3),
+        ("rand_w_large", 100, 10**5),      # 競プロ AOJ 系想定
+        ("mid_w_small", 256, 10),
+        ("mid_w_mid", 300, 10**4),
+        ("mid_w_large", 256, 10**5),
+        ("heavy_00", 512, 10**3),          # 512^3 = 1.34e8 ops
+        ("heavy_01", 768, 10**3),          # 768^3 = 4.5e8 ops
+        ("heavy_02", 768, 10**5),          # 重みも大きめ
     ]
-    for name, V in configs:
+    for name, V, W in configs:
         seed = rng.randrange(U64_MAX + 1)
-        write_case(name, V, 100, seed)
+        write_case(name, V, W, seed)
 
 
 def main() -> None:
