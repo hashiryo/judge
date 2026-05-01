@@ -7,12 +7,12 @@ struct WF {
  i32* d;
  WF(int v, int vp, i32* dist): V(v), Vp(vp), d(dist) {}
  void run() {
-  for (int k= 0; k < V; ++k) {
-   for (int i= 0; i < V; ++i) {
+  for(int k= 0; k < V; ++k) {
+   for(int i= 0; i < V; ++i) {
     i32 dik= d[i * Vp + k];
-    for (int j= 0; j < V; ++j) {
+    for(int j= 0; j < V; ++j) {
      i32 nd= dik + d[k * Vp + j];
-     if (d[i * Vp + j] > nd) d[i * Vp + j]= nd;
+     if(d[i * Vp + j] > nd) d[i * Vp + j]= nd;
     }
    }
   }
