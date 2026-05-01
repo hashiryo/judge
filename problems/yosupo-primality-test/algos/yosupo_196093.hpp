@@ -16548,7 +16548,10 @@ inline bool isPrime64(uint64_t x) {
   }
   if (cur != minus_one_m) return false;
  }
- if (x > (1ull << 49)) return true;
+ // 注意: 元提出には `if (x > 2^49) return true;` という早期 return があるが、
+ // yosupo の pseudoprimes_00 (issue #1325 で追加されたテストケース) には
+ // 2-base MR を fool する > 2^49 の合成数があり、それを 3rd base が catch する
+ // 必要があるため早期 return を外す。
  // base 3: bases2[base >> 13]
  const static uint16_t bases2[8] = {15, 135, 13, 60, 15, 117, 65, 29};
  cur = pow_d(mo.to_mont(bases2[base >> 13]));
