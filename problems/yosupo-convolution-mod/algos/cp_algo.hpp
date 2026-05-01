@@ -23,6 +23,18 @@
 #if __has_include(<experimental/simd>)
 #include <experimental/simd>
 #endif
+// USE_SIMDE 環境 (ARM 上で AVX2 をエミュレーション) では `__AVX2__` が立たないが、
+// simde が `_mm256_mul_epu32` 等を提供しているので AVX2 パスを使うべき。
+// fallback の `u64x4 * u64x4` は別計算になり WA になるため、AVX2 マクロを立てて
+// simde ヘッダを include する。
+#ifdef USE_SIMDE
+#include <simde/x86/avx2.h>
+#ifndef __AVX2__
+#define __AVX2__ 1
+#endif
+#elif defined(__AVX2__)
+#include <immintrin.h>
+#endif
 #if defined(__linux__) || defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 #define CP_ALGO_USE_MMAP 1
 #include <sys/mman.h>
