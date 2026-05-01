@@ -122,6 +122,8 @@ def build_result_entry(
     compile_error: str | None = None,
     compile_error_file: str | None = None,
     cases_records: str | None = None,
+    source_size_bytes: int | None = None,
+    binary_size_bytes: int | None = None,
 ) -> dict:
     """1テスト分の結果エントリを構築する"""
     ce = None
@@ -141,6 +143,10 @@ def build_result_entry(
     }
     if ce:
         entry["compile_error"] = ce
+    if source_size_bytes is not None and source_size_bytes >= 0:
+        entry["source_size_bytes"] = source_size_bytes
+    if binary_size_bytes is not None and binary_size_bytes >= 0:
+        entry["binary_size_bytes"] = binary_size_bytes
     return entry
 
 

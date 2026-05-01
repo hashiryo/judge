@@ -61,6 +61,12 @@ run_cpp_file() {
   local rel_path
   rel_path="${hpp_file#${ROOT}/}"
 
+  # ソースファイルサイズ (algos/*.hpp 単体のバイト数)
+  local source_size_bytes=-1
+  if [[ -f "${hpp_file}" ]]; then
+    source_size_bytes=$(wc -c < "${hpp_file}" | tr -d ' ')
+  fi
+
   # base.cpp + -DALGO_HPP="algos/xxx.hpp" でビルド
   local problem_root_abs="${ROOT}/${PROBLEM_DIR}"
   local source_cpp="${problem_root_abs}/base.cpp"
@@ -87,11 +93,18 @@ run_cpp_file() {
       --status "CE" \
       --last-execution-time "${EXECUTION_TIME}" \
       --compile-error-file "${compile_error_excerpt}" \
-      --cases-records /dev/null
+      --cases-records /dev/null \
+      --source-size-bytes "${source_size_bytes}"
     rm -f "${compile_error_excerpt}" "${binary}" "${compile_err}"
     return
   fi
   rm -f "${compile_err}"
+
+  # コンパイル後のバイナリサイズ (strip 前の生サイズ)
+  local binary_size_bytes=-1
+  if [[ -f "${binary}" ]]; then
+    binary_size_bytes=$(wc -c < "${binary}" | tr -d ' ')
+  fi
 
   echo -n "  [RUN] ${rel_path} " >&2
   local overall_status="AC"
@@ -138,7 +151,9 @@ run_cpp_file() {
     --environment "${ENV_NAME}" \
     --status "${overall_status}" \
     --last-execution-time "${EXECUTION_TIME}" \
-    --cases-records "${case_records_file}"
+    --cases-records "${case_records_file}" \
+    --source-size-bytes "${source_size_bytes}" \
+    --binary-size-bytes "${binary_size_bytes}"
 
   rm -f "${case_records_file}" "${binary}"
 }

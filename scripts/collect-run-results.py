@@ -28,6 +28,8 @@ def cmd_build_entry(args: argparse.Namespace) -> None:
         compile_error=args.compile_error,
         compile_error_file=args.compile_error_file,
         cases_records=args.cases_records,
+        source_size_bytes=args.source_size_bytes,
+        binary_size_bytes=args.binary_size_bytes,
     )
     sys.stdout.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
@@ -61,6 +63,8 @@ def main() -> None:
     p_build.add_argument("--compile-error")
     p_build.add_argument("--compile-error-file")
     p_build.add_argument("--cases-records")
+    p_build.add_argument("--source-size-bytes", type=int, default=None)
+    p_build.add_argument("--binary-size-bytes", type=int, default=None)
     p_build.set_defaults(func=cmd_build_entry)
 
     p_carry = sub.add_parser("carry-over")

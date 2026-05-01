@@ -436,6 +436,8 @@
         <button data-metric="algo_time_max" class="active">algo_time_max</button>
         <button data-metric="algo_time_total">algo_time_total</button>
         <button data-metric="memory_max">memory_max</button>
+        <button data-metric="source_size">source_size</button>
+        <button data-metric="binary_size">binary_size</button>
         <button data-metric="Ir">Ir</button>
         <button data-metric="D1_miss">D1_miss</button>
         <button data-metric="LL_miss">LL_miss</button>
@@ -589,6 +591,19 @@
         return ns.toLocaleString() + " ns";
       }
 
+      // バイト数を短縮表示 (1.2KB / 345KB / 12.3MB)
+      function formatBytes(b) {
+        if (b === undefined || b === null) return "-";
+        const abs = Math.abs(b);
+        if (abs >= 1024 * 1024) return (b / (1024 * 1024)).toFixed(2) + "MB";
+        if (abs >= 1024) return (b / 1024).toFixed(1) + "KB";
+        return b + "B";
+      }
+      function formatBytesRaw(b) {
+        if (b === undefined || b === null) return "-";
+        return b.toLocaleString() + " B";
+      }
+
       // メトリクス定義
       const METRICS = {
         time_max: {
@@ -625,6 +640,20 @@
           format: formatMemory,
           formatRaw: (v) => (v === undefined || v === null ? "-" : v.toLocaleString() + " KB"),
           unit: "KB",
+        },
+        source_size: {
+          label: "source_size",
+          field: "source_size_bytes",
+          format: formatBytes,
+          formatRaw: formatBytesRaw,
+          unit: "B",
+        },
+        binary_size: {
+          label: "binary_size",
+          field: "binary_size_bytes",
+          format: formatBytes,
+          formatRaw: formatBytesRaw,
+          unit: "B",
         },
         Ir: {
           label: "Ir",
