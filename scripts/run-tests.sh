@@ -68,7 +68,9 @@ run_cpp_file() {
   binary=$(mktemp)
   local compile_err
   compile_err=$(mktemp)
-  if ! ${CXX} ${CXXFLAGS} "${build_extra[@]}" -o "${binary}" "${source_cpp}" 2>"${compile_err}"; then
+  # stdout も compile_err に集める。clang の LTO 警告 (`<unknown>:0:0: loop not
+  # vectorized: ...`) が stdout に流れて result_json を汚すのを防ぐため。
+  if ! ${CXX} ${CXXFLAGS} "${build_extra[@]}" -o "${binary}" "${source_cpp}" >"${compile_err}" 2>&1; then
     echo "  [CE] ${rel_path}" >&2
     head -20 "${compile_err}" | sed 's/^/    /' >&2
     local compile_error_excerpt

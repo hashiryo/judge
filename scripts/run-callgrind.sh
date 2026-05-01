@@ -78,7 +78,7 @@ while IFS=$'\t' read -r -a PARTS; do
     BUILD_EXTRA=(-DALGO_HPP="\"${ALGO_REL}\"")
 
     BINARY=$(mktemp)
-    if ! ${CXX} ${CXXFLAGS} "${BUILD_EXTRA[@]}" -o "${BINARY}" "${SOURCE_CPP}" 2>/dev/null; then
+    if ! ${CXX} ${CXXFLAGS} "${BUILD_EXTRA[@]}" -o "${BINARY}" "${SOURCE_CPP}" >/dev/null 2>&1; then
       echo "  [CE] ${REL_PATH}"
       rm -f "${BINARY}"
       continue
