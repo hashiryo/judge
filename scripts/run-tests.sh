@@ -23,6 +23,10 @@ source "${SCRIPTS_DIR}/lib/run-lib.sh"
 
 CXX="${CXX:-g++}"
 CXXFLAGS="${CXXFLAGS:--std=c++17 -O2}"
+# user library 本体 (mylib/...) を algos/mine.hpp 用に公開
+if [[ -d "${ROOT}/lib/mylib" ]]; then
+  CXXFLAGS="${CXXFLAGS} -I${ROOT}/lib"
+fi
 ENV_NAME="${ENV_NAME:-local}"
 TC_DIR="${ROOT}/.cache/testcases"
 CUSTOM_TC_DIR="${ROOT}/.cache/custom-testcases"

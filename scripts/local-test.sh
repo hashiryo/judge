@@ -26,6 +26,11 @@ LIB_INCLUDE="${ROOT}/lib/include"
 if [[ -d "${LIB_INCLUDE}" ]]; then
   CXXFLAGS="${CXXFLAGS} -I${LIB_INCLUDE}"
 fi
+# user library 本体 (mylib/...) も algos/mine.hpp 用に公開する
+LIB_ROOT="${ROOT}/lib"
+if [[ -d "${LIB_ROOT}/mylib" ]]; then
+  CXXFLAGS="${CXXFLAGS} -I${LIB_ROOT}"
+fi
 
 # ARM (macOS等) では SIMDe を有効化
 if [[ "$(uname -m)" != "x86_64" ]]; then
