@@ -263,7 +263,7 @@ namespace cp_algo::math {
 #include <cstddef>
 #include <memory>
 
-#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2)
+#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2) && !defined(USE_SIMDE)
 #define CP_ALGO_SIMD_AVX2_TARGET _Pragma("GCC target(\"avx2\")")
 #else
 #define CP_ALGO_SIMD_AVX2_TARGET
@@ -480,10 +480,12 @@ namespace std::ranges {
 
 
 
-#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2)
+#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2) && !defined(USE_SIMDE)
 #define CP_ALGO_BIT_OPS_TARGET _Pragma("GCC target(\"avx2,bmi,bmi2,lzcnt,popcnt\")")
-#else
+#elif defined(__x86_64__)
 #define CP_ALGO_BIT_OPS_TARGET _Pragma("GCC target(\"bmi,bmi2,lzcnt,popcnt\")")
+#else
+#define CP_ALGO_BIT_OPS_TARGET   /* non-x86: no target pragma */
 #endif
 
 #define CP_ALGO_BIT_PRAGMA_PUSH \

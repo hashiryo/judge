@@ -258,7 +258,7 @@ namespace cp_algo::math {
 #include <cstddef>
 #include <memory>
 
-#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2)
+#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2) && !defined(USE_SIMDE)
 #define CP_ALGO_SIMD_AVX2_TARGET _Pragma("GCC target(\"avx2\")")
 #else
 #define CP_ALGO_SIMD_AVX2_TARGET
@@ -474,10 +474,12 @@ namespace std::ranges {
 
 #include <bit>
 
-#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2)
+#if defined(__x86_64__) && !defined(CP_ALGO_DISABLE_AVX2) && !defined(USE_SIMDE)
 #define CP_ALGO_BIT_OPS_TARGET _Pragma("GCC target(\"avx2,bmi,bmi2,lzcnt,popcnt\")")
-#else
+#elif defined(__x86_64__)
 #define CP_ALGO_BIT_OPS_TARGET _Pragma("GCC target(\"bmi,bmi2,lzcnt,popcnt\")")
+#else
+#define CP_ALGO_BIT_OPS_TARGET   /* non-x86: no target pragma */
 #endif
 
 #define CP_ALGO_BIT_PRAGMA_PUSH \
@@ -809,7 +811,10 @@ namespace cp_algo::math {
             size_t M = size(f);
             // libc++ は alias-template の CTAD を許さないので明示する
             big_vector<big_vector<base>> res(n, big_vector<base>{0});
-            big_vector<base> pw(M+1);
+            // pw は元 M+1 だが、ループ中の `pw[i] = 0` で i が n-1 まで書くので
+            // M < n-1 (例えば nm_01 ケースの M=0 や M=1) で OOB → SIGSEGV。
+            // n を超える容量を確保しておく。
+            big_vector<base> pw(std::max(M + 1, n + 1));
             pw[0] = 1;
             for (size_t j = 1; j < M; j++) {
                 pw[j] = pw[j - 1] * g[0];
@@ -857,7 +862,8 @@ namespace cp_algo::math {
         if (size(g) == 1) {
             size_t n = size(fg);
             big_vector<base> res(M);
-            big_vector<base> pw(M+1);
+            // 同じく pw[i]=0 (i 最大 size(fg)-1) で OOB を避ける
+            big_vector<base> pw(std::max(M + 1, n + 1));
             pw[0] = 1;
             for (size_t j = 1; j < M; j++) {
                 pw[j] = pw[j - 1] * g[0];

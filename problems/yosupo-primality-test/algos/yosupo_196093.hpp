@@ -28,43 +28,50 @@ using std::uint32_t;
 using std::uint64_t;
 using u128_local = __uint128_t;
 
-// 32-bit Montgomery (mod は奇数前提)。R = 2^32。
+// 32-bit Montgomery (mod は奇数前提、n < 2^32)。R = 2^32。
+// 注意: n が 2^31 以上だと x + q*n が u64 で overflow する。
+//       overflow しない form (T_high - (q*n)_high, 不足なら +n) を使う。
 struct M32 {
- uint32_t n, n_inv_neg;
+ uint32_t n, n_inv_pos;  // n * n_inv_pos ≡ +1 (mod 2^32)
  uint32_t r2;
  explicit M32(uint32_t nn): n(nn) {
+  // Newton iteration: 5 回で 32-bit 全 bit 正しい (3 → 6 → 12 → 24 → 48 bits)
   uint32_t inv = nn;
-  for (int i = 0; i < 4; ++i) inv *= 2 - nn * inv;
-  n_inv_neg = (uint32_t) -inv;
-  r2 = ((uint32_t) -nn) % nn;          // 2^32 mod n
-  r2 = (uint64_t) r2 * r2 % nn;        // 2^64 mod n
+  for (int i = 0; i < 5; ++i) inv *= 2 - nn * inv;
+  n_inv_pos = inv;
+  r2 = ((uint32_t) -nn) % nn;
+  r2 = (uint64_t) r2 * r2 % nn;
  }
  inline uint32_t reduce(uint64_t x) const {
-  uint32_t q = (uint32_t) x * n_inv_neg;
-  uint64_t s = x + (uint64_t) q * n;
-  uint32_t res = (uint32_t) (s >> 32);
-  return res >= n ? res - n : res;
+  uint32_t T_lo = (uint32_t) x;
+  uint32_t T_hi = (uint32_t) (x >> 32);
+  uint32_t q = T_lo * n_inv_pos;
+  uint32_t qn_hi = (uint32_t) (((uint64_t) q * n) >> 32);
+  // 結果 = T_hi - qn_hi, underflow なら +n
+  return T_hi >= qn_hi ? T_hi - qn_hi : T_hi + n - qn_hi;
  }
  inline uint32_t mul(uint32_t a, uint32_t b) const { return reduce((uint64_t) a * b); }
  inline uint32_t to_mont(uint32_t a) const { return mul(a, r2); }
 };
 
-// 64-bit Montgomery (mod は奇数前提)。R = 2^64。
+// 64-bit Montgomery (mod は奇数前提、n < 2^64)。R = 2^64。
+// 同様に overflow しない form を使う。
 struct M64 {
- uint64_t n, n_inv_neg;
+ uint64_t n, n_inv_pos;
  uint64_t r2;
  explicit M64(uint64_t nn): n(nn) {
   uint64_t inv = nn;
-  for (int i = 0; i < 5; ++i) inv *= 2 - nn * inv;
-  n_inv_neg = (uint64_t) -(int64_t) inv;
-  r2 = (u128_local) (-(__int128) nn) % nn;
+  for (int i = 0; i < 6; ++i) inv *= 2 - nn * inv;
+  n_inv_pos = inv;
+  r2 = ((uint64_t) -nn) % nn;
   r2 = (u128_local) r2 * r2 % nn;
  }
  inline uint64_t reduce(u128_local x) const {
-  uint64_t q = (uint64_t) x * n_inv_neg;
-  u128_local s = x + (u128_local) q * n;
-  uint64_t res = (uint64_t) (s >> 64);
-  return res >= n ? res - n : res;
+  uint64_t T_lo = (uint64_t) x;
+  uint64_t T_hi = (uint64_t) (x >> 64);
+  uint64_t q = T_lo * n_inv_pos;
+  uint64_t qn_hi = (uint64_t) (((u128_local) q * n) >> 64);
+  return T_hi >= qn_hi ? T_hi - qn_hi : T_hi + n - qn_hi;
  }
  inline uint64_t mul(uint64_t a, uint64_t b) const { return reduce((u128_local) a * b); }
  inline uint64_t to_mont(uint64_t a) const { return mul(a, r2); }
