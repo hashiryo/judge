@@ -103,12 +103,14 @@ _FN_ID_RE = re.compile(r"^\((\d+)\)\s*(.*)$")
 
 # 実関数として扱わない hot function 候補。これらは callgrind の attribution 集約点で、
 # 我々が逆アセンブルして MCA したい対象ではない。
+# 注意: `main` は除外しない。-O2 で最適化された binary では、ユーザコード関数が
+# 全部 main に inline 化されるケースがあり、その場合 main を逆アセンブルするのが正解。
 _FN_EXCLUDE = {
     "(below main)", "(below ???)", "???",
     "_start", "_init", "_fini", "__libc_start_main",
     "__libc_csu_init", "__libc_csu_fini", "_dl_relocate_static_pie",
 }
-_FN_EXCLUDE_PREFIXES = ("main",)  # main / main'2 / main.cold 等
+_FN_EXCLUDE_PREFIXES = ()  # 個別名のみ除外、prefix 除外は使わない
 
 
 def _resolve_fn_value(value: str, fn_table: dict[str, str]) -> str:
@@ -162,6 +164,11 @@ def _parse_hot_function(cg_path: str, binary_path: str) -> str | None:
                 continue
             if line.startswith("fn="):
                 cur_fn = _resolve_fn_value(line[3:].strip(), fn_table)
+                continue
+            # cfn=(NNNN) name 形式でも name 登録が起きるので、テーブルを更新する。
+            # cfn= 自体は call relationship なので Ir 集計には使わない (fn= とは別)。
+            if line.startswith("cfn="):
+                _resolve_fn_value(line[4:].strip(), fn_table)
                 continue
             if line.startswith("positions:"):
                 positions = line[len("positions:"):].split()
