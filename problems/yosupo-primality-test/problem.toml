@@ -1,3 +1,9 @@
 url = "https://judge.yosupo.jp/problem/primality_test"
 tle = 5
 mle = 256
+# callgrind 用の代表ケース。all_prime_00 は valgrind 上で重すぎる + Lucas chain
+# が極端に長く回るので IPC の傾向が偏る。random_00 (Q=100k, 1e18 までの一様乱数)
+# のほうが「trial-div + MR-2 + 一部 Lucas」という現実的な分布になる。
+# 指定なしの場合は pick_representative_input が median を選ぶが、yosupo の
+# random は 3 ケース揃ってるので明示固定したほうがブレない。
+callgrind_case = "random_00"

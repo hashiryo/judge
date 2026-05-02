@@ -25,7 +25,7 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "_common.hpp"
 
-namespace yosupo_bpsw_batch4 {
+namespace yosupo_bpsw_batch4_mr2 {
 using std::uint32_t;
 using std::uint64_t;
 using std::int64_t;
@@ -92,7 +92,7 @@ struct Mont {
 
 constexpr int B = 4;
 
-// MR-2 scalar (Pass 2 は scalar 実行)
+// MR-2 scalar (Pass 1 → Pass 2 で 1 入力だけのときの fallback 用)
 inline bool mr_base2(const Mont& mo) {
  uint64_t br = mo.add(mo.R, mo.R);
  br = mo.pow_mont(br, mo.d);
@@ -102,6 +102,131 @@ inline bool mr_base2(const Mont& mo) {
   if (br == mo.Rn) return true;
  }
  return false;
+}
+
+// =============================================================================
+// MR-2 batch=4。
+// 4 入力分の base-2 強擬素数判定を並列に走らせる。
+// pow_mont は (br = 2^d mod m) を求めるが、これを 4 slot の squaring を
+// インターリーブして実行 → mul ユニットを埋める。
+//
+// 出力: out[i] が true なら "base-2 で probable prime" (Lucas に進める)。
+//       false なら確定 composite。
+// active[i] が false の slot は触らない。
+// =============================================================================
+__attribute__((always_inline))
+inline void mr2_pow_step_one(
+    const Mont& mo, uint64_t& ar_io, uint64_t& t_io,
+    uint64_t& b_io, bool& seeded_io)
+{
+ uint64_t b = b_io;
+ if (b == 0) return;
+ if (!seeded_io) {
+  // 「最下位 1 が見つかるまで ar を squaring」フェーズ
+  if ((b & 1) == 0) {
+   ar_io = mo.mrmul(ar_io, ar_io);
+   b_io = b >> 1;
+   return;
+  }
+  // 最初の 1 bit に当たった: t = ar, b >>= 1
+  t_io = ar_io;
+  b_io = b >> 1;
+  seeded_io = true;
+  return;
+ }
+ // 通常フェーズ: 毎反復 ar squaring、bit が立ってたら t *= ar
+ ar_io = mo.mrmul(ar_io, ar_io);
+ if (b & 1) t_io = mo.mrmul(t_io, ar_io);
+ b_io = b >> 1;
+}
+
+inline void mr_base2_batch(const Mont mos[B], bool active[B], bool out[B]) {
+ // pow_mont の状態: ar (Montgomery 形式の base 2)、t (累積結果)、b (残り指数)、seeded
+ uint64_t ar0=0,ar1=0,ar2=0,ar3=0;
+ uint64_t t0=0,t1=0,t2=0,t3=0;
+ uint64_t b0=0,b1=0,b2=0,b3=0;
+ bool seeded0=false, seeded1=false, seeded2=false, seeded3=false;
+
+ auto init = [](const Mont& mo, bool act, uint64_t& ar, uint64_t& t,
+                uint64_t& b, bool& seeded) {
+  if (!act) return;
+  ar = mo.add(mo.R, mo.R); // base 2 in Montgomery
+  t = mo.R;                 // 初期値 (使用前に t = ar で上書き)
+  b = mo.d;
+  seeded = false;
+  if (b == 0) {
+   // 通常はあり得ないが念のため (b == 0 なら結果 = R)
+   t = mo.R;
+   seeded = true;
+  }
+ };
+ init(mos[0], active[0], ar0, t0, b0, seeded0);
+ init(mos[1], active[1], ar1, t1, b1, seeded1);
+ init(mos[2], active[2], ar2, t2, b2, seeded2);
+ init(mos[3], active[3], ar3, t3, b3, seeded3);
+
+ // 4 slot の pow_mont をインターリーブ
+ while ((b0 | b1 | b2 | b3) != 0) {
+  mr2_pow_step_one(mos[0], ar0, t0, b0, seeded0);
+  mr2_pow_step_one(mos[1], ar1, t1, b1, seeded1);
+  mr2_pow_step_one(mos[2], ar2, t2, b2, seeded2);
+  mr2_pow_step_one(mos[3], ar3, t3, b3, seeded3);
+ }
+ // この時点で t[i] = 2^d mod m (Montgomery 形式)
+ uint64_t br0 = t0, br1 = t1, br2 = t2, br3 = t3;
+
+ // 強判定: br == R or br == Rn なら prime probable。
+ // それ以外で br を k-1 回 squaring して、その途中で Rn に至れば prime。
+ // 各 slot の k が違うので per-slot に reservoir 持つ。
+ int rem0 = active[0] ? mos[0].k - 1 : 0;
+ int rem1 = active[1] ? mos[1].k - 1 : 0;
+ int rem2 = active[2] ? mos[2].k - 1 : 0;
+ int rem3 = active[3] ? mos[3].k - 1 : 0;
+ bool decided0=!active[0], decided1=!active[1], decided2=!active[2], decided3=!active[3];
+
+ auto first_check = [](const Mont& mo, bool act, uint64_t br,
+                       bool& decided, bool& out_i, int& rem) {
+  if (!act) return;
+  if (br == mo.R || br == mo.Rn) {
+   out_i = true;
+   decided = true;
+   rem = 0; // 強判定 squaring は不要
+  }
+ };
+ first_check(mos[0], active[0], br0, decided0, out[0], rem0);
+ first_check(mos[1], active[1], br1, decided1, out[1], rem1);
+ first_check(mos[2], active[2], br2, decided2, out[2], rem2);
+ first_check(mos[3], active[3], br3, decided3, out[3], rem3);
+
+ // 残ったやつだけ squaring を per-slot reservoir で並列に進める。
+ // 通常 k は 1〜数 bit (ctz(m-1)) なので回数は少ないが、batch でやると
+ // pass 2 全体の独立 mul を稼ぐのに地味に効く。
+ while (rem0 + rem1 + rem2 + rem3 > 0) {
+  if (!decided0 && rem0 > 0) {
+   br0 = mos[0].mrmul(br0, br0);
+   if (br0 == mos[0].Rn) { out[0] = true; decided0 = true; rem0 = 0; }
+   else rem0--;
+  }
+  if (!decided1 && rem1 > 0) {
+   br1 = mos[1].mrmul(br1, br1);
+   if (br1 == mos[1].Rn) { out[1] = true; decided1 = true; rem1 = 0; }
+   else rem1--;
+  }
+  if (!decided2 && rem2 > 0) {
+   br2 = mos[2].mrmul(br2, br2);
+   if (br2 == mos[2].Rn) { out[2] = true; decided2 = true; rem2 = 0; }
+   else rem2--;
+  }
+  if (!decided3 && rem3 > 0) {
+   br3 = mos[3].mrmul(br3, br3);
+   if (br3 == mos[3].Rn) { out[3] = true; decided3 = true; rem3 = 0; }
+   else rem3--;
+  }
+ }
+ if (active[0] && !decided0) out[0] = false;
+ if (active[1] && !decided1) out[1] = false;
+ if (active[2] && !decided2) out[2] = false;
+ if (active[3] && !decided3) out[3] = false;
 }
 
 // Jacobi (bpsw.hpp と同一)
@@ -318,7 +443,7 @@ inline std::pair<bool, bool> fast_decide(uint64_t n) {
  return {false, false};
 }
 
-} // namespace yosupo_bpsw_batch4
+} // namespace yosupo_bpsw_batch4_mr2
 
 // 3-pass 構成:
 //   pass 1: trial division (fast_decide) で 80%+ を決着
@@ -330,29 +455,56 @@ inline std::pair<bool, bool> fast_decide(uint64_t n) {
 // 入力で batch slot が無駄になり、scalar より遅くなる。
 struct Primality {
  static vector<bool> run(const vector<u64>& qs) {
-  using namespace yosupo_bpsw_batch4;
+  using namespace yosupo_bpsw_batch4_mr2;
   const size_t Q = qs.size();
   vector<bool> ans(Q, false);
 
-  // pass 1: trial division
-  // pass 2: MR-2 (per-slot scalar)
-  std::vector<uint32_t> need_lucas_idx;
-  std::vector<Mont> need_lucas_mos;
-  need_lucas_idx.reserve(Q / 4);
-  need_lucas_mos.reserve(Q / 4);
+  // pass 1: trial division。生き残った入力は MR-2 batch 用に集約。
+  std::vector<uint32_t> mr2_idx;
+  std::vector<Mont> mr2_mos;
+  mr2_idx.reserve(Q / 4);
+  mr2_mos.reserve(Q / 4);
   for (size_t i = 0; i < Q; ++i) {
    auto [decided, v] = fast_decide(qs[i]);
    if (decided) {
     ans[i] = v;
-    continue;
+   } else {
+    mr2_idx.push_back((uint32_t) i);
+    mr2_mos.push_back(Mont(qs[i]));
    }
-   Mont mo(qs[i]);
-   if (!mr_base2(mo)) {
-    ans[i] = false;
-    continue;
+  }
+
+  // pass 2: MR-2 を 4 並列で。生き残ったものを Lucas batch 用に集約。
+  std::vector<uint32_t> need_lucas_idx;
+  std::vector<Mont> need_lucas_mos;
+  need_lucas_idx.reserve(mr2_idx.size() / 4);
+  need_lucas_mos.reserve(mr2_idx.size() / 4);
+  {
+   const size_t M = mr2_idx.size();
+   size_t k = 0;
+   for (; k + B <= M; k += B) {
+    Mont mos[B] = {mr2_mos[k], mr2_mos[k+1], mr2_mos[k+2], mr2_mos[k+3]};
+    bool active[B] = {true, true, true, true};
+    bool out[B] = {false, false, false, false};
+    mr_base2_batch(mos, active, out);
+    for (int j = 0; j < B; ++j) {
+     if (out[j]) {
+      need_lucas_idx.push_back(mr2_idx[k + j]);
+      need_lucas_mos.push_back(mos[j]);
+     } else {
+      ans[mr2_idx[k + j]] = false;
+     }
+    }
    }
-   need_lucas_idx.push_back((uint32_t) i);
-   need_lucas_mos.push_back(mo);
+   // tail: scalar mr_base2 で
+   for (; k < M; ++k) {
+    if (mr_base2(mr2_mos[k])) {
+     need_lucas_idx.push_back(mr2_idx[k]);
+     need_lucas_mos.push_back(mr2_mos[k]);
+    } else {
+     ans[mr2_idx[k]] = false;
+    }
+   }
   }
 
   // pass 3: Lucas batch 4 並列
