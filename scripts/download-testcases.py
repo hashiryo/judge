@@ -88,6 +88,12 @@ def setup_custom_testcases(problem_dir_name: str, tc_dir: Path) -> None:
     checker = tc_dir / "checker.cpp"
     if checker.exists():
         shutil.copy2(checker, cache_dir / "checker.cpp")
+        # checker.cpp は testlib.h に依存するので一緒にコピー。
+        # 無いと compile_checker が silent fail し、diff にフォールバックして
+        # 「複数解 OK」の問題で実装の出力が WA 扱いされる。
+        testlib = tc_dir / "testlib.h"
+        if testlib.exists():
+            shutil.copy2(testlib, cache_dir / "testlib.h")
 
     print(f"  Custom testcases for {problem_dir_name}: {count} cases")
 
