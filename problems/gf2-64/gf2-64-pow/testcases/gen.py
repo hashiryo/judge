@@ -56,9 +56,10 @@ def write_case(name: str, T: int, kind: str) -> None:
         f.write(f"{T}\n")
         for a, e in pairs:
             f.write(f"{a} {e}\n")
+    results = gf2_64.batch_pow(pairs)
     with open(out_path, "w") as f:
-        for a, e in pairs:
-            f.write(f"{gf2_64.gf_pow(a, e)}\n")
+        for r in results:
+            f.write(f"{r}\n")
 
 
 def main() -> None:

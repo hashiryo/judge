@@ -23,7 +23,7 @@ CASES = {
     "edge_00":             (200,  "edge"),
     "structured_00":       (1000, "structured"),
     "random_00":           (10000, "random"),
-    "random_large_00":     (1_000_000, "random"),
+    "random_large_00":     (100_000, "random"),
 }
 
 
@@ -60,9 +60,10 @@ def write_case(name: str, T: int, kind: str) -> None:
         f.write(f"{T}\n")
         for a in vals:
             f.write(f"{a}\n")
+    results = gf2_64.batch_sqrt(vals)
     with open(out_path, "w") as f:
-        for a in vals:
-            f.write(f"{gf2_64.gf_sqrt(a)}\n")
+        for r in results:
+            f.write(f"{r}\n")
 
 
 def main() -> None:

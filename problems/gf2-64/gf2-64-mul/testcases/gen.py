@@ -25,7 +25,7 @@ CASES: dict[str, tuple[int, str]] = {
     "edge_zero_one_00":    (200,  "edge_zero_one"),
     "structured_00":       (1000, "structured"),
     "random_00":           (10000, "random"),
-    "random_large_00":     (1_000_000, "random"),
+    "random_large_00":     (100_000, "random"),
 }
 
 
@@ -66,13 +66,14 @@ def write_case(name: str, T: int, kind: str) -> None:
         return
     print(f"gen {name} (T={T}, kind={kind})", file=sys.stderr)
     pairs = make_pairs(name, T, kind)
+    results = gf2_64.batch_mul(pairs)
     with open(in_path, "w") as f:
         f.write(f"{T}\n")
         for a, b in pairs:
             f.write(f"{a} {b}\n")
     with open(out_path, "w") as f:
-        for a, b in pairs:
-            f.write(f"{gf2_64.gf_mul(a, b)}\n")
+        for r in results:
+            f.write(f"{r}\n")
 
 
 def main() -> None:

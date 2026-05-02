@@ -2,4 +2,4 @@
 url = ""
 tle = 5
 mle = 256
-callgrind_case = "random_large_00"
+callgrind_case = "random_00"

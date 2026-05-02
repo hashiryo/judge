@@ -19,7 +19,7 @@ CASES = {
     "edge_one_00":         (200,  "edge_one"),
     "structured_00":       (1000, "structured"),
     "random_00":           (10000, "random"),
-    "random_large_00":     (1_000_000, "random"),
+    "random_large_00":     (100_000, "random"),
 }
 
 
@@ -71,9 +71,10 @@ def write_case(name: str, T: int, kind: str) -> None:
         f.write(f"{T}\n")
         for a, b in pairs:
             f.write(f"{a} {b}\n")
+    results = gf2_64.batch_div(pairs)
     with open(out_path, "w") as f:
-        for a, b in pairs:
-            f.write(f"{gf2_64.gf_mul(a, gf2_64.gf_inv(b))}\n")
+        for r in results:
+            f.write(f"{r}\n")
 
 
 def main() -> None:

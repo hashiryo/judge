@@ -31,29 +31,20 @@ CASES = {
 }
 
 
-def make_xs(name: str, T: int, kind: str) -> list[tuple[int, int]]:
-    """(x, k) を返す。k は g^k = x の正解値 (Pohlig-Hellman で確認可能)。"""
+def make_ks(name: str, T: int, kind: str) -> list[int]:
+    """正解 k のリストを返す。x は後で batch_log_inv (g^k) で一括計算。"""
     rng = random.Random(hash(("log", name)) & 0xFFFFFFFF)
     if kind == "sample":
-        ks = [0, 1, 2, 100, 1 << 16, 1 << 32, 1 << 60, ORDER - 1]
-        return [(gf2_64.gf_pow(G, k), k) for k in ks[:T]]
+        return [0, 1, 2, 100, 1 << 16, 1 << 32, 1 << 60, ORDER - 1][:T]
     if kind == "small":
-        return [
-            (gf2_64.gf_pow(G, k), k)
-            for k in [rng.randint(0, 1000) for _ in range(T)]
-        ]
+        return [rng.randint(0, 1000) for _ in range(T)]
     if kind == "edge":
-        # k = 0, 1, ORDER-1 などの境界値を中心に
-        out = []
-        for _ in range(T):
-            k = rng.choice([0, 1, 2, ORDER - 2, ORDER - 1, rng.randint(0, ORDER - 1)])
-            out.append((gf2_64.gf_pow(G, k), k))
-        return out
-    if kind == "random":
         return [
-            (gf2_64.gf_pow(G, k), k)
-            for k in [rng.randint(0, ORDER - 1) for _ in range(T)]
+            rng.choice([0, 1, 2, ORDER - 2, ORDER - 1, rng.randint(0, ORDER - 1)])
+            for _ in range(T)
         ]
+    if kind == "random":
+        return [rng.randint(0, ORDER - 1) for _ in range(T)]
     raise ValueError(kind)
 
 
@@ -63,7 +54,9 @@ def write_case(name: str, T: int, kind: str) -> None:
     if in_path.exists() and out_path.exists():
         return
     print(f"gen {name} (T={T}, kind={kind})", file=sys.stderr)
-    pairs = make_xs(name, T, kind)
+    ks = make_ks(name, T, kind)
+    xs = gf2_64.batch_log_inv(ks)  # x_i = g^{k_i}
+    pairs = list(zip(xs, ks))
     with open(in_path, "w") as f:
         f.write(f"{T}\n")
         for x, _k in pairs:
