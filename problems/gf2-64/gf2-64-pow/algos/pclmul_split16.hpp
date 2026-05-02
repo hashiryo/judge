@@ -69,7 +69,7 @@ PCLMUL_FN void init_frob16_table() {
  }
 }
 
-[[gnu::always_inline]] inline u64 frob16(u64 a) {
+PCLMUL_FN u64 frob16(u64 a) {
  return FROB16_BYTE[0][u8(a)]       ^ FROB16_BYTE[1][u8(a >>  8)]
       ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)]
       ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)]
@@ -77,7 +77,7 @@ PCLMUL_FN void init_frob16_table() {
 }
 
 // 16-bit exponent の binary exp
-[[gnu::always_inline]] inline u64 pow16(u64 a, u32 e) {
+PCLMUL_FN u64 pow16(u64 a, u32 e) {
  u64 result = 1;
  while (e) {
   if (e & 1) result = mul(result, a);
