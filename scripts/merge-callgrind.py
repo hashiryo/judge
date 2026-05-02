@@ -37,7 +37,7 @@ def load_callgrind_map() -> dict[tuple[str, str], dict]:
                     continue
                 data = json.loads(line)
                 key = (data["file"], data["environment"])
-                mapping[key] = {
+                merged: dict = {
                     "callgrind_instructions": data.get("callgrind_instructions"),
                     "callgrind_case": data.get("callgrind_case"),
                     "callgrind_d1_misses": data.get("callgrind_d1_misses"),
@@ -47,6 +47,11 @@ def load_callgrind_map() -> dict[tuple[str, str], dict]:
                     "callgrind_binary_instructions": data.get("callgrind_binary_instructions"),
                     "callgrind_simd_ratio": data.get("callgrind_simd_ratio"),
                 }
+                # mca_* フィールド (analyze-mca.py 由来) も拾う
+                for k, v in data.items():
+                    if k.startswith("mca_"):
+                        merged[k] = v
+                mapping[key] = merged
     return mapping
 
 

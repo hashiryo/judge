@@ -443,6 +443,8 @@
         <button data-metric="LL_miss">LL_miss</button>
         <button data-metric="branch_miss">branch_miss</button>
         <button data-metric="SIMD_ratio">SIMD%</button>
+        <button data-metric="IPC">IPC</button>
+        <button data-metric="BlockRT">BlockRT</button>
         <span id="detail-sort-hint" class="sort-hint"></span>
       </div>
       <div id="detail-content"></div>
@@ -682,6 +684,23 @@
           format: formatIr,
           formatRaw: formatIrRaw,
           unit: "",
+        },
+        IPC: {
+          label: "IPC",
+          field: "mca_ipc",
+          // 高いほど良い (instruction-level parallelism がより活きている)
+          format: (v) => (v === undefined || v === null ? "-" : v.toFixed(2)),
+          formatRaw: (v) => (v === undefined || v === null ? "-" : v.toFixed(4)),
+          unit: "",
+          higherIsBetter: true,
+        },
+        BlockRT: {
+          label: "BlockRT",
+          field: "mca_block_rthroughput",
+          // 1 iteration あたりサイクル数 (低いほど速い)
+          format: (v) => (v === undefined || v === null ? "-" : v.toFixed(2)),
+          formatRaw: (v) => (v === undefined || v === null ? "-" : v.toFixed(4)),
+          unit: "cyc",
         },
         SIMD_ratio: {
           label: "SIMD%",

@@ -12,6 +12,7 @@
   REL_PATH     sol ファイルの相対パス (ROOT 基準)
   ENV_NAME     環境名 (x64-g++ 等)
   CASE_NAME    代表ケース名
+  MCA_JSON     analyze-mca.py の出力ファイルパス (任意)
 
 出力: 1 行 JSON を stdout。
 """
@@ -39,6 +40,19 @@ def main() -> None:
         "callgrind_binary_instructions": binary_ir,
         "callgrind_simd_ratio": simd_ratio,
     }
+    # MCA: hot function の静的 IPC 等。失敗時 (llvm-mca 不在等) は欠損で OK。
+    mca_path = os.environ.get("MCA_JSON", "")
+    if mca_path and os.path.exists(mca_path):
+        try:
+            with open(mca_path) as f:
+                mca = json.load(f)
+            if isinstance(mca, dict):
+                # mca_* prefix の field をそのまま entry にマージ
+                for k, v in mca.items():
+                    if k.startswith("mca_"):
+                        entry[k] = v
+        except (OSError, json.JSONDecodeError):
+            pass
     print(json.dumps(entry))
 
 

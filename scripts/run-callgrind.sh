@@ -104,13 +104,23 @@ while IFS=$'\t' read -r -a PARTS; do
       SIMD_IR=$(echo "${SIMD_COUNTS}" | awk '{print $1}')
       BINARY_IR=$(echo "${SIMD_COUNTS}" | awk '{print $2}')
 
+      # MCA: hot function を llvm-mca で静的解析 (IPC / Block RThroughput 等)。
+      # llvm-mca が無い環境 (古い image 等) でも script は JSON を出すので、
+      # メトリクス側で missing を許容する。
+      MCA_OUT=$(mktemp)
+      # stderr は CI ログに残す (llvm-mca 不在等の原因切り分けに使う)。
+      python3 "${SCRIPTS_DIR}/analyze-mca.py" "${BINARY}" "${CG_OUT}" >"${MCA_OUT}" || echo "{}" >"${MCA_OUT}"
+
       JSON_LINE=$(EVENTS="${EVENTS_LINE}" TOTALS="${TOTALS_LINE}" \
         SIMD_IR="${SIMD_IR}" BINARY_IR="${BINARY_IR}" \
+        MCA_JSON="${MCA_OUT}" \
         REL_PATH="${REL_PATH}" ENV_NAME="${ENV_NAME}" CASE_NAME="${CASE_NAME}" \
         python3 "${SCRIPTS_DIR}/lib/build-callgrind-entry.py")
       echo "${JSON_LINE}" >> "${OUT_JSONL}"
       IR=$(echo "${TOTALS_LINE}" | awk '{print $1}')
-      echo "Ir=${IR} SIMD=${SIMD_IR}/${BINARY_IR}"
+      MCA_IPC=$(python3 -c "import json,sys; d=json.load(open('${MCA_OUT}')); print(d.get('mca_ipc','-'))" 2>/dev/null || echo "-")
+      echo "Ir=${IR} SIMD=${SIMD_IR}/${BINARY_IR} IPC=${MCA_IPC}"
+      rm -f "${MCA_OUT}"
     else
       echo "FAILED"
     fi

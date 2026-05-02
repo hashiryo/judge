@@ -336,6 +336,11 @@ jobs:
       - name: Install valgrind
         run: sudo apt-get install -y valgrind
 
+      - name: Install llvm-mca (for static IPC analysis)
+        # ubuntu-latest 標準の llvm パッケージで llvm-mca が入る。
+        # 解析失敗時 analyze-mca.py は欠損で済むので、install 失敗も致命にしない。
+        run: sudo apt-get install -y llvm || true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
