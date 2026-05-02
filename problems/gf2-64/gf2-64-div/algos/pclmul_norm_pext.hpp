@@ -168,36 +168,32 @@ PCLMUL_FN void init_tables() {
  //   2) N (poly 64-bit) = ⊕ c_i σ^i
  //   3) inv_N = N^{2^16 - 2}  (F_{2^16} 内の inv、Itoh-Tsujii で計算)
  //   4) INV_PEXT[idx] = inv_N
- INV_PEXT[0] = 0;  // 0 はそもそも inv 不可、0 を返す
- for (u32 idx = 1; idx < 65536; ++idx) {
-  // σ-coeff = Minv · idx (Minv[i] は row i of M^{-1} なので bit-AND の parity)
-  u32 c = 0;
+ // INV_PEXT を σ^k 列挙で構築 (~30 μs):
+ //   σ^k for k = 0..65534 を 65534 PCLMUL muls で chain 計算
+ //   各々の PEXT idx と σ^{-k} を対応付け
+ // 0 は subfield に住まないので INV_PEXT[pext(0)] = 0 とだけ設定 (= INV_PEXT[0])
+ for (u32 idx = 0; idx < 65536; ++idx) INV_PEXT[idx] = 0;  // 初期化
+ // σ^k を chain で生成、同時に inv pair を埋める
+ // σ^{-k} = σ^{65535 - k} (k=0 のとき σ^0 = 1 で自分自身 inv)
+ // 一旦 PW[k] = σ^k を保持してから inv ペアを埋める (= σ^k と σ^{(65535-k)%65535})
+ // PW_local は init 後に解放したいので vector
+ std::vector<u64> PW_local(65535);
+ PW_local[0] = 1;
+ for (int k = 1; k < 65535; ++k) {
+  PW_local[k] = mul(PW_local[k-1], SIGMA);
+ }
+ for (int k = 0; k < 65535; ++k) {
+  u32 pext_k;
+#if HAVE_PEXT
+  pext_k = u32(_pext_u64(PW_local[k], PEXT_MASK));
+#else
+  pext_k = 0;
   for (int i = 0; i < 16; ++i) {
-   if (__builtin_popcount(Minv[i] & idx) & 1) c |= u32(1) << i;
+   pext_k |= u32((PW_local[k] >> picked[i]) & 1) << i;
   }
-  // N
-  u64 N = 0;
-  for (int i = 0; i < 16; ++i) {
-   if ((c >> i) & 1) N ^= sigma_pow[i];
-  }
-  // inv via Itoh-Tsujii on F_{2^16} (= N^{2^16 - 2})
-  // T1=N, T2=N^3, T4=N^15, T8=N^255, T15=N^{2^15-1}, then sq.
-  const u64 T1 = N;
-  const u64 T2 = mul(T1, sq_pdep(T1));
-  const u64 T4 = mul(T2, sq_pdep(sq_pdep(T2)));
-  u64 t = T4;
-  for (int s = 0; s < 4; ++s) t = sq_pdep(t);
-  const u64 T8 = mul(T4, t);
-  // T15 = T_{8+4+2+1}
-  u64 acc = T8;
-  for (int s = 0; s < 4; ++s) acc = sq_pdep(acc);
-  acc = mul(acc, T4);
-  for (int s = 0; s < 2; ++s) acc = sq_pdep(acc);
-  acc = mul(acc, T2);
-  acc = sq_pdep(acc);
-  acc = mul(acc, T1);
-  // a^{-1} = T_15^2
-  INV_PEXT[idx] = sq_pdep(acc);
+#endif
+  int inv_k = (k == 0) ? 0 : (65535 - k);
+  INV_PEXT[pext_k] = PW_local[inv_k];
  }
 }
 
