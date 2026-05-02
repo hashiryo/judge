@@ -1,0 +1,5 @@
+# gen.py で生成される大きいテストケースは commit しない (各環境で再生成)。
+small_*
+edge_*
+structured_*
+random_*

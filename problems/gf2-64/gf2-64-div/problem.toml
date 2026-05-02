@@ -1,0 +1,5 @@
+# 自前実験: GF(2^64) の商 a / b = a * b^(-1)。b ≠ 0 前提。
+url = ""
+tle = 5
+mle = 256
+callgrind_case = "random_large_00"

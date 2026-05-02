@@ -77,6 +77,22 @@ def setup_custom_testcases(problem_dir_name: str, tc_dir: Path) -> None:
         shutil.rmtree(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
+    # testcases/gen.py がある問題は、コピー前に gen.py を走らせて未生成 .in/.out を作る。
+    # 大きな testcase を git に含めないが judge では使いたい場合に使う。
+    gen_script = tc_dir / "gen.py"
+    if gen_script.exists():
+        import subprocess
+        rel_label = problem_dir_name + "/testcases/gen.py"
+        try:
+            subprocess.run(
+                ["python3", "gen.py"],  # cwd を tc_dir にして basename で実行
+                check=True, cwd=str(tc_dir.resolve()), timeout=600,
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"  [WARN] {rel_label} failed: exit {e.returncode}")
+        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+            print(f"  [WARN] {rel_label} could not run: {e}")
+
     count = 0
     for in_file in sorted(tc_dir.glob("*.in")):
         out_file = tc_dir / f"{in_file.stem}.out"
