@@ -1,0 +1,156 @@
+#pragma once
+// Norm-based + log/exp inv の 4-way batch 版。
+//
+// pclmul_norm_logexp.hpp の各 inv は以下の独立 lookup の連続:
+//   - frob16 × 3 (各 8 byte lookups, 24 lookups)
+//   - poly_to_nim (8 lookups)
+//   - log + exp (2 lookups, L2 latency ~12 cycle each)
+//   - nim_to_poly (8 lookups)
+// 計 42 lookups + 4 PCLMUL。シングル inv 内の各段は依存関係があるため OoO の
+// 隠蔽範囲を超えやすい。4 inv を interleave すれば 4× の独立 lookup が同段で並ぶ
+// → メモリ latency が完全に隠れる + ILP 最大化。
+#pragma GCC optimize("O3,unroll-loops")
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+#pragma GCC target("pclmul,bmi2")
+#endif
+#include "_common.hpp"
+#include "../../_shared/pclmul_core.hpp"
+#include "../../_shared/basis_change.hpp"
+
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+#include <immintrin.h>
+#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
+#else
+#define PCLMUL_RUN
+#endif
+
+namespace gf2_64_pclmul_norm_logexp_batch4 {
+using gf2_64_pclmul::mul;
+using gf2_64_pclmul::reduce;
+using u16 = unsigned short;
+
+[[gnu::always_inline]] inline u64 spread_bits(u32 a) {
+#if defined(__BMI2__) && !defined(USE_SIMDE)
+ return _pdep_u64(u64(a), 0x5555555555555555ull);
+#else
+ u64 x = a;
+ x = (x | (x << 16)) & 0x0000FFFF0000FFFFull;
+ x = (x | (x <<  8)) & 0x00FF00FF00FF00FFull;
+ x = (x | (x <<  4)) & 0x0F0F0F0F0F0F0F0Full;
+ x = (x | (x <<  2)) & 0x3333333333333333ull;
+ x = (x | (x <<  1)) & 0x5555555555555555ull;
+ return x;
+#endif
+}
+PCLMUL_FN u64 sq(u64 a) {
+ const u64 lo = spread_bits(u32(a));
+ const u64 hi = spread_bits(u32(a >> 32));
+ return reduce(__m128i{(long long) lo, (long long) hi});
+}
+
+inline u64 FROB16_BYTE[8][256];
+inline u16 PW16[65536], LN16[65536];
+inline bool inited = false;
+
+PCLMUL_FN void init_tables() {
+ if (inited) return;
+ inited = true;
+ u64 col[64];
+ for (int j = 0; j < 64; ++j) {
+  u64 v = u64(1) << j;
+  for (int k = 0; k < 16; ++k) v = sq(v);
+  col[j] = v;
+ }
+ for (int p = 0; p < 8; ++p) {
+  for (int b = 0; b < 256; ++b) {
+   u64 v = 0;
+   for (int bit = 0; bit < 8; ++bit) {
+    if ((b >> bit) & 1) v ^= col[p * 8 + bit];
+   }
+   FROB16_BYTE[p][b] = v;
+  }
+ }
+ PW16[0] = PW16[65535] = 1;
+ for (int i = 1; i < 65535; ++i) {
+  PW16[i] = u16((PW16[i-1] << 1) ^ (0x1681fu & u16(-(PW16[i-1] >= 0x8000u))));
+ }
+ constexpr u16 f2n[16] = {0x0001u, 0x2827u, 0x392bu, 0x8000u, 0x20fdu, 0x4d1du, 0xde4au, 0x0a17u,
+                          0x3464u, 0xe3a9u, 0x6d8du, 0x34bcu, 0xa921u, 0xa173u, 0x0ebcu, 0x0e69u};
+ for (int i = 1; i < 65535; ++i) {
+  u16 x = PW16[i], y = 0;
+  for (; x; x &= x - 1) y ^= f2n[__builtin_ctz(x)];
+  PW16[i] = y;
+  LN16[y] = u16(i);
+ }
+ LN16[1] = 0;
+}
+
+[[gnu::always_inline]] inline u64 frob16(u64 a) {
+ return FROB16_BYTE[0][u8(a)]       ^ FROB16_BYTE[1][u8(a >>  8)]
+      ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)]
+      ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)]
+      ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)];
+}
+
+PCLMUL_FN u64 inv_in_f16_logexp(u64 N_poly) {
+ const u64 N_nim = gf2_64_basis::poly_to_nim(N_poly);
+ const u16 n16 = u16(N_nim);
+ const u16 log_n = LN16[n16];
+ const u16 inv_log = u16((65535u - u32(log_n)) % 65535u);
+ const u16 inv_n16 = PW16[inv_log];
+ return gf2_64_basis::nim_to_poly(u64(inv_n16));
+}
+
+// 4 入力を interleave して inv。各段で 4× の独立 lookup が並ぶ。
+PCLMUL_FN void inv_batch4(const u64 a[4], u64 out[4]) {
+ u64 b1[4], b2[4], b3[4];
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) b1[k] = frob16(a[k]);
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) b2[k] = frob16(b1[k]);
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) b3[k] = frob16(b2[k]);
+ u64 beta[4];
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) beta[k] = mul(mul(b1[k], b2[k]), b3[k]);
+ u64 N[4];
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) N[k] = mul(a[k], beta[k]);
+ u64 N_inv[4];
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) N_inv[k] = inv_in_f16_logexp(N[k]);
+ #pragma GCC unroll 4
+ for (int k = 0; k < 4; ++k) out[k] = mul(beta[k], N_inv[k]);
+}
+
+PCLMUL_FN u64 inv_single(u64 a) {
+ const u64 b1 = frob16(a);
+ const u64 b2 = frob16(b1);
+ const u64 b3 = frob16(b2);
+ const u64 beta = mul(mul(b1, b2), b3);
+ const u64 N = mul(a, beta);
+ return mul(beta, inv_in_f16_logexp(N));
+}
+
+} // namespace gf2_64_pclmul_norm_logexp_batch4
+
+struct GF2_64Op {
+ PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+  using gf2_64_pclmul::mul;
+  using gf2_64_pclmul_norm_logexp_batch4::inv_batch4;
+  using gf2_64_pclmul_norm_logexp_batch4::inv_single;
+  using gf2_64_pclmul_norm_logexp_batch4::init_tables;
+  init_tables();
+  const size_t T = as.size();
+  vector<u64> ans(T);
+  size_t i = 0;
+  for (; i + 4 <= T; i += 4) {
+   u64 b_inv[4];
+   inv_batch4(&bs[i], b_inv);
+   #pragma GCC unroll 4
+   for (int k = 0; k < 4; ++k) ans[i+k] = mul(as[i+k], b_inv[k]);
+  }
+  for (; i < T; ++i) ans[i] = mul(as[i], inv_single(bs[i]));
+  return ans;
+ }
+};
