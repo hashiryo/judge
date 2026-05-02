@@ -109,7 +109,15 @@ inline uint64_t poly_to_nim(uint64_t c) {
 }
 
 // Carryless multiply over GF(2)
+//
+// `#pragma GCC target("...,pclmul")` は clang で無視されるので、関数単位で
+// target attribute を付けて PCLMUL を有効化する。CI の `-march=x86-64-v3` には
+// PCLMUL が含まれないので明示しないと CE になる。
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+[[gnu::target("pclmul"), gnu::always_inline]]
+#else
 [[gnu::always_inline]]
+#endif
 inline __m128i clmul(uint64_t a, uint64_t b) {
  // SIMDe は _mm_clmulepi64_si128 を関数マクロにしているので、引数の braced-init を
  // そのまま渡せない (マクロ展開でカンマが余分な引数として解釈される)。一時変数経由。

@@ -21,7 +21,17 @@ namespace gf2_64_pclmul {
 using u64 = unsigned long long;
 
 // Carryless multiply 64×64 → 128 を 1 命令で。
-[[gnu::always_inline]] inline __m128i clmul(u64 a, u64 b) {
+//
+// GCC の `#pragma GCC target("pclmul")` は clang では無視されるので、
+// 関数単位で `__attribute__((target("pclmul")))` を付ける必要がある (CE 防止)。
+// CI の `-march=x86-64-v3` は AVX2 までしか保証せず PCLMUL は別扱いなので明示が要る。
+// ARM (NEON pmull) や SIMDe 経路では target attribute は不要なのでガードする。
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+[[gnu::target("pclmul"), gnu::always_inline]]
+#else
+[[gnu::always_inline]]
+#endif
+inline __m128i clmul(u64 a, u64 b) {
  __m128i av{(long long) a, 0};
  __m128i bv{(long long) b, 0};
  return _mm_clmulepi64_si128(av, bv, 0);
