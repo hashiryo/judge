@@ -4,15 +4,24 @@
 // 5 つの実験 problem (gf2-64-mul/div/pow/sqrt/log) で共有する low-level 実装。
 // 各 problem の algos/pclmul.hpp 系から #include "../../_shared/pclmul_core.hpp"
 // で取り込む想定。
+//
+// CE 対策メモ:
+//   GCC の `#pragma GCC target("pclmul")` は clang では無視される (warning のみ)。
+//   関数単位の `__attribute__((target("pclmul")))` で代替するが、`always_inline` で
+//   呼ぶ親関数も同じ target を持っていないと
+//   「target が違う関数を always_inline できない」と clang がエラーを出す。
+//   → 連鎖する全関数 + 呼び出し側 (algos/pclmul.hpp) に target("pclmul") を付ける。
 // =============================================================================
 #include <array>
 #include <cstdint>
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #include <immintrin.h>
+#define PCLMUL_FN [[gnu::target("pclmul"), gnu::always_inline]] inline
 #elif defined(USE_SIMDE)
 #include <simde/x86/sse2.h>
 #include <simde/x86/clmul.h>
+#define PCLMUL_FN [[gnu::always_inline]] inline
 #else
 #error "pclmul_core.hpp: requires PCLMUL (x86 native or SIMDe)."
 #endif
@@ -21,24 +30,14 @@ namespace gf2_64_pclmul {
 using u64 = unsigned long long;
 
 // Carryless multiply 64×64 → 128 を 1 命令で。
-//
-// GCC の `#pragma GCC target("pclmul")` は clang では無視されるので、
-// 関数単位で `__attribute__((target("pclmul")))` を付ける必要がある (CE 防止)。
-// CI の `-march=x86-64-v3` は AVX2 までしか保証せず PCLMUL は別扱いなので明示が要る。
-// ARM (NEON pmull) や SIMDe 経路では target attribute は不要なのでガードする。
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-[[gnu::target("pclmul"), gnu::always_inline]]
-#else
-[[gnu::always_inline]]
-#endif
-inline __m128i clmul(u64 a, u64 b) {
+PCLMUL_FN __m128i clmul(u64 a, u64 b) {
  __m128i av{(long long) a, 0};
  __m128i bv{(long long) b, 0};
  return _mm_clmulepi64_si128(av, bv, 0);
 }
 
 // (lo, hi) を P(x) = x^64 + x^4 + x^3 + x + 1 で reduce → 64-bit
-[[gnu::always_inline]] inline u64 reduce(__m128i v) {
+PCLMUL_FN u64 reduce(__m128i v) {
  u64 lo = (u64) v[0], hi = (u64) v[1];
  // hi の bit i は x^(64+i)。x^64 ≡ x^4 + x^3 + x + 1 を最初に xor。
  lo ^= hi ^ (hi << 1) ^ (hi << 3) ^ (hi << 4);
@@ -55,17 +54,20 @@ inline __m128i clmul(u64 a, u64 b) {
  return lo ^ RED[hi >> 60];
 }
 
-[[gnu::always_inline]] inline u64 mul(u64 a, u64 b) {
+PCLMUL_FN u64 mul(u64 a, u64 b) {
  return reduce(clmul(a, b));
 }
 
 // 二乗。今は mul(a, a) と同じ展開をするだけ。
 // 実験 algo (例: pdep_square.hpp) では PDEP で書き換え可能。
-[[gnu::always_inline]] inline u64 sq(u64 a) {
+PCLMUL_FN u64 sq(u64 a) {
  return mul(a, a);
 }
 
 // 累乗 (a^e) 二進展開。
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+[[gnu::target("pclmul")]]
+#endif
 inline u64 pow(u64 a, u64 e) {
  u64 res = 1;
  while (e) {
@@ -76,15 +78,18 @@ inline u64 pow(u64 a, u64 e) {
  return res;
 }
 
-// Fermat-style inverse: a^(2^64 - 2)。
-// より高速な Itoh-Tsujii は別 algo で試す。
+// Fermat-style inverse: a^(2^64 - 2)。より高速な Itoh-Tsujii は別 algo で試す。
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+[[gnu::target("pclmul")]]
+#endif
 inline u64 inv(u64 a) {
- // exponent = 2^64 - 2 = 0xFFFFFFFFFFFFFFFE
  return pow(a, ~(u64) 1);
 }
 
 // sqrt: Frobenius (^2) の逆 = ^(2^63)。
-// 専用の linear-map 実装は別 algo で試す。
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+[[gnu::target("pclmul")]]
+#endif
 inline u64 sqrt(u64 a) {
  return pow(a, (u64) 1 << 63);
 }

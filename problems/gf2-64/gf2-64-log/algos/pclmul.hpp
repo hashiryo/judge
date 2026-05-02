@@ -8,13 +8,19 @@
 #include "_common.hpp"
 #include "../../_shared/pclmul_core.hpp"
 
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+#define PCLMUL_TARGET [[gnu::target("pclmul")]]
+#else
+#define PCLMUL_TARGET
+#endif
+
 namespace gf2_64_pcl_log {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::pow;
 
 constexpr std::array<u64, 7> ORDER_PRIMES = {3, 5, 17, 257, 641, 65537, 6700417};
 
-inline u64 bsgs_subgroup(u64 base, u64 target, u64 q) {
+PCLMUL_TARGET inline u64 bsgs_subgroup(u64 base, u64 target, u64 q) {
  u64 m = 1;
  while (m * m < q) ++m;
  std::unordered_map<u64, u64> table;
@@ -37,7 +43,7 @@ inline u64 bsgs_subgroup(u64 base, u64 target, u64 q) {
  return ~u64(0);
 }
 
-inline u64 log_g(u64 x) {
+PCLMUL_TARGET inline u64 log_g(u64 x) {
  u64 N = GROUP_ORDER;
  u64 g = LOG_GENERATOR;
  u64 result = 0;
@@ -59,7 +65,7 @@ inline u64 log_g(u64 x) {
 }
 
 struct GF2_64Op {
- static vector<u64> run(const vector<u64>& xs) {
+ PCLMUL_TARGET static vector<u64> run(const vector<u64>& xs) {
   vector<u64> ans(xs.size());
   for (size_t i = 0; i < xs.size(); ++i) ans[i] = gf2_64_pcl_log::log_g(xs[i]);
   return ans;
