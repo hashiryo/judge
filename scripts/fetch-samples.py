@@ -73,6 +73,12 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
 
     checker_path = None
     common_dir = None  # 問題群共通の testlib.h などが置かれる common/
+    # 一部の問題の correct.cpp / checker.cpp が問題ローカルの hpp/ を include
+    # するので (例: primitive_root の sol/correct.cpp が ../hpp/primetest.hpp 等)、
+    # 問題配下の hpp/*.hpp を全部拾っておく。
+    problem_hpp_files: list[str] = []
+    # common/ に置かれる補助ヘッダ (random.h, fastio.h 等) も拾う
+    common_aux_files: list[str] = []
 
     for item in tree.get("tree", []):
         path = item["path"]
@@ -84,9 +90,14 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
                 sol_correct_path = path
             elif rel == "checker.cpp":
                 checker_path = path
+            elif rel.startswith("hpp/") and rel.endswith(".hpp"):
+                problem_hpp_files.append(path)
         # トップ階層 common/ を一度だけ覚える
         if common_dir is None and path == "common":
             common_dir = path
+        # common 配下の .h は補助ヘッダ候補
+        if path.startswith("common/") and (path.endswith(".h") or path.endswith(".hpp")):
+            common_aux_files.append(path)
 
     if not example_files:
         print(f"  No example files found for {problem_id}", file=sys.stderr)
@@ -129,6 +140,38 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
             print(f"  Failed to download correct.cpp: {e}", file=sys.stderr)
             return 0
 
+        # 問題ローカルの hpp/ と common/ の補助ヘッダもダウンロード。
+        # correct.cpp は `#include "../hpp/foo.hpp"` のように include するので、
+        # tmpdir 配下に同じ相対構造を作る (sol/ 階層に correct.cpp を置き、
+        # ../hpp/ で参照できるよう hpp/ ディレクトリを並べる)。
+        # ただし下のコンパイルでは tmpdir 直下に correct.cpp を置いているので、
+        # `../hpp/` が解決できるよう fake な sol/ 階層を作る。
+        sol_dir = tmpdir / "sol"
+        sol_dir.mkdir(exist_ok=True)
+        (sol_dir / "correct.cpp").write_text(sol_code)
+        if problem_hpp_files:
+            hpp_dir = tmpdir / "hpp"
+            hpp_dir.mkdir(exist_ok=True)
+            for hpath in problem_hpp_files:
+                fname = Path(hpath).name
+                try:
+                    with urllib.request.urlopen(f"{base_raw}/{hpath}", timeout=30) as resp:
+                        (hpp_dir / fname).write_text(resp.read().decode())
+                except Exception as e:
+                    print(f"  Failed to download {hpath}: {e}", file=sys.stderr)
+        # common/random.h, common/fastio.h など、correct.cpp が
+        # `#include "random.h"` のように直接参照するので sol_dir 直下にも置く
+        for cpath in common_aux_files:
+            fname = Path(cpath).name
+            if fname == "testlib.h":
+                continue  # checker 用なので別途取得
+            try:
+                with urllib.request.urlopen(f"{base_raw}/{cpath}", timeout=30) as resp:
+                    content = resp.read().decode()
+                (sol_dir / fname).write_text(content)
+            except Exception as e:
+                print(f"  Failed to download {cpath}: {e}", file=sys.stderr)
+
         # lib/include/bits/stdc++.h があれば -I に追加
         include_dir = ROOT / "lib" / "include"
         compile_flags = ["-std=c++17", "-O2"]
@@ -136,17 +179,32 @@ def fetch_yosupo(url: str, out_dir: Path) -> int:
             compile_flags.append(f"-I{include_dir}")
 
         binary = tmpdir / "correct"
+        # correct.cpp の include 解決用: sol_dir からビルドして相対 include を効かせる。
+        compile_source = str(sol_dir / "correct.cpp")
+        compile_err: str = ""
         for cxx in ["g++", "c++"]:
             try:
-                subprocess.run(
-                    [cxx] + compile_flags + ["-o", str(binary), str(tmpdir / "correct.cpp")],
-                    check=True, capture_output=True, timeout=30,
+                r = subprocess.run(
+                    [cxx] + compile_flags + ["-o", str(binary), compile_source],
+                    capture_output=True, timeout=30,
                 )
-                break
-            except (subprocess.CalledProcessError, FileNotFoundError):
+                if r.returncode == 0:
+                    break
+                compile_err = r.stderr.decode(errors="replace")
+            except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                compile_err = str(e)
                 continue
         else:
             print(f"  Compile error: no working compiler found", file=sys.stderr)
+            if compile_err:
+                print("  --- compiler stderr (last 20 lines) ---", file=sys.stderr)
+                for ln in compile_err.splitlines()[-20:]:
+                    print(f"  {ln}", file=sys.stderr)
+            return 0
+        if not binary.exists():
+            print(f"  Compile error:", file=sys.stderr)
+            for ln in compile_err.splitlines()[-20:]:
+                print(f"  {ln}", file=sys.stderr)
             return 0
 
         # 各 example に対して correct を実行して .out を生成

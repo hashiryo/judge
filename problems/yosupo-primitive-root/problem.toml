@@ -1,0 +1,6 @@
+url = "https://judge.yosupo.jp/problem/primitive_root"
+tle = 10
+mle = 256
+# callgrind 用代表ケース。large_least_primitive_root は p-1 の素因数分解 +
+# witness 探索が両方重く、計測対象として最も bench-y。
+callgrind_case = "large_least_primitive_root_00"
