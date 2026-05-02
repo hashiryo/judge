@@ -214,6 +214,30 @@ print(f"q coefs: a0={Q_COEF_F16[0]:#x}, a1={Q_COEF_F16[1]:#x}, "
       f"a2={Q_COEF_F16[2]:#x}, a3={Q_COEF_F16[3]:#x}", file=sys.stderr)
 
 
+# ω^4, ω^5, ω^6 を (1, ω, ω^2, ω^3) の F_{2^16} 線形結合で表す係数を事前計算。
+# ω^4 = a0 + a1 ω + a2 ω^2 + a3 ω^3 (= Q_COEF)
+# ω^5 = ω · ω^4
+# ω^6 = ω · ω^5
+def omega_times(v: list[int]) -> list[int]:
+    """ω · (v0 + v1 ω + v2 ω^2 + v3 ω^3) を返す。
+    = (v3 a0) + (v0 + v3 a1) ω + (v1 + v3 a2) ω^2 + (v2 + v3 a3) ω^3"""
+    a0, a1, a2, a3 = Q_COEF_F16
+    return [
+        f16_mul(v[3], a0),
+        v[0] ^ f16_mul(v[3], a1),
+        v[1] ^ f16_mul(v[3], a2),
+        v[2] ^ f16_mul(v[3], a3),
+    ]
+
+
+OMEGA4_COEF = list(Q_COEF_F16)              # ω^4
+OMEGA5_COEF = omega_times(OMEGA4_COEF)      # ω^5
+OMEGA6_COEF = omega_times(OMEGA5_COEF)      # ω^6
+print(f"ω^4 coefs: {[hex(c) for c in OMEGA4_COEF]}", file=sys.stderr)
+print(f"ω^5 coefs: {[hex(c) for c in OMEGA5_COEF]}", file=sys.stderr)
+print(f"ω^6 coefs: {[hex(c) for c in OMEGA6_COEF]}", file=sys.stderr)
+
+
 # 出力
 def emit_byte_table(name: str, tbl: list[list[int]]) -> str:
     lines = [f"alignas(64) inline constexpr uint64_t {name}[8][256] = {{"]
@@ -239,6 +263,11 @@ with open(out, "w") as f:
     f.write(f"inline constexpr uint64_t OMEGA_POLY = 0x{OMEGA:016x}ull;\n\n")
     f.write(f"// q(y) = y^4 + Q_COEF[3] y^3 + Q_COEF[2] y^2 + Q_COEF[1] y + Q_COEF[0]\n")
     f.write(f"inline constexpr uint16_t Q_COEF[4] = {{0x{Q_COEF_F16[0]:04x}, 0x{Q_COEF_F16[1]:04x}, 0x{Q_COEF_F16[2]:04x}, 0x{Q_COEF_F16[3]:04x}}};\n\n")
+    f.write(f"// ω^k を (1, ω, ω^2, ω^3) の F_{{2^16}} 線形結合で表した係数 (k=4,5,6)。\n")
+    f.write(f"// reduce で c_k × OMEGA{{k}}_COEF[i] を c0..c3 に xor すれば良い。\n")
+    f.write(f"inline constexpr uint16_t OMEGA4_COEF[4] = {{0x{OMEGA4_COEF[0]:04x}, 0x{OMEGA4_COEF[1]:04x}, 0x{OMEGA4_COEF[2]:04x}, 0x{OMEGA4_COEF[3]:04x}}};\n")
+    f.write(f"inline constexpr uint16_t OMEGA5_COEF[4] = {{0x{OMEGA5_COEF[0]:04x}, 0x{OMEGA5_COEF[1]:04x}, 0x{OMEGA5_COEF[2]:04x}, 0x{OMEGA5_COEF[3]:04x}}};\n")
+    f.write(f"inline constexpr uint16_t OMEGA6_COEF[4] = {{0x{OMEGA6_COEF[0]:04x}, 0x{OMEGA6_COEF[1]:04x}, 0x{OMEGA6_COEF[2]:04x}, 0x{OMEGA6_COEF[3]:04x}}};\n\n")
     f.write("// poly 基底 → tower 基底 byte tables\n")
     f.write(emit_byte_table("POLY_TO_TOWER_BYTE", POLY_TO_TOWER_BYTE) + "\n\n")
     f.write("// tower 基底 → poly 基底 byte tables\n")

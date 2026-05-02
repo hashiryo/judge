@@ -14,6 +14,12 @@ inline constexpr uint64_t OMEGA_POLY = 0x0000000000000002ull;
 // q(y) = y^4 + Q_COEF[3] y^3 + Q_COEF[2] y^2 + Q_COEF[1] y + Q_COEF[0]
 inline constexpr uint16_t Q_COEF[4] = {0xb208, 0x553c, 0x7f89, 0xae7d};
 
+// ω^k を (1, ω, ω^2, ω^3) の F_{2^16} 線形結合で表した係数 (k=4,5,6)。
+// reduce で c_k × OMEGA{k}_COEF[i] を c0..c3 に xor すれば良い。
+inline constexpr uint16_t OMEGA4_COEF[4] = {0xb208, 0x553c, 0x7f89, 0xae7d};
+inline constexpr uint16_t OMEGA5_COEF[4] = {0x83f4, 0x21c4, 0xc169, 0x98b5};
+inline constexpr uint16_t OMEGA6_COEF[4] = {0x6e27, 0x6566, 0xbe49, 0x66cb};
+
 // poly 基底 → tower 基底 byte tables
 alignas(64) inline constexpr uint64_t POLY_TO_TOWER_BYTE[8][256] = {
   {
