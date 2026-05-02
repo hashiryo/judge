@@ -5,3 +5,8 @@ a.out
 
 # Python
 __pycache__/
+
+# Compiled checker binaries (testlib.h ベースの special judge)
+# checker.cpp はソースとして commit するが、ビルド成果物の checker (ELF/Mach-O) は除外
+problems/*/testcases/checker
+problems/*/*/testcases/checker
