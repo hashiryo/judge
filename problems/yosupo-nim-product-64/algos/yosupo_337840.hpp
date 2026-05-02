@@ -108,17 +108,20 @@ inline uint64_t poly_to_nim(uint64_t c) {
       ^ BASIS_BYTE[6][cb[6]] ^ BASIS_BYTE[7][cb[7]];
 }
 
-// Carryless multiply over GF(2)
-//
-// `#pragma GCC target("...,pclmul")` は clang で無視されるので、関数単位で
-// target attribute を付けて PCLMUL を有効化する。CI の `-march=x86-64-v3` には
-// PCLMUL が含まれないので明示しないと CE になる。
+// CE 対策メモ: clang は `#pragma GCC target` を無視するので関数単位で
+// `__attribute__((target("pclmul")))` を付ける。さらに always_inline は target が
+// 一致してないと「inline できない」と clang がエラーを出すので、PCLMUL を使う / 呼ぶ
+// 関数 (clmul, reduce_mod, nim_mul, run) **全てに伝播**させる必要がある。
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-[[gnu::target("pclmul"), gnu::always_inline]]
+#define PCLMUL_FN [[gnu::target("pclmul"), gnu::always_inline]] inline
+#define PCLMUL_TARGET [[gnu::target("pclmul")]]
 #else
-[[gnu::always_inline]]
+#define PCLMUL_FN [[gnu::always_inline]] inline
+#define PCLMUL_TARGET
 #endif
-inline __m128i clmul(uint64_t a, uint64_t b) {
+
+// Carryless multiply over GF(2)
+PCLMUL_FN __m128i clmul(uint64_t a, uint64_t b) {
  // SIMDe は _mm_clmulepi64_si128 を関数マクロにしているので、引数の braced-init を
  // そのまま渡せない (マクロ展開でカンマが余分な引数として解釈される)。一時変数経由。
  __m128i av{(long long)a, 0};
@@ -127,8 +130,7 @@ inline __m128i clmul(uint64_t a, uint64_t b) {
 }
 
 // Reduce modulo x^64 + x^4 + x^3 + x + 1
-[[gnu::always_inline]]
-inline uint64_t reduce_mod(__m128i v) {
+PCLMUL_FN uint64_t reduce_mod(__m128i v) {
  v[0] ^= v[1] ^ (v[1] << 1) ^ (v[1] << 3) ^ (v[1] << 4);
  static constexpr auto RED_OVER = [] {
   array<uint64_t, 16> red{};
@@ -141,8 +143,7 @@ inline uint64_t reduce_mod(__m128i v) {
  return v[0] ^ RED_OVER[v[1] >> 60];
 }
 
-[[gnu::always_inline]]
-inline uint64_t nim_mul(uint64_t a, uint64_t b) {
+PCLMUL_FN uint64_t nim_mul(uint64_t a, uint64_t b) {
  uint64_t pa = nim_to_poly(a);
  uint64_t pb = nim_to_poly(b);
  auto prod = clmul(pa, pb);
@@ -153,7 +154,7 @@ inline uint64_t nim_mul(uint64_t a, uint64_t b) {
 } // namespace yosupo_337840
 
 struct NimProduct {
- static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ PCLMUL_TARGET static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using namespace yosupo_337840;
   const size_t T = as.size();
   vector<u64> ans(T);
