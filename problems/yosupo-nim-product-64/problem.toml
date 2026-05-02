@@ -1,0 +1,5 @@
+url = "https://judge.yosupo.jp/problem/nim_product_64"
+tle = 10
+mle = 256
+# callgrind 用代表ケース。large_00 は T = 1e6 で nim 積本体が dominant。
+callgrind_case = "large_00"
