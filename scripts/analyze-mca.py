@@ -47,12 +47,24 @@ _LIB_OB_RE = re.compile(r"(libc|libstdc\+\+|ld-linux|libpthread|libm|libgcc|libd
 
 
 def _find_llvm_mca() -> str | None:
-    """llvm-mca バイナリのパスを探す。Homebrew / 標準 PATH を見る。"""
-    for cand in ("llvm-mca", "/opt/homebrew/opt/llvm/bin/llvm-mca",
-                 "/usr/local/opt/llvm/bin/llvm-mca"):
-        p = shutil.which(cand) if "/" not in cand else (cand if Path(cand).exists() else None)
+    """llvm-mca バイナリのパスを探す。
+
+    Ubuntu の `apt install llvm` は `/usr/bin/llvm-mca-NN` (versioned) しか
+    入らないことがあるので、unversioned で見つからなければ versioned も探す。
+    """
+    p = shutil.which("llvm-mca")
+    if p:
+        return p
+    # Ubuntu noble は llvm-18 がデフォルト。20 → 14 まで降順に探索。
+    for v in range(20, 13, -1):
+        p = shutil.which(f"llvm-mca-{v}")
         if p:
             return p
+    # Homebrew (macOS)
+    for cand in ("/opt/homebrew/opt/llvm/bin/llvm-mca",
+                 "/usr/local/opt/llvm/bin/llvm-mca"):
+        if Path(cand).exists():
+            return cand
     return None
 
 
@@ -84,14 +96,58 @@ _HEADER_PREFIXES = (
     "summary:", "totals:", "pid:", "cmd:", "part:", "thread:", "#",
 )
 
+# callgrind の "fn=" 値: 初回は `fn=(123) actual_name` (compressed-functions=yes デフォルト)。
+# 2 回目以降は `fn=(123)` だけ (= name は省略)。先頭の `(NNNN) ` を除いた本体を抽出する。
+# 本体が空なら ID のみで、グローバルなテーブルから引き直す必要がある。
+_FN_ID_RE = re.compile(r"^\((\d+)\)\s*(.*)$")
+
+# 実関数として扱わない hot function 候補。これらは callgrind の attribution 集約点で、
+# 我々が逆アセンブルして MCA したい対象ではない。
+_FN_EXCLUDE = {
+    "(below main)", "(below ???)", "???",
+    "_start", "_init", "_fini", "__libc_start_main",
+    "__libc_csu_init", "__libc_csu_fini", "_dl_relocate_static_pie",
+}
+_FN_EXCLUDE_PREFIXES = ("main",)  # main / main'2 / main.cold 等
+
+
+def _resolve_fn_value(value: str, fn_table: dict[str, str]) -> str:
+    """callgrind の fn= 値を実名に解決する。
+
+    `(NNNN) name` 形式なら name を fn_table[NNNN] に登録して name を返す。
+    `(NNNN)` だけなら fn_table から引いて返す。
+    数字 prefix が無いなら value をそのまま返す。
+    """
+    m = _FN_ID_RE.match(value)
+    if not m:
+        return value
+    fid, name = m.group(1), m.group(2).strip()
+    if name:
+        fn_table[fid] = name
+        return name
+    # ID のみ: 既出のはずだから fn_table から引く。失敗したら value そのまま。
+    return fn_table.get(fid, value)
+
+
+def _is_excluded_fn(name: str) -> bool:
+    if name in _FN_EXCLUDE:
+        return True
+    # main / main'2 / main.cold / __libc_start_main 等。'(...)' 全体が除外名と一致するもの。
+    base = name.split("'", 1)[0].split(".", 1)[0]
+    if base in _FN_EXCLUDE_PREFIXES:
+        return True
+    return False
+
 
 def _parse_hot_function(cg_path: str, binary_path: str) -> str | None:
     """callgrind 出力から「ユーザコード関数で Ir 最大」を返す。
 
-    バイナリ自身の ob= 行に属する fn= ブロックのみを対象。
+    バイナリ自身の ob= 行に属する fn= ブロックのみを対象、かつ
+    callgrind の attribution 集約用エントリ ((below main) 等) は除外する。
     """
     binary_basename = Path(binary_path).name
     fn_ir: dict[str, int] = defaultdict(int)
+    fn_table: dict[str, str] = {}  # callgrind compressed function id → 実名
     cur_ob: str = ""
     cur_fn: str = ""
     events: list[str] = []
@@ -105,7 +161,7 @@ def _parse_hot_function(cg_path: str, binary_path: str) -> str | None:
                 cur_ob = line[3:].strip()
                 continue
             if line.startswith("fn="):
-                cur_fn = line[3:].strip()
+                cur_fn = _resolve_fn_value(line[3:].strip(), fn_table)
                 continue
             if line.startswith("positions:"):
                 positions = line[len("positions:"):].split()
@@ -120,6 +176,8 @@ def _parse_hot_function(cg_path: str, binary_path: str) -> str | None:
             if binary_basename not in cur_ob:
                 continue
             if _LIB_OB_RE.search(cur_ob):
+                continue
+            if _is_excluded_fn(cur_fn):
                 continue
             try:
                 ir_idx = events.index("Ir")
