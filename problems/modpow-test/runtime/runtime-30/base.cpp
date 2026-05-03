@@ -32,9 +32,9 @@ signed main() {
     u32 result_out = 0;
 
     for (int rep = 0; rep < REPEAT; ++rep) {
-        const MP mp{u32(mod_)};
         u32 acc = 0;
         auto t0 = chrono::steady_clock::now();
+        const MP mp{u32(mod_)};  // precompute も計測対象
         for (u64 i = 0; i < n_; ++i) {
             acc ^= mp.get(mp.pow(mp.set(as[i]), bs[i]));
         }

@@ -70,22 +70,47 @@ struct MP {
   T2[0] = 1;
   for (u32 j = 1; j < T2_size; ++j) T2[j] = u32(u64(T2[j - 1]) * gB % mod);
 
-  // ---- BSGS dlog 用 sorted baby table ----
-  vector<pair<u32, u32>> baby(B);
-  for (u32 i = 0; i < B; ++i) baby[i] = {T1[i], i};
-  std::sort(baby.begin(), baby.end());
-  u32 inv_gB = pow_mod(gB, mod - 2, mod);
+  // ---- BSGS dlog 用 baby table (forward 用 T1 とは別、サイズ B' = √(p·Q)) ----
+  // 解くべき dlog 数 Q ≈ π(√p) ≈ √p / ln(√p)。最適 B' = √(p·Q)。
+  // 大きな B' で baby が大きくなる代わり giant 数が大きく減る。
+  const u32 sqrt_p_for_q = u32(std::sqrt(double(mod))) + 1;
+  const u32 Q_est = std::max<u32>(1, sqrt_p_for_q / 10);  // ln(√p) ≈ 10 程度
+  u32 Bp = u32(std::sqrt(double(mod_minus_1) * Q_est)) + 1;
+  if (Bp < B) Bp = B;
+  if (Bp > mod_minus_1) Bp = mod_minus_1;
+  vector<u32> baby_p(Bp);
+  baby_p[0] = 1;
+  for (u32 i = 1; i < Bp; ++i) baby_p[i] = u32(u64(baby_p[i - 1]) * g % mod);
+  u64 gBp = u64(baby_p[Bp - 1]) * g % mod;
+  u32 inv_gBp = pow_mod(gBp, mod - 2, mod);
+
+  u32 H_log = 1;
+  while ((1u << H_log) < 2 * Bp) ++H_log;
+  const u32 H_size = 1u << H_log;
+  const u32 H_shift = 32 - H_log;
+  vector<u32> H_key(H_size, 0);
+  vector<u32> H_val(H_size, ~u32(0));
+  auto h_idx = [&](u32 k) { return (k * 0x9E3779B9u) >> H_shift; };
+  for (u32 i = 0; i < Bp; ++i) {
+   u32 k = baby_p[i];
+   u32 h = h_idx(k);
+   while (H_val[h] != ~u32(0)) h = (h + 1) & (H_size - 1);
+   H_key[h] = k; H_val[h] = i;
+  }
 
   auto bsgs = [&](u64 x) -> u32 {
    u64 cur = x;
-   u32 max_a = u32((u64(mod_minus_1) + B - 1) / B) + 1;
+   u32 max_a = u32((u64(mod_minus_1) + Bp - 1) / Bp) + 1;
    for (u32 a = 0; a <= max_a; ++a) {
-    auto it = std::lower_bound(baby.begin(), baby.end(), std::make_pair(u32(cur), u32(0)));
-    if (it != baby.end() && it->first == cur) {
-     u64 r = u64(a) * B + it->second;
-     return u32(r % mod_minus_1);
+    u32 h = h_idx(u32(cur));
+    while (H_val[h] != ~u32(0)) {
+     if (H_key[h] == u32(cur)) {
+      u64 r = u64(a) * Bp + H_val[h];
+      return u32(r % mod_minus_1);
+     }
+     h = (h + 1) & (H_size - 1);
     }
-    cur = cur * inv_gB % mod;
+    cur = cur * inv_gBp % mod;
    }
    return u32(-1);
   };
