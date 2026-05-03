@@ -1,0 +1,4 @@
+url = "https://judge.yosupo.jp/problem/stern_brocot_tree"
+tle = 5
+mle = 256
+callgrind_case = "random_00"

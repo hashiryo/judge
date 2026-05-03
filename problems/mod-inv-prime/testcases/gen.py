@@ -37,3 +37,4 @@ def gen(name: str, N: int):
 gen("random_00", 100000)         # T=100K (init コストが効くサイズ)
 gen("random_medium_00", 10000)   # T=10K  (callgrind 用)
 gen("random_small_00", 100)      # T=100  (small)
+gen("random_large_00", 1000000)  # T=1M   (init 償却が顕著、maspy_o1 が活きる)
