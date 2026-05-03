@@ -358,9 +358,13 @@ jobs:
           CXXFLAGS: ${{ matrix.env.cxxflags }}
           ENV_NAME: ${{ matrix.env.name }}
           PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
+        # 個別 algo は run-callgrind.sh 内で timeout 180s + 失敗継続するので、
+        # ここで script 自体の失敗 (set -e 由来など) もマスクして、Upload へ進める
+        continue-on-error: true
         run: bash scripts/run-callgrind.sh
 
       - name: Upload callgrind results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: callgrind-${{ matrix.env.name }}

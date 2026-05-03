@@ -86,7 +86,8 @@ while IFS=$'\t' read -r -a PARTS; do
 
     CG_OUT=$(mktemp)
     echo -n "  [CG] ${REL_PATH} ... "
-    if valgrind --tool=callgrind --callgrind-out-file="${CG_OUT}" \
+    # 個別 algo に 180 秒 timeout を設けて、ハマったときに CI 全体を巻き込まないようにする
+    if timeout 180 valgrind --tool=callgrind --callgrind-out-file="${CG_OUT}" \
         --collect-jumps=no --combine-dumps=yes \
         --cache-sim=yes --branch-sim=yes \
         --dump-instr=yes --compress-pos=no \
