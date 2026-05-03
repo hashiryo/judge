@@ -1,0 +1,11 @@
+# 自前実験: 素数 p に対するモジュラ逆数 a^{-1} mod p を求める問題。
+# yosupo Library Checker には対応問題が無いので、新規作成。
+# 比較対象として:
+#   - naive Fermat (per query)
+#   - 拡張ユークリッド (per query)
+#   - offline batch O(Q + log p) (Q クエリを先読みして 1 回だけ Fermat)
+#   - Maspy 流 O(1) (Farey table + 小さい a の inv table 事前計算)
+url = ""
+tle = 5
+mle = 256
+callgrind_case = "random_00"
