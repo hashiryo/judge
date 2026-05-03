@@ -99,9 +99,11 @@ struct ModInv {
    const u32 den = frac & 0xffff;
    const i32 num = (i32) (den * x - (frac >> 16) * p);
    const u32 anum = (u32) std::abs(num);
+   // lazy reduction: 符号反転 (p-r) は [0, mod] → [0, mod] を保つので
+   // 最終正規化 1 回で済ます
    u32 r = M.reduce(u64(den) * inv_M[anum]);
+   if (num < 0) r = p - r;
    if (r >= p) r -= p;
-   if (num < 0) r = (r == 0) ? 0 : p - r;
    ans.push_back(r);
   }
   return ans;

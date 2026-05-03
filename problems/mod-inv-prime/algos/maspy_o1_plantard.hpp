@@ -74,9 +74,11 @@ struct ModInv {
    const u32 anum = (u32) std::abs(num);
    // M.reduce(u64(den) · inv_M[anum]) = (den · inv_raw · R) / R mod p = den · inv_raw mod p (RAW)
    // = x^{-1} (もし num > 0)
+   // Plantard reduce は [0, mod] を返すが、 num<0 の符号反転 (p-r) をかけても
+   // [0, mod] を保つので、最終 1 回だけ cmov で正規化 (元は 2 回 cmov + branch)
    u32 r = M.reduce(u64(den) * inv_M[anum]);
-   if (r >= p) r -= p;  // Plantard reduce は [0, mod] の範囲を返すので念のため
-   if (num < 0) r = (r == 0) ? 0 : p - r;
+   if (num < 0) r = p - r;
+   if (r >= p) r -= p;
    ans.push_back(r);
   }
   return ans;
