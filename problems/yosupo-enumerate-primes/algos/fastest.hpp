@@ -22,6 +22,26 @@
 
 #include <cassert>
 #include <bit>
+#include <new>
+
+namespace yosupo_ep_aligned {
+// 32-byte aligned allocator (std::vector default は align 16 程度なので AVX2 で
+// vmovdqa が #GP fault する可能性あり、 cp_algo の big_alloc に倣って 32 align)
+template<class T>
+struct aligned_alloc32 {
+ using value_type = T;
+ aligned_alloc32() = default;
+ template<class U> aligned_alloc32(const aligned_alloc32<U>&) {}
+ [[nodiscard]] T* allocate(std::size_t n) {
+  return static_cast<T*>(::operator new(n * sizeof(T), std::align_val_t(32)));
+ }
+ void deallocate(T* p, std::size_t n) noexcept {
+  ::operator delete(p, n * sizeof(T), std::align_val_t(32));
+ }
+ template<class U> bool operator==(const aligned_alloc32<U>&) const { return true; }
+ template<class U> bool operator!=(const aligned_alloc32<U>&) const { return false; }
+};
+}
 
 namespace yosupo_ep_fastest {
 
@@ -107,7 +127,7 @@ struct _bit_array {
 
 template<size_t N>
 using static_bit_array = _bit_array<std::array<u64, (N + 63) / 64>>;
-using dynamic_bit_array = _bit_array<std::vector<u64>>;
+using dynamic_bit_array = _bit_array<std::vector<u64, yosupo_ep_aligned::aligned_alloc32<u64>>>;
 
 template<class BA>
 size_t count_bits(const BA& arr, size_t n) {
@@ -222,8 +242,10 @@ inline void sieve_dense(dynamic_bit_array& prime, u32 l, u32 r, const wheel_t& w
  u32 wr = (r + width - 1) / width;
  u32 N = (u32) wheel.mask.words;
  auto loop = [&](u32 i, u32 block) {
-  u64* p_ptr = std::assume_aligned<32>(&prime.word(i));
-  const u64* m_ptr = std::assume_aligned<32>(&wheel.mask.word(0));
+  // assume_aligned<32> は &word(i) で i が 4 の倍数でないと実行時に lie になる
+  // (vmovdqa #GP fault)。 unaligned access に任せて vmovdqu を使わせる方が安全。
+  u64* p_ptr = &prime.word(i);
+  const u64* m_ptr = &wheel.mask.word(0);
   #pragma GCC unroll 48
   for (u32 j = 0; j < block; ++j) p_ptr[j] &= m_ptr[j];
  };
