@@ -177,7 +177,7 @@ struct DirectLogTable {
  }
 };
 
-inline DirectLogTable direct_65537;
+inline DirectLogTable direct_641, direct_65537;
 
 // =============================================================================
 // BSGS for 641 と 6700417 (v3 と同じ)
@@ -227,7 +227,7 @@ struct BSGSTable {
  }
 };
 
-inline BSGSTable bsgs_641, bsgs_6700417;
+inline BSGSTable bsgs_6700417;
 
 inline u32 H_LOG_INV;
 
@@ -300,9 +300,10 @@ PCLMUL_FN void init_tables() {
  const u64 g_641     = pow_bw(G_2, EXP_641);
  const u64 g_65537   = pow_bw(G_2, EXP_F17);
  const u64 g_6700417 = pow_bw(G_2, EXP_BIG);
- bsgs_641     .build(g_641,     P_641);
- // 65537 は direct hash log
- direct_65537 .build(g_65537,   P_F17);
+ // 641 と 65537 は direct hash log (subgroup order が小さく memory 安い)
+ direct_641   .build(g_641,     u32(P_641));
+ direct_65537 .build(g_65537,   u32(P_F17));
+ // 6700417 は BSGS (direct hash だと memory 80+ MB / init 250+ ms で重すぎ)
  bsgs_6700417 .build(g_6700417, P_BIG);
 }
 
@@ -312,7 +313,7 @@ PCLMUL_FN u64 log_g(u64 x) {
  const u64 x_65537 = pow_bw(x, EXP_F17);
  const u64 x_6700417 = pow_bw(x, EXP_BIG);
  const u32 r1 = solve_f16(x_f16);
- const u32 r0 = bsgs_641     .solve(x_641);
+ const u32 r0 = direct_641   .lookup(x_641);
  const u32 r2 = direct_65537 .lookup(x_65537);
  const u32 r3 = bsgs_6700417 .solve(x_6700417);
  const u64 cur_mod_641 = u64(r1) % P_641;
