@@ -41,7 +41,15 @@ struct Solver {
   static const auto pw3 = make_ary<32>([&](int i) { return sf_qpw(3, i + 32) - 1; });
   if (A == 0 || k == 1) return A;
   if (k < 32) {
-   if (k == 2) return u64(sqrtl((long double) A));
+   if (k == 2) {
+    // ARM では long double = 64-bit double で sqrtl(2^64-1) が 2^32 に丸まる
+    // (x64 の 80-bit long double では 4294967295.999... → 4294967295 で正しい)
+    // 環境非依存にするため u128 で ±1 補正
+    u64 r = u64(sqrtl((long double) A));
+    while (r > 0 && u128(r) * r > A) --r;
+    while (u128(r + 1) * (r + 1) <= A) ++r;
+    return r;
+   }
    u64 r = (i64) std::pow((double) A, iv[k - 3]);
    // (r+1)^k ≤ A なら r+1 が正解、 そうでなければ r。
    //   sf_qpw(r+1, k) - 1 < A   ↔   sf_qpw(r+1, k) ≤ A  (整数なので)

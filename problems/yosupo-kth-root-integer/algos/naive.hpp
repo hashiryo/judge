@@ -2,35 +2,15 @@
 #include "_common.hpp"
 // 素朴な実装: 二分探索 with overflow safe pow。各クエリ O(64 · log A) 程度。
 struct Solver {
- // overflow safe pow: a^b > limit なら true
- static bool pow_exceeds(u64 a, int b, u64 limit) {
-  u64 r = 1;
-  while (b) {
-   if (b & 1) {
-    if (a != 0 && r > limit / a) return true;
-    r *= a;
-    if (r > limit) return true;
-   }
-   b >>= 1;
-   if (b) {
-    if (a > 0 && a > limit / a) {
-     // a*a > limit (loose bound). 続行するため a を limit+1 にしておく
-     if (b) return true;
-    }
-    if (a > 0) a *= a;
-   }
-  }
-  (void) r;
-  return false;
- }
- // 真面目に: a^b の値を返す (overflow したら u64(-1))
- static u64 pow_safe(u64 a, int b) {
+ // a^b ≤ A かどうかを overflow safe に判定
+ static bool pow_le(u64 a, int b, u64 A) {
   u64 r = 1;
   for (int i = 0; i < b; ++i) {
-   if (a != 0 && r > u64(-1) / a) return u64(-1);
+   if (a != 0 && r > A / a) return false;  // overflow しそう or a^b > A
    r *= a;
+   if (r > A) return false;
   }
-  return r;
+  return true;
  }
  static u64 kth_root(u64 A, int k) {
   if (A == 0) return 0;
@@ -41,7 +21,7 @@ struct Solver {
   u64 lo = 0;
   while (hi - lo > 1) {
    u64 mid = lo + (hi - lo) / 2;
-   if (pow_safe(mid, k) <= A) lo = mid;
+   if (pow_le(mid, k, A)) lo = mid;
    else hi = mid;
   }
   return lo;
