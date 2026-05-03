@@ -1,0 +1,5 @@
+# 自前実験: GF(2^64) ≅ GF(2)[x] / (x^64+x^4+x^3+x+1) の二乗 (sq) を計算する問題。
+url = ""
+tle = 5
+mle = 256
+callgrind_case = "random_00"

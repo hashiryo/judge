@@ -1,9 +1,22 @@
 #pragma once
 // =============================================================================
 // GF(2^64) ≅ GF(2)[x] / (x^64 + x^4 + x^3 + x + 1) の基本演算 (PCLMUL 経路)。
-// 5 つの実験 problem (gf2-64-mul/div/pow/sqrt/log) で共有する low-level 実装。
-// 各 problem の algos/pclmul.hpp 系から #include "../../_shared/pclmul_core.hpp"
-// で取り込む想定。
+// 「**現状ベストの mul / sq / pow / reduce**」を提供する。
+//
+// === 運用ポリシー ===
+// このファイルは **dynamic** で、 より速い実装が見つかったら更新される。
+//
+// 利用側のルール:
+//   - **gf2-64-mul/algos/* は本ファイルを使ってはいけない** (mul 自体の比較問題で、
+//     本ファイルが更新されると比較対象が変わってしまうため)。 自己完結すること。
+//   - gf2-64-div / pow / sqrt / log の algos/* は本ファイルを使って良い (それぞれの
+//     比較対象は div/pow/sqrt/log のアルゴリズムであり、 mul は構成要素扱いなので
+//     "現状ベストの mul" を使うのが自然)。
+//
+// 更新時の手順:
+//   1. gf2-64-mul/algos/pclmul_v2.hpp などで新 mul バリアントを追加して比較
+//   2. 速い側に確定したら本ファイルの mul の中身を更新
+//   3. div/pow/sqrt/log は自動的に高速化される
 //
 // CE 対策メモ:
 //   GCC の `#pragma GCC target("pclmul")` は clang では無視される (warning のみ)。
