@@ -1,0 +1,4 @@
+url = "https://judge.yosupo.jp/problem/discrete_logarithm_fixed_mod"
+tle = 10
+mle = 256
+callgrind_case = "random_00"
