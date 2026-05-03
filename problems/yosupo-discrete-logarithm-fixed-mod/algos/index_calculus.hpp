@@ -1,24 +1,31 @@
 #pragma once
 #include "_common.hpp"
+// =============================================================================
 // Maspy 流 index calculus: 「rational approximation + factor base」で per-query O(1)。
+//
+// 移植元: yosupo discrete_logarithm_fixed_mod の最速提出 (purplesyringa, 2026-04)
+//   https://judge.yosupo.jp/submission/354636
+// アルゴリズム解説:
+//   https://maspypy.com/o1-mod-inv-mod-pow
 //
 // アイデア:
 //   x ∈ Z/p^* について、Stern-Brocot/Farey で x ≡ a/b mod p, |a|, b ≤ ~√p に表現。
 //   小素数 (factor base) の log を事前計算 → a, b を small primes に factor → log 加算。
 //
-// 参考: yosupo discrete_logarithm_fixed_mod の最速実装 (purplesyringa) を流用。
-//   https://maspypy.com/o1-mod-inv-mod-pow
-//
 // per query: ~O(log p) (Farey 1 lookup + factor 加算)
 // precompute: 100-300 ms (factor base log 計算 + Farey 表構築)
 //
-// 実装定数 (purplesyringa 提出より):
+// 実装定数 (purplesyringa 提出と同じ):
 //   MAGIC0 = 2000000   // p < これなら全 log を直接 precompute
 //   MAGIC1 = 1000000   // Farey buckets
 //   MAGIC2 = 1300000   // Farey で得られる |a| / b の上限 ≈
 //   MAGIC3 = 31624     // factorisation precompute 上限
 //   MAGIC4 = 25        // batch dlog する小素数の個数
 //   MAGIC5 = 100       // smooth net 拡張閾値
+//
+// 注: 元提出は blazingio という超高速 I/O ライブラリも使用していたが、ここでは
+//     アルゴリズム部分のみを移植 (I/O は base.cpp の標準 cin/cout)。
+// =============================================================================
 
 #pragma GCC optimize("O3,unroll-loops")
 struct DLog {
