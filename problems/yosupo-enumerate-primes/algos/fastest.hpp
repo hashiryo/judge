@@ -17,6 +17,7 @@
 #pragma GCC optimize("O3,unroll-loops")
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #pragma GCC target("avx2,bmi,bmi2,popcnt")
+#include <immintrin.h>
 #endif
 
 #include <cassert>
@@ -122,10 +123,13 @@ template<class BA>
 size_t count_bits(const BA& arr) { return count_bits(arr, arr.n); }
 
 // kth set bit in word x (0-indexed)
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+[[gnu::target("bmi2")]]
 inline size_t kth_set_bit_in_word(u64 x, size_t k) {
-#if defined(__BMI2__) && !defined(USE_SIMDE)
  return std::countr_zero(_pdep_u64(u64(1) << k, x));
+}
 #else
+inline size_t kth_set_bit_in_word(u64 x, size_t k) {
  // fallback: linear scan
  for (size_t pos = 0; pos < 64; ++pos) {
   if ((x >> pos) & 1) {
@@ -134,8 +138,8 @@ inline size_t kth_set_bit_in_word(u64 x, size_t k) {
   }
  }
  return 64;
-#endif
 }
+#endif
 
 template<class BA>
 size_t skip_bits(const BA& arr, size_t pos, size_t k) {
