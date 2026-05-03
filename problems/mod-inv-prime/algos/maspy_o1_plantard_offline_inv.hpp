@@ -1,11 +1,16 @@
 #pragma once
 #include "_common.hpp"
 // =============================================================================
-// maspy_o1_plantard.hpp の inv_lookup precompute を offline batch で構築。
+// maspy_o1_plantard.hpp の inv_lookup 構築を Plantard 乗算ベースの offline batch
+// で置換。
 //
-// 戦略: raw 形で offline batch (prefix product + 1 inv) を行い、最後に
-// in-place で raw → Montgomery 変換ループ。元実装と最終 lookup の形式 (Montgomery)
-// は同一で、precompute の div を 1.3M 個削減するのみ。
+// 鍵: Montgomery 表現は加算を保つので、i_M (= i·R mod p) は i_M += R_M (1 add)
+// で次に進められる。M.set(i) を毎回呼ぶ必要なし。各 iter は Plantard mul 1 回
+// (~3-4 cyc) + 1 add のみ。元の % p 漸化式 (~25 cyc/iter) と比べて理論上数倍速。
+//
+// Phase 1: fact_M[i] = mul(fact_M[i-1], i_M);  i_M += R_M
+// Phase 2: cur_raw = pow(M.get(fact_M[N]), p-2); cur_M = M.set(cur_raw)  (1 modpow)
+// Phase 3: inv_M[i] = mul(cur_M, fact_M[i-1]); cur_M = mul(cur_M, i_M); i_M -= R_M
 // =============================================================================
 struct ModInv {
  using i32 = int32_t;
@@ -34,23 +39,36 @@ struct ModInv {
 
  static vector<u32> run(u32 p, const vector<u32>& qs) {
   MP M(p);
-  // 1) offline batch で raw な inv_lookup[1..MAGIC2] を構築
+  const u32 R_M = M.set(1);  // Montgomery 形の 1
+
+  // Phase 1: fact_M[i] = i! · R mod p
   vector<u32> inv_M(MAGIC2 + 1);
-  inv_M[0] = 1;
+  inv_M[0] = R_M;  // 0! = 1
+  u32 i_M = R_M;
   for (u32 i = 1; i <= MAGIC2; ++i) {
-   inv_M[i] = u32(u64(inv_M[i - 1]) * i % p);
+   inv_M[i] = M.mul(inv_M[i - 1], i_M);
+   // i_M = (i+1) · R; M.reduce が [0, mod] を返す可能性あり、p で wrap
+   i_M += R_M; if (i_M >= p) i_M -= p;
   }
-  u64 cur = pow_mod(inv_M[MAGIC2], u64(p) - 2, p);
+
+  // Phase 2: cur_M = ((MAGIC2)!)^{-1} · R
+  u32 fact_N_raw = M.get(inv_M[MAGIC2]);
+  if (fact_N_raw >= p) fact_N_raw -= p;
+  u32 cur_M = M.set(pow_mod(fact_N_raw, u64(p) - 2, p));
+
+  // Phase 3: i 降順で inv_M[i] = cur_M · (i-1)!_M
+  // i_M は Phase 1 終了時に (MAGIC2+1)·R。これを R 引きつつ MAGIC2..1 を回す。
+  i_M -= R_M; if (i_M >= p) i_M += p;  // 念のため。素直には i_M -= R_M で (MAGIC2)·R
   for (u32 i = MAGIC2; i >= 1; --i) {
-   u32 inv_i = u32(cur * inv_M[i - 1] % p);
-   cur = cur * i % p;
-   inv_M[i] = inv_i;
+   u32 inv_i_M = M.mul(cur_M, inv_M[i - 1]);
+   cur_M = M.mul(cur_M, i_M);
+   inv_M[i] = inv_i_M;
+   // i_M -= R_M (= (i-1)·R)
+   if (i_M < R_M) i_M += p - R_M; else i_M -= R_M;
   }
   inv_M[0] = 0;
-  // 2) raw → Montgomery in-place
-  for (u32 i = 1; i <= MAGIC2; ++i) inv_M[i] = M.set(inv_M[i]);
 
-  // 3) Farey table
+  // ---- Farey table 構築 ----
   vector<u32> farey_lookup(MAGIC1, 0);
   auto farey_rec = [&](auto& self, u32 f1, u32 f2, u32 x, u32 y) -> void {
    u32 f3 = f1 + f2;
@@ -70,7 +88,7 @@ struct ModInv {
    farey_lookup[i] = (farey_lookup[MAGIC1 - 1 - i] * 0xffff0001u ^ 0xffff0000u) + 0x10000u;
   }
 
-  // 4) per-query
+  // ---- per-query ----
   vector<u32> ans;
   ans.reserve(qs.size());
   for (u32 x : qs) {
