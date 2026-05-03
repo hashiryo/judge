@@ -4,6 +4,14 @@
 //   - 高 bbits 領域で iteration 削減
 //   - 残ったループでも r *= base を mul_pre で 1 mul 削減
 // 期待: bbits >= log2(p-1) + α で plantard32_fermat / plantard32_pre 双方を上回る
+//
+// === 実測結果 (n=5M, p=998244353): negative result ===
+// heavy_00 (bbits=30): 548ms vs plantard32_pre 506ms (+8%、両方の利点を失う)
+// heavy_01 (bbits=32): 557ms vs plantard32_fermat 531ms (+5%)
+// 推察: _pre 版のループは `if (!(e>>=1)) break;` 構造で分岐予測 / scheduler に
+//   敏感。divq (e %= mod_minus_1) を頭に追加するとクリティカルパスが伸び、
+//   ループ最適化が崩れる。「per-iter mul 削減」と「iteration 数削減」を独立に
+//   合算できるはず、という素朴な仮定が成り立たない例。
 struct MP {  // mod < 2^32/phi, mod は素数
  u32 mod;
  u32 mod_minus_1;
