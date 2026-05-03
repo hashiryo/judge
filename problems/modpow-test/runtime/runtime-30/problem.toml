@@ -1,0 +1,3 @@
+tle = 10
+mle = 256
+callgrind_case = "heavy_00"
