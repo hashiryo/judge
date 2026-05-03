@@ -36,24 +36,13 @@ struct Solver {
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
  [[gnu::target("pclmul")]]
 #endif
- static std::string run(const std::string& input) {
-  std::istringstream in(input);
-  std::ostringstream out;
-  int n, m;
-  in >> n >> m;
-  std::vector<u64> a(n), b(m);
-  for (auto& x : a) in >> x;
-  for (auto& x : b) in >> x;
+ static std::vector<u64> run(int n, int m, const std::vector<u64>& a, const std::vector<u64>& b) {
   std::vector<u64> c(n + m - 1, 0);
   for (int i = 0; i < n; ++i) {
    for (int j = 0; j < m; ++j) {
     c[i + j] ^= conv_f2_64_naive::mul(a[i], b[j]);
    }
   }
-  for (int k = 0; k < n + m - 1; ++k) {
-   out << c[k];
-   out << (k + 1 == n + m - 1 ? '\n' : ' ');
-  }
-  return std::move(out).str();
+  return c;
  }
 };

@@ -262,20 +262,14 @@ GF2_TARGET inline std::vector<gf2> nim_convolution(std::vector<gf2> f, std::vect
 }  // namespace
 
 struct Solver {
- GF2_TARGET static std::string run(const std::string& input) {
+ GF2_TARGET static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
   using namespace conv_f2_64_fastest_vpclmul;
-  std::istringstream in(input);
-  std::ostringstream out;
-  int n, m;
-  in >> n >> m;
   std::vector<gf2> a(n), b(m);
-  for (auto& x : a) { u64 v; in >> v; x = gf2(v); }
-  for (auto& x : b) { u64 v; in >> v; x = gf2(v); }
+  for (int i = 0; i < n; ++i) a[i] = gf2(a_in[i]);
+  for (int i = 0; i < m; ++i) b[i] = gf2(b_in[i]);
   auto c = nim_convolution(std::move(a), std::move(b));
-  for (int k = 0; k < (int) c.size(); ++k) {
-   out << c[k].v;
-   out << (k + 1 == (int) c.size() ? '\n' : ' ');
-  }
-  return std::move(out).str();
+  std::vector<u64> out(c.size());
+  for (size_t k = 0; k < c.size(); ++k) out[k] = c[k].v;
+  return out;
  }
 };

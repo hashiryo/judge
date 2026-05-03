@@ -31,17 +31,14 @@ struct Solver {
   }
  };
 
- static std::string run(const std::string& input) {
-  std::istringstream in(input);
-  std::ostringstream out;
-  int t; in >> t;
-  while (t--) {
-   i64 n, x, y;
-   in >> n >> x >> y;
+ static std::vector<std::tuple<i64, i64, i64, i64>> run(const std::vector<std::tuple<i64, i64, i64>>& queries) {
+  std::vector<std::tuple<i64, i64, i64, i64>> ans;
+  ans.reserve(queries.size());
+  for (auto& [n, x, y] : queries) {
    auto [a, b, c, d] = SBT<i64>::binary_search(n, [&](i64 a_, i64 b_) { return a_ * y <= b_ * x; });
    if (a * y == b * x) { c = a; d = b; }
-   out << a << ' ' << b << ' ' << c << ' ' << d << '\n';
+   ans.emplace_back(a, b, c, d);
   }
-  return std::move(out).str();
+  return ans;
  }
 };

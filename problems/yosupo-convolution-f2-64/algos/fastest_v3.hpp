@@ -1,7 +1,11 @@
 #pragma once
 #include "_common.hpp"
-// yosupo convolution_F_2_64 最速 (https://judge.yosupo.jp/submission/350440)
-// アルゴリズム部のみ移植。 独自 I/O は不採用、 harness の Solver::run(string) 経由。
+// fastest_v2.hpp の発展形:
+//   1. in-place 化 (v2 と同じ)
+//   2. 4× unroll (v2 の 2× より深い、 PCLMUL を 8 個 in-flight)
+//
+// 期待: 内部 FFT loop の throughput 改善、 ただし全体時間の 10-20% 程度しか占めない
+//       はずなので限定的
 //
 // アルゴリズム: 標数 2 の有限体 F_{2^64} 上の additive FFT (a.k.a. nim FFT)
 //   - 基底列 b: b[0] = 2 ∈ F_{2^64}、 b[i+1] = b[i]^2 + b[i] (Artin-Schreier)
@@ -22,7 +26,7 @@
 #include <immintrin.h>
 #endif
 
-namespace conv_f2_64_fastest {
+namespace conv_f2_64_fastest_v3 {
 
 inline const std::array<u64, 16> RED = [] {
  std::array<u64, 16> r{};
@@ -125,17 +129,41 @@ GF2_TARGET inline void nim_fft(std::vector<gf2>& f) {
   std::swap(f, f2);
   len /= 2;
  }
- // Phase B: 各 level で twiddle 乗算
+ // Phase B: 各 level で twiddle 乗算 (in-place + 4× unroll)
  while (len < n) {
   len *= 2;
   const std::vector<gf2>& g = nim_data.a[msb(len)];
   for (int l = 0; l < n; l += len) {
-   for (int i = 0; i < len / 2; ++i) {
-    f2[l + i] = f[l + i] + f[l + i + len / 2] * g[i];
-    f2[l + i + len / 2] = f[l + i] + f[l + i + len / 2] * g[i + len / 2];
+   const int half = len / 2;
+   const gf2* g0 = g.data();
+   const gf2* g1 = g.data() + half;
+   gf2* f0 = f.data() + l;
+   gf2* f1 = f.data() + l + half;
+   int i = 0;
+   for (; i + 3 < half; i += 4) {
+    gf2 lo0 = f0[i],   hi0 = f1[i];
+    gf2 lo1 = f0[i+1], hi1 = f1[i+1];
+    gf2 lo2 = f0[i+2], hi2 = f1[i+2];
+    gf2 lo3 = f0[i+3], hi3 = f1[i+3];
+    gf2 a0 = hi0 * g0[i];
+    gf2 b0 = hi0 * g1[i];
+    gf2 a1 = hi1 * g0[i+1];
+    gf2 b1 = hi1 * g1[i+1];
+    gf2 a2 = hi2 * g0[i+2];
+    gf2 b2 = hi2 * g1[i+2];
+    gf2 a3 = hi3 * g0[i+3];
+    gf2 b3 = hi3 * g1[i+3];
+    f0[i]   = lo0 + a0;  f1[i]   = lo0 + b0;
+    f0[i+1] = lo1 + a1;  f1[i+1] = lo1 + b1;
+    f0[i+2] = lo2 + a2;  f1[i+2] = lo2 + b2;
+    f0[i+3] = lo3 + a3;  f1[i+3] = lo3 + b3;
+   }
+   for (; i < half; ++i) {
+    gf2 lo = f0[i], hi = f1[i];
+    f0[i] = lo + hi * g0[i];
+    f1[i] = lo + hi * g1[i];
    }
   }
-  std::swap(f, f2);
  }
 }
 
@@ -146,12 +174,32 @@ GF2_TARGET inline void nim_ifft(std::vector<gf2>& f) {
  while (len > 1) {
   const std::vector<gf2>& g = nim_data.a[msb(len)];
   for (int l = 0; l < n; l += len) {
-   for (int i = 0; i < len / 2; ++i) {
-    f2[l + i] = f[l + i] * g[i + len / 2] + f[l + i + len / 2] * g[i];
-    f2[l + i + len / 2] = f[l + i] + f[l + i + len / 2];
+   const int half = len / 2;
+   const gf2* g0 = g.data();
+   const gf2* g1 = g.data() + half;
+   gf2* f0 = f.data() + l;
+   gf2* f1 = f.data() + l + half;
+   int i = 0;
+   for (; i + 3 < half; i += 4) {
+    gf2 lo0 = f0[i],   hi0 = f1[i];
+    gf2 lo1 = f0[i+1], hi1 = f1[i+1];
+    gf2 lo2 = f0[i+2], hi2 = f1[i+2];
+    gf2 lo3 = f0[i+3], hi3 = f1[i+3];
+    gf2 a0 = lo0 * g1[i],   b0 = hi0 * g0[i];
+    gf2 a1 = lo1 * g1[i+1], b1 = hi1 * g0[i+1];
+    gf2 a2 = lo2 * g1[i+2], b2 = hi2 * g0[i+2];
+    gf2 a3 = lo3 * g1[i+3], b3 = hi3 * g0[i+3];
+    f0[i]   = a0 + b0;  f1[i]   = lo0 + hi0;
+    f0[i+1] = a1 + b1;  f1[i+1] = lo1 + hi1;
+    f0[i+2] = a2 + b2;  f1[i+2] = lo2 + hi2;
+    f0[i+3] = a3 + b3;  f1[i+3] = lo3 + hi3;
+   }
+   for (; i < half; ++i) {
+    gf2 lo = f0[i], hi = f1[i];
+    f0[i] = lo * g1[i] + hi * g0[i];
+    f1[i] = lo + hi;
    }
   }
-  std::swap(f, f2);
   len /= 2;
  }
  while (len < n) {
@@ -193,7 +241,7 @@ GF2_TARGET inline std::vector<gf2> nim_convolution(std::vector<gf2> f, std::vect
 
 struct Solver {
  GF2_TARGET static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
-  using namespace conv_f2_64_fastest;
+  using namespace conv_f2_64_fastest_v3;
   std::vector<gf2> a(n), b(m);
   for (int i = 0; i < n; ++i) a[i] = gf2(a_in[i]);
   for (int i = 0; i < m; ++i) b[i] = gf2(b_in[i]);

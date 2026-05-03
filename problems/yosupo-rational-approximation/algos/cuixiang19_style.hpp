@@ -11,9 +11,7 @@
 //   - 分母/分子 ≤ n を保つ:   lx + k*rx ≤ n, ly + k*ry ≤ n
 // =============================================================================
 struct Solver {
- static void solve_one(std::istream& in, std::ostream& out) {
-  i64 n, x, y;
-  in >> n >> x >> y;
+ static std::tuple<i64, i64, i64, i64> solve_one(i64 n, i64 x, i64 y) {
   i64 lx = 0, ly = 1, rx = 1, ry = 0;
   while (true) {
    // 既に左/右の片方が x/y と一致している場合 (前ステップで k_cross が exact 着地)
@@ -46,14 +44,13 @@ struct Solver {
     ry += k * ly;
    }
   }
-  out << lx << ' ' << ly << ' ' << rx << ' ' << ry << '\n';
+  return {lx, ly, rx, ry};
  }
 
- static std::string run(const std::string& input) {
-  std::istringstream in(input);
-  std::ostringstream out;
-  int t; in >> t;
-  while (t--) solve_one(in, out);
-  return std::move(out).str();
+ static std::vector<std::tuple<i64, i64, i64, i64>> run(const std::vector<std::tuple<i64, i64, i64>>& queries) {
+  std::vector<std::tuple<i64, i64, i64, i64>> ans;
+  ans.reserve(queries.size());
+  for (auto& [n, x, y] : queries) ans.push_back(solve_one(n, x, y));
+  return ans;
  }
 };

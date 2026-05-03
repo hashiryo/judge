@@ -4,11 +4,7 @@
 //   odd_idx(2i+1) = i, ビット 1 = prime。 メモリは N/16 byte で naive の 1/16。
 //   cache 効率が良くなり naive より大幅高速化。
 struct Solver {
- static std::string run(const std::string& input) {
-  std::istringstream in(input);
-  std::ostringstream out;
-  u32 N, A, B;
-  in >> N >> A >> B;
+ static std::pair<u32, std::vector<u32>> run(u32 N, u32 A, u32 B) {
 
   // bit i represents the number 2i+1 (odd values only)
   // We need indexes for i in [0, (N+1)/2], so words = (M + 63) / 64 where M = (N+1)/2 + 1
@@ -43,9 +39,8 @@ struct Solver {
 
   u32 cnt = u32(primes.size());
   u32 X = (cnt < B) ? 0 : (cnt - B + A - 1) / A;
-  out << cnt << ' ' << X << '\n';
-  for (u32 k = 0; k < X; ++k) out << primes[B + k * A] << " \n"[k + 1 == X];
-  if (X == 0) out << '\n';
-  return std::move(out).str();
+  std::vector<u32> selected(X);
+  for (u32 k = 0; k < X; ++k) selected[k] = primes[B + k * A];
+  return {cnt, std::move(selected)};
  }
 };

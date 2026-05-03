@@ -26,16 +26,10 @@ struct Solver {
   }
   return lo;
  }
- static std::string run(const std::string& input) {
-  std::istringstream in(input);
-  std::ostringstream out;
-  int T; in >> T;
-  while (T--) {
-   u64 A;
-   int k;
-   in >> A >> k;
-   out << kth_root(A, k) << '\n';
-  }
-  return std::move(out).str();
+ static std::vector<u64> run(const std::vector<std::pair<u64, int>>& queries) {
+  std::vector<u64> ans;
+  ans.reserve(queries.size());
+  for (auto& [A, k] : queries) ans.push_back(kth_root(A, k));
+  return ans;
  }
 };
