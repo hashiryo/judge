@@ -83,7 +83,7 @@ struct BSGSTable {
  std::vector<u32> values;
  u64 mask;  // = capacity - 1, must be power of 2
 
- void build(u64 base, u64 m) {
+ PCLMUL_RUN void build(u64 base, u64 m) {
   // capacity = next pow2 >= 4*m for low load factor
   u64 cap = 8;
   while (cap < 4 * m) cap *= 2;
