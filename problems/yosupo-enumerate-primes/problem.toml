@@ -1,0 +1,4 @@
+url = "https://judge.yosupo.jp/problem/enumerate_primes"
+tle = 5
+mle = 1024
+callgrind_case = "random_00"
