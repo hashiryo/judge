@@ -16,35 +16,44 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 namespace gf2_64_pow_frob_lookup_byte_window {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-// FROB4K_BYTE[i][p][b] = (b << (8p))^{2^{4i}}, i = 0..15
-inline u64 FROB4K_BYTE[16][8][256];
-inline bool inited= false;
-void init_tables() {
- if(inited) return;
- inited= true;
+namespace _detail {
+struct FrobBytes {
+ u64 t[16][8][256];
+};
+// 既存 constexpr FROB4_BYTE (std::array) を 1 度だけ raw 配列に転写してから使うと
+// constexpr step が抑えられる (libc++ の array access overhead 回避)
+constexpr FrobBytes make_frob4k_byte() {
+ FrobBytes r{};
+ // ローカル raw 配列に FROB4_BYTE を転写 (以降 raw access のみで step 節約)
+ u64 F4[8][256]{};
  for(int p= 0; p < 8; ++p)
-  for(int b= 0; b < 256; ++b) FROB4K_BYTE[0][p][b]= u64(b) << (8 * p);
+  for(int b= 0; b < 256; ++b) F4[p][b]= gf2_64_pclmul::FROB4_BYTE[p][b];
+ // i = 0: identity
+ for(int p= 0; p < 8; ++p)
+  for(int b= 0; b < 256; ++b) r.t[0][p][b]= u64(b) << (8 * p);
+ // i > 0: r.t[i] = frob4 ∘ r.t[i-1]  (raw 配列で apply_frob4)
  for(int i= 1; i < 16; ++i)
   for(int p= 0; p < 8; ++p)
    for(int b= 0; b < 256; ++b) {
-    u64 v= FROB4K_BYTE[i - 1][p][b];
-    v= sq(v);
-    v= sq(v);
-    v= sq(v);
-    v= sq(v);
-    FROB4K_BYTE[i][p][b]= v;
+    u64 a= r.t[i - 1][p][b];
+    r.t[i][p][b]= F4[0][u8(a)] ^ F4[1][u8(a >> 8)] ^ F4[2][u8(a >> 16)] ^ F4[3][u8(a >> 24)] ^ F4[4][u8(a >> 32)] ^ F4[5][u8(a >> 40)] ^ F4[6][u8(a >> 48)] ^ F4[7][u8(a >> 56)];
    }
+ return r;
 }
+}  // namespace _detail
+inline constexpr auto FROB4K_BYTE_S= _detail::make_frob4k_byte();
+inline constexpr auto& FROB4K_BYTE= FROB4K_BYTE_S.t;
+
 inline u64 apply_frob4k(int i, u64 a) {
  const auto& t= FROB4K_BYTE[i];
  return t[0][u8(a)] ^ t[1][u8(a >> 8)] ^ t[2][u8(a >> 16)] ^ t[3][u8(a >> 24)] ^ t[4][u8(a >> 32)] ^ t[5][u8(a >> 40)] ^ t[6][u8(a >> 48)] ^ t[7][u8(a >> 56)];
 }
 u64 pow(u64 a, u64 e) {
  if(!e) return 1;
- // T[c] = α^c, c = 0..15
  u64 T[16]= {1, a};
 #pragma GCC unroll 14
  for(int j= 2; j < 16; ++j) T[j]= mul(T[j - 1], a);
@@ -67,9 +76,7 @@ u64 pow(u64 a, u64 e) {
 }  // namespace gf2_64_pow_frob_lookup_byte_window
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
-  using gf2_64_pow_frob_lookup_byte_window::init_tables;
   using gf2_64_pow_frob_lookup_byte_window::pow;
-  init_tables();
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow(as[i], es[i]);
   return ans;
