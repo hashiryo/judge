@@ -57,20 +57,12 @@ u64 pow(u64 a, u64 e) {
 #pragma GCC unroll 14
  for(int j= 2; j < 16; ++j) T[j]= mul(T[j - 1], a);
  // 4-bit chunk ごとに frob_{4i}(T[chunk]) を収集
- u64 selected[16];
- int n= 0;
+ u64 x= 1;
  for(int i= 0; i < 16; ++i) {
   u8 c= (e >> (4 * i)) & 0xF;
-  if(c) selected[n++]= apply_frob4k(i, T[c]);
+  if(c) x= mul(x, apply_frob4k(i, T[c]));
  }
- // Tree mul (depth ≤ 4)
- while(n > 1) {
-  int new_n= 0, j= 0;
-  for(; j + 1 < n; j+= 2) selected[new_n++]= mul(selected[j], selected[j + 1]);
-  if(j < n) selected[new_n++]= selected[j];
-  n= new_n;
- }
- return selected[0];
+ return x;
 }
 }  // namespace gf2_64_pow_frob_lookup_byte_window
 struct GF2_64Op {
