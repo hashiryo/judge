@@ -5,6 +5,13 @@
 #else
 #include <immintrin.h>
 #endif
+
+#ifdef __x86_64__
+#define PCLMUL [[gnu::target("pclmul")]]
+#else
+#define PCLMUL
+#endif
+
 #include <bits/stdc++.h>
 using namespace std;
 using u8= unsigned char;
