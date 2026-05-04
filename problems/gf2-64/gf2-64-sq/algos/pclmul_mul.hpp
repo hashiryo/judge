@@ -4,7 +4,7 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 namespace gf2_64_sq_pclmul_mul {
-inline u64 sq(u64 a) {
+PCLMUL inline u64 sq(u64 a) {
  __m128i av= _mm_cvtsi64_si128(a);
  __m128i v= _mm_clmulepi64_si128(av, av, 0);
  u64 h= (u64)v[1], d= h ^ (h << 1);

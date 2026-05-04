@@ -15,23 +15,10 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 namespace gf2_64_sq_pdep {
-inline u64 spread_bits(u32 a) {
-#ifdef __BMI2__
- return _pdep_u64(u64(a), 0x5555555555555555ull);
-#else
- // fallback: bit interleave for 32-bit input
- u64 x= a;
- x= (x | (x << 16)) & 0x0000FFFF0000FFFFull;
- x= (x | (x << 8)) & 0x00FF00FF00FF00FFull;
- x= (x | (x << 4)) & 0x0F0F0F0F0F0F0F0Full;
- x= (x | (x << 2)) & 0x3333333333333333ull;
- x= (x | (x << 1)) & 0x5555555555555555ull;
- return x;
-#endif
-}
+inline u64 spread_bits(u32 a) { return _pdep_u64(u64(a), 0x5555555555555555ull); }
 inline u64 sq(u64 a) {
- u64 h= spread_bits(u32(a >> 32)), d= h ^ (h << 1);
- return spread_bits(u32(a)) ^ ((u8[]){0, 27, 45, 54, 90, 65, 119, 108})[h >> 60] ^ d ^ (d << 3);
+ u64 h= spread_bits(a >> 32), d= h ^ (h << 1);
+ return spread_bits(a) ^ ((u8[]){0, 27, 45, 54, 90, 65, 119, 108})[h >> 60] ^ d ^ (d << 3);
 }
 }
 struct GF2_64Op {

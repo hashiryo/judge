@@ -2,6 +2,7 @@
 #ifdef USE_SIMDE
 #include <simde/x86/avx2.h>
 #include <simde/x86/clmul.h>
+#include <simde/x86/bmi.h>
 #else
 #include <immintrin.h>
 #endif
