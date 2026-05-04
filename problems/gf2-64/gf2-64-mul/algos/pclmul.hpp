@@ -7,7 +7,7 @@
 //   2. hi の各ビット (x^{64+i}) を x^{i+4} + x^{i+3} + x^{i+1} + x^i に置換 → lo に xor
 //   3. 上位 4 bit (x^124..x^127) は左シフトで lo 外に出るので、 4-bit table で吸収
 #pragma GCC optimize("O3,unroll-loops")
-#include " ../../_shared/_common.hpp"
+#include "../../_shared/_common.hpp"
 namespace gf2_64_mul_pclmul_baseline {
 inline __m128i clmul(u64 a, u64 b) {
  __m128i av{(long long)a, 0};

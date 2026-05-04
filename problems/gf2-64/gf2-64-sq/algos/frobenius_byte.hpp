@@ -42,7 +42,7 @@ inline void init_tables() {
   }
  }
 }
-[[gnu::always_inline]] inline u64 sq(u64 a) { return FROB1_BYTE[0][u8(a)] ^ FROB1_BYTE[1][u8(a >> 8)] ^ FROB1_BYTE[2][u8(a >> 16)] ^ FROB1_BYTE[3][u8(a >> 24)] ^ FROB1_BYTE[4][u8(a >> 32)] ^ FROB1_BYTE[5][u8(a >> 40)] ^ FROB1_BYTE[6][u8(a >> 48)] ^ FROB1_BYTE[7][u8(a >> 56)]; }
+inline u64 sq(u64 a) { return FROB1_BYTE[0][u8(a)] ^ FROB1_BYTE[1][u8(a >> 8)] ^ FROB1_BYTE[2][u8(a >> 16)] ^ FROB1_BYTE[3][u8(a >> 24)] ^ FROB1_BYTE[4][u8(a >> 32)] ^ FROB1_BYTE[5][u8(a >> 40)] ^ FROB1_BYTE[6][u8(a >> 48)] ^ FROB1_BYTE[7][u8(a >> 56)]; }
 }
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as) {

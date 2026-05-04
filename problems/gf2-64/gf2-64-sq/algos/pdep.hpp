@@ -15,7 +15,7 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 namespace gf2_64_sq_pdep {
-[[gnu::target("bmi2")]] [[gnu::always_inline]] inline u64 spread_bits(u32 a) {
+inline u64 spread_bits(u32 a) {
 #if HAS_PDEP
  return _pdep_u64(u64(a), 0x5555555555555555ull);
 #else
@@ -29,7 +29,7 @@ namespace gf2_64_sq_pdep {
  return x;
 #endif
 }
-[[gnu::target("bmi2")]] inline u64 sq(u64 a) {
+inline u64 sq(u64 a) {
  u64 h= spread_bits(u32(a >> 32)), d= h ^ (h << 1);
  return spread_bits(u32(a)) ^ ((u8[]){0, 27, 45, 54, 90, 65, 119, 108})[h >> 60] ^ d ^ (d << 3);
 }
