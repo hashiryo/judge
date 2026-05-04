@@ -105,29 +105,25 @@ inline u32 e_mod_65535(u64 e) {
 }
 u64 pow_byte_window(u64 g, u64 e) {
  if(e == 0) return 1;
- u64 T[16];
- T[0]= 1;
- T[1]= g;
+ u64 T[16]= {1, g};
 #pragma GCC unroll 14
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
- int top= 15;
- while(top > 0 && ((e >> (4 * top)) & 0xF) == 0) --top;
+ int top= 15 - (__builtin_clzll(e) >> 2);
  u64 acc= T[(e >> (4 * top)) & 0xF];
  for(int i= top - 1; i >= 0; --i) {
   acc= frob4(acc);
-  unsigned chunk= unsigned((e >> (4 * i)) & 0xF);
+  u32 chunk= u32((e >> (4 * i)) & 0xF);
   if(chunk) acc= mul(acc, T[chunk]);
  }
  return acc;
 }
 constexpr u32 M_INV_MOD_65535= 16384;
 u64 pow(u64 a, u64 e) {
- if(e == 0) return 1;
+ if(!e) return 1;
+ if(!a) return 0;
  const u64 N= mul(mul(a, frob16(a)), mul(frob32(a), frob48(a)));
- const u32 N_idx= u16(N);
- if(N_idx == 0) return 0;
  constexpr u64 M_VAL= (~u64(0)) / 65535u;
- const u32 log_N= LN_SIGMA[N_idx];
+ const u32 log_N= LN_SIGMA[u16(N)];
  const u32 log_beta= u32((u64(log_N) * M_INV_MOD_65535) % 65535);
  const u32 log_beta_inv= (65535u - log_beta) % 65535u;
  const u64 beta_inv_poly= embed_idx(PW_SIGMA_IDX[log_beta_inv]);
