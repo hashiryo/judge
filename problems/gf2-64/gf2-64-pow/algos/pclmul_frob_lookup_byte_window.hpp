@@ -38,23 +38,21 @@ void init_tables() {
     FROB4K_BYTE[i][p][b]= v;
    }
 }
-[[gnu::always_inline]] inline u64 apply_frob4k(int i, u64 a) {
+inline u64 apply_frob4k(int i, u64 a) {
  const auto& t= FROB4K_BYTE[i];
  return t[0][u8(a)] ^ t[1][u8(a >> 8)] ^ t[2][u8(a >> 16)] ^ t[3][u8(a >> 24)] ^ t[4][u8(a >> 32)] ^ t[5][u8(a >> 40)] ^ t[6][u8(a >> 48)] ^ t[7][u8(a >> 56)];
 }
 u64 pow(u64 a, u64 e) {
  if(!e) return 1;
  // T[c] = α^c, c = 0..15
- u64 T[16];
- T[0]= 1;
- T[1]= a;
+ u64 T[16]= {1, a};
 #pragma GCC unroll 14
  for(int j= 2; j < 16; ++j) T[j]= mul(T[j - 1], a);
  // 4-bit chunk ごとに frob_{4i}(T[chunk]) を収集
  u64 selected[16];
  int n= 0;
  for(int i= 0; i < 16; ++i) {
-  unsigned c= unsigned((e >> (4 * i)) & 0xF);
+  u32 c= u32((e >> (4 * i)) & 0xF);
   if(c) selected[n++]= apply_frob4k(i, T[c]);
  }
  // Tree mul (depth ≤ 4)

@@ -22,7 +22,7 @@ void init_tables() {
   for(int p= 0; p < 8; ++p)
    for(int b= 0; b < 256; ++b) FROB_BYTE[k][p][b]= sq(FROB_BYTE[k - 1][p][b]);
 }
-[[gnu::always_inline]] inline u64 apply_frob(int k, u64 a) {
+inline u64 apply_frob(int k, u64 a) {
  const auto& t= FROB_BYTE[k];
  return t[0][u8(a)] ^ t[1][u8(a >> 8)] ^ t[2][u8(a >> 16)] ^ t[3][u8(a >> 24)] ^ t[4][u8(a >> 32)] ^ t[5][u8(a >> 40)] ^ t[6][u8(a >> 48)] ^ t[7][u8(a >> 56)];
 }
