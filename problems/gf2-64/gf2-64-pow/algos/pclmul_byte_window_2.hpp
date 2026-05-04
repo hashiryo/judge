@@ -23,15 +23,12 @@ using gf2_64_pclmul::sq;
 u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // Precompute T[i] = a^i for i = 0..15 (14 muls)
- u64 T[16];
- T[0]= 1;
- T[1]= a;
+ u64 T[16]= {1, a};
 #pragma GCC unroll 14
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], a);
 
  // Find top nonzero nibble of e
- int top= 15;
- while(top > 0 && ((e >> (4 * top)) & 0xF) == 0) --top;
+ int top= 15 - (__builtin_clzll(e) >> 2);
 
  u64 acc= T[(e >> (4 * top)) & 0xF];
  for(int i= top - 1; i >= 0; --i) {

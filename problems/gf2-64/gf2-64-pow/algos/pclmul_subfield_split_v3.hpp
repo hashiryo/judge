@@ -119,13 +119,13 @@ u64 pow_byte_window(u64 g, u64 e) {
 }
 constexpr u32 M_INV_MOD_65535= 16384;
 inline bool inited= false;
- void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
  // frob byte tables は _shared/frob.hpp が compile-time に提供
  build_sigma_tables();
 }
- u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // ① N(α) 計算 (3 frob 並列)
  const u64 a16= frob16(a);

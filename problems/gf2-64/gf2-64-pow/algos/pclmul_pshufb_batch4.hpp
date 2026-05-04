@@ -51,7 +51,7 @@ inline constexpr u8 SPREAD_TABLE[16]= {
     0x00, 0x01, 0x04, 0x05, 0x10, 0x11, 0x14, 0x15, 0x40, 0x41, 0x44, 0x45, 0x50, 0x51, 0x54, 0x55,
 };
 // 2 個の u64 を SIMD で squaring (spread 部分のみ、reduce は scalar)
-[[gnu::target("pclmul")]] void sq_pair_simd(u64& v0, u64& v1) {
+void sq_pair_simd(u64& v0, u64& v1) {
  __m128i tbl= _mm_loadu_si128(reinterpret_cast<const __m128i*>(SPREAD_TABLE));
  __m128i lo_mask= _mm_set1_epi8(0x0F);
  __m128i input= _mm_set_epi64x((long long)v1, (long long)v0);
@@ -67,12 +67,12 @@ inline constexpr u8 SPREAD_TABLE[16]= {
  v1= reduce(spread_v1);
 }
 // 4 個まとめて SIMD squaring
-[[gnu::target("pclmul")]] void sq_quad_simd(u64& v0, u64& v1, u64& v2, u64& v3) {
+void sq_quad_simd(u64& v0, u64& v1, u64& v2, u64& v3) {
  sq_pair_simd(v0, v1);
  sq_pair_simd(v2, v3);
 }
 // 4-way batched binary exponentiation
-[[gnu::target("pclmul")]] void pow_batch4(const u64 a[4], const u64 e[4], u64 out[4]) {
+void pow_batch4(const u64 a[4], const u64 e[4], u64 out[4]) {
  u64 acc0= 1, acc1= 1, acc2= 1, acc3= 1;
  u64 b0= a[0], b1= a[1], b2= a[2], b3= a[3];
  const u64 e0= e[0], e1= e[1], e2= e[2], e3= e[3];
@@ -94,7 +94,7 @@ inline constexpr u8 SPREAD_TABLE[16]= {
  out[2]= acc2;
  out[3]= acc3;
 }
-[[gnu::target("pclmul")]] u64 pow_single(u64 a, u64 e) {
+u64 pow_single(u64 a, u64 e) {
  // Fall-back for tail when T not divisible by 4
  if(e == 0) return 1;
  u64 result= 1;
