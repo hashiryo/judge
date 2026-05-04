@@ -28,83 +28,43 @@
 #include <array>
 #include <cstdint>
 
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_FN [[gnu::target("pclmul"), gnu::always_inline]] inline
-#elif defined(USE_SIMDE)
-#include <simde/x86/sse2.h>
-#include <simde/x86/clmul.h>
-#define PCLMUL_FN [[gnu::always_inline]] inline
-#else
-#error "pclmul_core.hpp: requires PCLMUL (x86 native or SIMDe)."
-#endif
-
+#include "_common.hpp"
 namespace gf2_64_pclmul {
-using u64 = unsigned long long;
-
-// Carryless multiply 64×64 → 128 を 1 命令で。
-PCLMUL_FN __m128i clmul(u64 a, u64 b) {
- __m128i av{(long long) a, 0};
- __m128i bv{(long long) b, 0};
- return _mm_clmulepi64_si128(av, bv, 0);
+[[gnu::target("pclmul")]] inline u64 mul(u64 a, u64 b) {
+ __m128i v= _mm_clmulepi64_si128(_mm_cvtsi64_si128(a), _mm_cvtsi64_si128(b), 0);
+ u64 h= (u64)v[1], d= h ^ (h << 1);
+ return (u64)v[0] ^ ((u8[]){0, 27, 45, 54, 90, 65, 119, 108})[h >> 60] ^ d ^ (d << 3);
 }
-
-// (lo, hi) を P(x) = x^64 + x^4 + x^3 + x + 1 で reduce → 64-bit
-PCLMUL_FN u64 reduce(__m128i v) {
- u64 lo = (u64) v[0], hi = (u64) v[1];
- // hi の bit i は x^(64+i)。x^64 ≡ x^4 + x^3 + x + 1 を最初に xor。
- lo ^= hi ^ (hi << 1) ^ (hi << 3) ^ (hi << 4);
- // 上位 4 bit (x^124..x^127) は左シフトで lo 外に出るので、
- // 事前計算した「上位 4 bit 由来の reduce 残渣」テーブルで吸収。
- static constexpr std::array<u64, 16> RED = [] {
-  std::array<u64, 16> r{};
-  for (int q = 0; q < 16; ++q) {
-   u64 o = q ^ (q >> 1) ^ (q >> 3);
-   r[q] = o ^ (o << 1) ^ (o << 3) ^ (o << 4);
-  }
-  return r;
- }();
- return lo ^ RED[hi >> 60];
-}
-
-PCLMUL_FN u64 mul(u64 a, u64 b) {
- return reduce(clmul(a, b));
-}
-
-// 二乗。今は mul(a, a) と同じ展開をするだけ。
-// 実験 algo (例: pdep_square.hpp) では PDEP で書き換え可能。
-PCLMUL_FN u64 sq(u64 a) {
- return mul(a, a);
-}
-
-// 累乗 (a^e) 二進展開。
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-[[gnu::target("pclmul")]]
+[[gnu::target("bmi2")]] [[gnu::always_inline]] inline u64 spread_bits(u32 a) {
+#if HAS_PDEP
+ return _pdep_u64(u64(a), 0x5555555555555555ull);
+#else
+ // fallback: bit interleave for 32-bit input
+ u64 x= a;
+ x= (x | (x << 16)) & 0x0000FFFF0000FFFFull;
+ x= (x | (x << 8)) & 0x00FF00FF00FF00FFull;
+ x= (x | (x << 4)) & 0x0F0F0F0F0F0F0F0Full;
+ x= (x | (x << 2)) & 0x3333333333333333ull;
+ x= (x | (x << 1)) & 0x5555555555555555ull;
+ return x;
 #endif
-inline u64 pow(u64 a, u64 e) {
- u64 res = 1;
- while (e) {
-  if (e & 1) res = mul(res, a);
-  a = sq(a);
-  e >>= 1;
+}
+[[gnu::target("bmi2")]] inline u64 sq(u64 a) {
+ u64 h= spread_bits(u32(a >> 32)), d= h ^ (h << 1);
+ return spread_bits(u32(a)) ^ ((u8[]){0, 27, 45, 54, 90, 65, 119, 108})[h >> 60] ^ d ^ (d << 3);
+}
+// 累乗 (a^e) 二進展開。
+[[gnu::target("pclmul")]] inline u64 pow(u64 a, u64 e) {
+ u64 res= 1;
+ while(e) {
+  if(e & 1) res= mul(res, a);
+  a= sq(a);
+  e>>= 1;
  }
  return res;
 }
-
 // Fermat-style inverse: a^(2^64 - 2)。より高速な Itoh-Tsujii は別 algo で試す。
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-[[gnu::target("pclmul")]]
-#endif
-inline u64 inv(u64 a) {
- return pow(a, ~(u64) 1);
-}
-
+[[gnu::target("pclmul")]] inline u64 inv(u64 a) { return pow(a, ~(u64)1); }
 // sqrt: Frobenius (^2) の逆 = ^(2^63)。
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-[[gnu::target("pclmul")]]
-#endif
-inline u64 sqrt(u64 a) {
- return pow(a, (u64) 1 << 63);
-}
-
-} // namespace gf2_64_pclmul
+[[gnu::target("pclmul")]] inline u64 sqrt(u64 a) { return pow(a, (u64)1 << 63); }
+}  // namespace gf2_64_pclmul
