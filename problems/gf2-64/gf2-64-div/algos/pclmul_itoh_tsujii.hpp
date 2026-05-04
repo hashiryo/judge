@@ -1,9 +1,11 @@
 #pragma once
-// PCLMUL + Itoh-Tsujii 逆元。
+// Itoh-Tsujii 逆元。
 //
 // 素朴な Fermat 逆元 a^{2^64 - 2} は 63 muls + 64 sqs (~127 ops) かかるが、
 // 中間値 T_k = a^{2^k - 1} を再利用する addition chain で 10 muls + 63 sqs (~73 ops)
-// に削減できる。理論値 1.7× 高速化。
+// に削減できる。 理論値 1.7× 高速化。
+//
+// mul / sq は _shared/pclmul_core.hpp の current best を使用 (sq は PDEP-based)。
 //
 // チェーン構造:
 //   main: T_1, T_2, T_4, T_8, T_16, T_32 を doubling で構築 (T_{2k} = T_k · T_k^{2^k})
