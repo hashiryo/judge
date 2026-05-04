@@ -23,16 +23,12 @@ constexpr array<u64, 16> SIGMA_POW= {1ull, 11625825068197362226ull, 167260694998
 constexpr auto EMBED_BYTE= []() {
  array<array<u64, 256>, 2> embed_byte{};
  // contribution[k] = subfield 元 c で PEXT(c, MASK) = (1 << k) を満たすもの。
- // c = Σ c_i σ^i とおくと M·c_vec = e_k where M[r][i] = (σ^i >> picked[r]) & 1。
+ // c = Σ c_i σ^i とおくと M·c_vec = e_k where M[r][i] = (σ^i >> r) & 1。
  // よって c_vec = M^{-1} · e_k = M^{-1} の k 列目。
  // 16x16 GF(2) 行列 [M | I] を Gauss-Jordan で [I | M^{-1}] に変形する。
  u32 M[16]= {}, Minv[16]= {};
  for(int r= 0; r < 16; ++r) {
-  u32 row= 0;
-  for(int i= 0; i < 16; ++i) {
-   if((SIGMA_POW[i] >> r) & 1) row|= u32(1) << i;
-  }
-  M[r]= row;
+  for(int i= 0; i < 16; ++i) M[r]|= u32((SIGMA_POW[i] >> r) & 1) << i;
   Minv[r]= u32(1) << r;
  }
  for(int col= 0; col < 16; ++col) {
@@ -61,20 +57,15 @@ constexpr auto EMBED_BYTE= []() {
  // contribution[k] = ⊕ over i: M^{-1}[i][k] == 1 of SIGMA_POW[i]
  // M^{-1}[i] (= Minv[i]) は 16-bit、その k bit が k 列目の i 行目成分
  u64 contribution[16]= {};
- for(int k= 0; k < 16; ++k) {
-  u64 v= 0;
-  for(int i= 0; i < 16; ++i) {
-   if((Minv[i] >> k) & 1) v^= SIGMA_POW[i];
-  }
-  contribution[k]= v;
- }
+ for(int k= 0; k < 16; ++k)
+  for(int i= 0; i < 16; ++i)
+   if((Minv[i] >> k) & 1) contribution[k]^= SIGMA_POW[i];
  // EMBED_BYTE: 16-bit idx の low/high byte に対する寄与
  for(int p= 0; p < 2; ++p) {
   for(int b= 0; b < 256; ++b) {
    u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
+   for(int bit= 0; bit < 8; ++bit)
     if((b >> bit) & 1) v^= contribution[p * 8 + bit];
-   }
    embed_byte[p][b]= v;
   }
  }
