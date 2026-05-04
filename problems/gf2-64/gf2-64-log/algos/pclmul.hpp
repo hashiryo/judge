@@ -6,7 +6,7 @@
 #pragma GCC target("pclmul")
 #endif
 #include "../../_shared/_common.hpp"
-#include "../../_shared/pclmul_core.hpp"
+#include "../../_shared/pow.hpp"
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #define PCLMUL_TARGET [[gnu::target("pclmul")]]

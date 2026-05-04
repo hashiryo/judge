@@ -11,7 +11,7 @@
 //   strategy" の意味がなくなってしまう。 そのため inv 計算ロジックは algo 内に閉じる。
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
-#include "../../_shared/pclmul_core.hpp"
+#include "../../_shared/sq.hpp"
 
 namespace gf2_64_div_pclmul_fermat {
 using gf2_64_pclmul::mul;
