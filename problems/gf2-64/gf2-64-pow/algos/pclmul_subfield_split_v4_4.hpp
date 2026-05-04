@@ -83,7 +83,7 @@ constexpr auto EMBED_BYTE= []() {
 
 // runtime-init される big tables (σ^k chain 経由)
 inline u16 LN_SIGMA[65536];
-inline u16 PW_SIGMA_IDX[65535];
+inline u16 PW_SIGMA_IDX[65536];
 inline bool inited= false;
 void init_tables() {
  if(inited) return;
@@ -96,13 +96,9 @@ void init_tables() {
   cur= mul(cur, SIGMA);
  }
  LN_SIGMA[0]= 0;
+ PW_SIGMA_IDX[65535]= 1;
 }
 inline u64 embed_idx(u16 idx) { return EMBED_BYTE[0][u8(idx)] ^ EMBED_BYTE[1][u8(idx >> 8)]; }
-inline u32 e_mod_65535(u64 e) {
- u32 s= u16(e) + u16(e >> 16) + u16(e >> 32) + u16(e >> 48);
- while(s >= 65535) s-= 65535;
- return s;
-}
 u64 pow_byte_window(u64 g, u64 e) {
  if(e == 0) return 1;
  u64 T[16]= {1, g};
@@ -117,20 +113,18 @@ u64 pow_byte_window(u64 g, u64 e) {
  }
  return acc;
 }
-constexpr u32 M_INV_MOD_65535= 16384;
 u64 pow(u64 a, u64 e) {
  if(!e) return 1;
  if(!a) return 0;
- const u64 N= mul(mul(a, frob16(a)), mul(frob32(a), frob48(a)));
  constexpr u64 M_VAL= (~u64(0)) / 65535u;
- const u32 log_N= LN_SIGMA[u16(N)];
- const u32 log_beta= u32((u64(log_N) * M_INV_MOD_65535) % 65535);
- const u32 log_beta_inv= (65535u - log_beta) % 65535u;
- const u64 beta_inv_poly= embed_idx(PW_SIGMA_IDX[log_beta_inv]);
- const u64 gamma= mul(a, beta_inv_poly);
- const u32 e_low_red= e_mod_65535(e);
+ const u16 e_low_red= e % 65535;
  const u64 e_high= e % M_VAL;
- const u64 beta_pow= (e_low_red == 0) ? 1ull : embed_idx(PW_SIGMA_IDX[u32((u64(log_beta) * e_low_red) % 65535)]);
+ const u16 N= mul(mul(a, frob16(a)), mul(frob32(a), frob48(a)));
+ const u16 log_beta= (u32(LN_SIGMA[N]) * 16384) % 65535;
+ const u64 beta_inv_poly= embed_idx(PW_SIGMA_IDX[65535u - log_beta]);
+ const u64 gamma= mul(a, beta_inv_poly);
+ if(e_low_red == 0) return pow_byte_window(gamma, e_high);
+ const u64 beta_pow= embed_idx(PW_SIGMA_IDX[(u32(log_beta) * e_low_red) % 65535]);
  const u64 gamma_pow= pow_byte_window(gamma, e_high);
  return mul(beta_pow, gamma_pow);
 }
