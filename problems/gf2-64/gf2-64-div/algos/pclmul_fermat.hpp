@@ -12,13 +12,11 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
 namespace gf2_64_div_pclmul_fermat {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-
 // Fermat inv: a^(2^64 - 2)。 二進展開、 各 bit で sq + (条件付き mul)。
-[[gnu::target("pclmul")]] inline u64 inv_fermat(u64 a) {
+inline u64 inv_fermat(u64 a) {
  u64 res= 1;
  u64 e= ~u64(1);  // = 2^64 - 2
  while(e) {
@@ -29,7 +27,6 @@ using gf2_64_pclmul::sq;
  return res;
 }
 }
-
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_div_pclmul_fermat::inv_fermat;

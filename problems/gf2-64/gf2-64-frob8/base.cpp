@@ -1,5 +1,4 @@
-// harness: T 個の u64 a_i を読み、 a_i^8 (= a_i^{2^3}) ∈ GF(2^64) を出力。
-//
+// harness: T 個の u64 a_i を読み、 a_i^{2^8} = a_i^256 ∈ GF(2^64) を出力。
 // I/O 変換は計測外、 GF2_64Op::run(as) のみ algo time に含める。
 
 #ifndef ALGO_HPP
@@ -26,6 +25,6 @@ signed main() {
   if(ns < best_ns) best_ns= ns;
  }
  fprintf(stderr, "ALGO_TIME_NS=%llu\n", (unsigned long long)best_ns);
- for(auto x: result) cout << x << '\n';
+ for(auto y: result) cout << y << '\n';
  return 0;
 }

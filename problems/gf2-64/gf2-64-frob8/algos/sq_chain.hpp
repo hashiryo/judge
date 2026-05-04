@@ -1,12 +1,14 @@
 #pragma once
-// sq を 3 回繰り返して a^8 を計算 (= current best sq の 3 回適用)。
-//
-// _shared/sq.hpp の current best sq を使う (= mul/sq は building block)。
+// sq を 8 回繰り返して a^{2^8} を計算 (= current best sq の 8 回適用)。
+// _shared/sq.hpp の current best sq を使う (= sq は building block)。
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/sq.hpp"
 namespace gf2_64_frob8_sq_chain {
 using gf2_64_pclmul::sq;
-inline u64 frob8(u64 a) { return sq(sq(sq(a))); }
+inline u64 frob8(u64 a) {
+ for(int i= 0; i < 8; ++i) a= sq(a);
+ return a;
+}
 }
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as) {

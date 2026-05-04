@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""GF(2^64) で a^32 を計算するテストケース生成。"""
+"""GF(2^64) で a^4 (= a^{2^2}) を計算するテストケース生成。"""
 import random
 import sys
 from pathlib import Path
@@ -24,7 +24,7 @@ CASES: dict[str, tuple[int, str]]= {
 
 
 def make_values(name: str, T: int, kind: str) -> list[int]:
-    rng= random.Random(hash(("frob32", name)) & 0xFFFFFFFF)
+    rng= random.Random(hash(("frob2", name)) & 0xFFFFFFFF)
     if kind == "sample":
         return [0, 1, 2, 3, 0xFF, MASK64,
                 0x12345678ABCDEF00, 0xFEDCBA9876543210][:T]
@@ -46,8 +46,7 @@ def write_case(name: str, T: int, kind: str) -> None:
         return
     print(f"gen {name} (T={T}, kind={kind})", file=sys.stderr)
     values= make_values(name, T, kind)
-    # a^32 = pow(a, 32) を batch_pow で
-    pairs= [(a, 32) for a in values]
+    pairs= [(a, 4) for a in values]
     results= gf2_64.batch_pow(pairs)
     with open(in_path, "w") as f:
         f.write(f"{T}\n")

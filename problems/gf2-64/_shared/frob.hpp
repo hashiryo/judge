@@ -1,20 +1,24 @@
 #pragma once
 // GF(2^64) の Frobenius^k (= a^{2^k}) を byte table で計算する current best 実装。
-// 提供: frob4, frob8, frob16, frob32 (k = 2, 3, 4, 5)
 //
-// 各 frob_k は F_2-線型写像なので 8 byte tables (= 16 KB / k) で 8 lookup + 8 XOR。
+// 命名規約: frobK の K は **sq の適用回数** (= 結果は a^{2^K} に等しい)。
+//   frob1 (= sq, _shared/sq.hpp で提供)
+//   frob2 (= a^4)
+//   frob4 (= a^16)
+//   frob8 (= a^256)
+//   frob16 (= a^65536)
+//
+// 各 frobK は F_2-線型写像なので 8 byte tables (= 16 KB / table) で 8 lookup + 7 XOR。
 // テーブルは constexpr で compile-time に作られる (PDEP は使わず bit-interleave で
 // 構成して constexpr 評価可)。
 //
 // 利用側ルール:
-//   gf2-64-frob{4,8,16,32}/algos/* は本ファイルを使ってはいけない (frob_k の
-//     比較対象なので)
-//   それ以外の problem (div / pow / sqrt / log) は building block として OK
-//   k=2 (sq) は _shared/sq.hpp が PDEP で提供するのでここには無い
+//   gf2-64-frob{2,4,8,16}/algos/* は本ファイルを使ってはいけない (frobK の
+//     比較対象なので)。
+//   それ以外の problem (div / pow / sqrt / log) は building block として OK。
+//   K=1 (= sq) は _shared/sq.hpp が PDEP で提供。 ここには無い。
 //
-// 更新時の手順:
-//   1. gf2-64-frob{k}/algos/ で新バリアントを追加し比較
-//   2. 速い側に確定したら本ファイルを更新
+// Itoh-Tsujii で必要な K = 1, 2, 4, 8, 16 を全カバー。
 #include "_common.hpp"
 namespace gf2_64_pclmul {
 namespace _frob_detail {
@@ -33,8 +37,7 @@ constexpr u64 sq_constexpr(u64 a) {
  u64 d= h ^ (h << 1);
  return spread_constexpr(u32(a)) ^ RED_TABLE[h >> 60] ^ d ^ (d << 3);
 }
-template<int sq_count>
-constexpr array<array<u64, 256>, 8> make_frob_table() {
+template<int sq_count> constexpr array<array<u64, 256>, 8> make_frob_table() {
  array<array<u64, 256>, 8> t{};
  for(int p= 0; p < 8; ++p) {
   for(int b= 0; b < 256; ++b) {
@@ -47,16 +50,23 @@ constexpr array<array<u64, 256>, 8> make_frob_table() {
 }
 }  // namespace _frob_detail
 
-inline constexpr auto FROB4_BYTE = _frob_detail::make_frob_table<2>();
-inline constexpr auto FROB8_BYTE = _frob_detail::make_frob_table<3>();
-inline constexpr auto FROB16_BYTE= _frob_detail::make_frob_table<4>();
-inline constexpr auto FROB32_BYTE= _frob_detail::make_frob_table<5>();
+// FROBK_BYTE[p][b] = frobK(b << 8p)。 K = sq 適用回数。
+inline constexpr auto FROB2_BYTE = _frob_detail::make_frob_table<2>();
+inline constexpr auto FROB4_BYTE = _frob_detail::make_frob_table<4>();
+inline constexpr auto FROB8_BYTE = _frob_detail::make_frob_table<8>();
+inline constexpr auto FROB16_BYTE= _frob_detail::make_frob_table<16>();
 
-[[gnu::always_inline]] inline u64 apply_frob_byte(const array<array<u64, 256>, 8>& t, u64 a) {
- return t[0][u8(a)] ^ t[1][u8(a >> 8)] ^ t[2][u8(a >> 16)] ^ t[3][u8(a >> 24)] ^ t[4][u8(a >> 32)] ^ t[5][u8(a >> 40)] ^ t[6][u8(a >> 48)] ^ t[7][u8(a >> 56)];
+// 各 frobK は対応する byte table を直接展開 (関数引数経由の indirection を避ける)。
+inline u64 frob2(u64 a) {
+ return FROB2_BYTE[0][u8(a)] ^ FROB2_BYTE[1][u8(a >> 8)] ^ FROB2_BYTE[2][u8(a >> 16)] ^ FROB2_BYTE[3][u8(a >> 24)] ^ FROB2_BYTE[4][u8(a >> 32)] ^ FROB2_BYTE[5][u8(a >> 40)] ^ FROB2_BYTE[6][u8(a >> 48)] ^ FROB2_BYTE[7][u8(a >> 56)];
 }
-inline u64 frob4 (u64 a) { return apply_frob_byte(FROB4_BYTE,  a); }
-inline u64 frob8 (u64 a) { return apply_frob_byte(FROB8_BYTE,  a); }
-inline u64 frob16(u64 a) { return apply_frob_byte(FROB16_BYTE, a); }
-inline u64 frob32(u64 a) { return apply_frob_byte(FROB32_BYTE, a); }
+inline u64 frob4(u64 a) {
+ return FROB4_BYTE[0][u8(a)] ^ FROB4_BYTE[1][u8(a >> 8)] ^ FROB4_BYTE[2][u8(a >> 16)] ^ FROB4_BYTE[3][u8(a >> 24)] ^ FROB4_BYTE[4][u8(a >> 32)] ^ FROB4_BYTE[5][u8(a >> 40)] ^ FROB4_BYTE[6][u8(a >> 48)] ^ FROB4_BYTE[7][u8(a >> 56)];
+}
+inline u64 frob8(u64 a) {
+ return FROB8_BYTE[0][u8(a)] ^ FROB8_BYTE[1][u8(a >> 8)] ^ FROB8_BYTE[2][u8(a >> 16)] ^ FROB8_BYTE[3][u8(a >> 24)] ^ FROB8_BYTE[4][u8(a >> 32)] ^ FROB8_BYTE[5][u8(a >> 40)] ^ FROB8_BYTE[6][u8(a >> 48)] ^ FROB8_BYTE[7][u8(a >> 56)];
+}
+inline u64 frob16(u64 a) {
+ return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)];
+}
 }

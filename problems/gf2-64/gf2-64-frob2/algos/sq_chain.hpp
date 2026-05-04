@@ -1,20 +1,20 @@
 #pragma once
-// sq を 16 回繰り返して a^{2^16} を計算 (= current best sq の 16 回適用)。
+// sq を 2 回繰り返して a^{2^2} を計算 (= current best sq の 2 回適用)。
 // _shared/sq.hpp の current best sq を使う (= sq は building block)。
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/sq.hpp"
-namespace gf2_64_frob16_sq_chain {
+namespace gf2_64_frob2_sq_chain {
 using gf2_64_pclmul::sq;
-inline u64 frob16(u64 a) {
- for(int i= 0; i < 16; ++i) a= sq(a);
+inline u64 frob2(u64 a) {
+ for(int i= 0; i < 2; ++i) a= sq(a);
  return a;
 }
 }
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as) {
-  using gf2_64_frob16_sq_chain::frob16;
+  using gf2_64_frob2_sq_chain::frob2;
   vector<u64> ans(as.size());
-  for(size_t i= 0; i < as.size(); ++i) ans[i]= frob16(as[i]);
+  for(size_t i= 0; i < as.size(); ++i) ans[i]= frob2(as[i]);
   return ans;
  }
 };

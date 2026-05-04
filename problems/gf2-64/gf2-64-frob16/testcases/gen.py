@@ -2,7 +2,7 @@
 # /// script
 # requires-python = ">=3.12"
 # ///
-"""GF(2^64) で a^16 を計算するテストケース生成。"""
+"""GF(2^64) で a^65536 (= a^{2^16}) を計算するテストケース生成。"""
 import random
 import sys
 from pathlib import Path
@@ -46,8 +46,7 @@ def write_case(name: str, T: int, kind: str) -> None:
         return
     print(f"gen {name} (T={T}, kind={kind})", file=sys.stderr)
     values= make_values(name, T, kind)
-    # a^16 = pow(a, 16) を batch_pow で
-    pairs= [(a, 16) for a in values]
+    pairs= [(a, 65536) for a in values]
     results= gf2_64.batch_pow(pairs)
     with open(in_path, "w") as f:
         f.write(f"{T}\n")

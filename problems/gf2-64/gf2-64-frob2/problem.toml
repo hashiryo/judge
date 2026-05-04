@@ -1,0 +1,6 @@
+# 自前実験: GF(2^64) で a^{2^2} = a^4 (= sq を 2 回適用 = Frobenius^2) を計算する。
+# sq を 2 回繰り返す方法と、 一気に F_2-線型写像と見て byte table で計算する方法の比較。
+url = ""
+tle = 5
+mle = 256
+callgrind_case = "random_00"

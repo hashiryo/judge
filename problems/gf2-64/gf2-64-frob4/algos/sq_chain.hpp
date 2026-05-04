@@ -1,12 +1,14 @@
 #pragma once
-// sq を 2 回繰り返して a^4 を計算 (= current best sq の 2 回適用)。
-//
-// _shared/sq.hpp の current best sq を使う (= mul/sq は building block)。
+// sq を 4 回繰り返して a^{2^4} を計算 (= current best sq の 4 回適用)。
+// _shared/sq.hpp の current best sq を使う (= sq は building block)。
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/sq.hpp"
 namespace gf2_64_frob4_sq_chain {
 using gf2_64_pclmul::sq;
-inline u64 frob4(u64 a) { return sq(sq(a)); }
+inline u64 frob4(u64 a) {
+ for(int i= 0; i < 4; ++i) a= sq(a);
+ return a;
+}
 }
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as) {

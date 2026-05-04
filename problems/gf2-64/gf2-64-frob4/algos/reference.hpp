@@ -1,7 +1,6 @@
 #pragma once
 #include "../../_shared/_common.hpp"
-// 素朴 reference: bit-by-bit sq を 2 回繰り返し。
-// (sq_naive 自体は gf2-64-sq/algos/reference.hpp と同じ実装)
+// 素朴 reference: bit-by-bit sq を 4 回繰り返し。
 struct GF2_64Op {
  static u64 sq_naive(u64 a) {
   u64 lo= 0, hi= 0;
@@ -22,7 +21,7 @@ struct GF2_64Op {
   return lo;
  }
  static u64 frob4(u64 a) {
-  for(int i= 0; i < 2; ++i) a= sq_naive(a);
+  for(int i= 0; i < 4; ++i) a= sq_naive(a);
   return a;
  }
  static vector<u64> run(const vector<u64>& as) {
