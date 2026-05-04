@@ -6,18 +6,8 @@
 // (最大 4 bit 連続) を 1 mul で消化 → 平均 ~16 muls + 64 sqs。
 // 大局的には mul 数を半減させる狙い。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pow_pdep_window {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
@@ -53,7 +43,7 @@ u64 pow(u64 a, u64 e) {
 }
 }  // namespace gf2_64_pow_pdep_window
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_pdep_window::pow;
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow(as[i], es[i]);

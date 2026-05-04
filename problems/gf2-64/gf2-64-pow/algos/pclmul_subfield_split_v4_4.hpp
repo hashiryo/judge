@@ -118,9 +118,10 @@ u64 pow(u64 a, u64 e) {
  constexpr u64 M_VAL= (~u64(0)) / 65535u;
  const u16 q= e / M_VAL;
  if(!q) return pow_byte_window(a, e);
- const u64 r= e - M_VAL * q;
  const u16 N= mul(mul(a, frob16(a)), mul(frob32(a), frob48(a)));
  const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
+ const u64 r= e - M_VAL * q;
+ if(!r) return b;
  const u64 g= pow_byte_window(a, r);
  return mul(b, g);
 }
