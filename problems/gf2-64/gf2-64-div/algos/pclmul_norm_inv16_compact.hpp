@@ -7,19 +7,9 @@
 //
 // 期待: 6 lookups 節約 (per inv)、~18 cycle 改善。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/basis_change.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pclmul_norm_inv16_compact {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
@@ -31,7 +21,7 @@ inline u64 EMBED_F16_BYTE[2][256];
 // F_{2^16} 直接 inv テーブル (nim 基底)
 inline u16 INV16[65536];
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
  // Frobenius byte table (16 sqs = ^{2^16})
@@ -87,12 +77,12 @@ inline bool inited= false;
 [[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
 [[gnu::always_inline]] inline u16 extract_f16(u64 N) { return EXTRACT_F16_BYTE[0][u8(N)] ^ EXTRACT_F16_BYTE[1][u8(N >> 8)] ^ EXTRACT_F16_BYTE[2][u8(N >> 16)] ^ EXTRACT_F16_BYTE[3][u8(N >> 24)] ^ EXTRACT_F16_BYTE[4][u8(N >> 32)] ^ EXTRACT_F16_BYTE[5][u8(N >> 40)] ^ EXTRACT_F16_BYTE[6][u8(N >> 48)] ^ EXTRACT_F16_BYTE[7][u8(N >> 56)]; }
 [[gnu::always_inline]] inline u64 embed_f16(u16 n) { return EMBED_F16_BYTE[0][u8(n)] ^ EMBED_F16_BYTE[1][u8(n >> 8)]; }
-[[gnu::target("pclmul")]] u64 inv_in_f16(u64 N_poly) {
+u64 inv_in_f16(u64 N_poly) {
  const u16 n16= extract_f16(N_poly);
  const u16 inv_n16= INV16[n16];
  return embed_f16(inv_n16);
 }
-[[gnu::target("pclmul")]] void inv_batch4(const u64 a[4], u64 out[4]) {
+void inv_batch4(const u64 a[4], u64 out[4]) {
  u64 b1[4], b2[4], b3[4];
 #pragma GCC unroll 4
  for(int k= 0; k < 4; ++k) b1[k]= frob16(a[k]);
@@ -112,7 +102,7 @@ inline bool inited= false;
 #pragma GCC unroll 4
  for(int k= 0; k < 4; ++k) out[k]= mul(beta[k], N_inv[k]);
 }
-[[gnu::target("pclmul")]] u64 inv_single(u64 a) {
+u64 inv_single(u64 a) {
  const u64 b1= frob16(a);
  const u64 b2= frob16(b1);
  const u64 b3= frob16(b2);
@@ -122,7 +112,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pclmul_norm_inv16_compact
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
   using gf2_64_pclmul_norm_inv16_compact::init_tables;
   using gf2_64_pclmul_norm_inv16_compact::inv_batch4;

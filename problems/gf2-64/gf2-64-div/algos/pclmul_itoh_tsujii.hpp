@@ -15,26 +15,17 @@
 //         5 muls, 31 sqs
 //   final: a^{2^64 - 2} = T_63^2 (1 sq)
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#define PCLMUL_RUN [[gnu::target("pclmul")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pclmul_itoh_tsujii {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 // k 回 Frobenius (= 二乗)。k=0 は何もしない。
-[[gnu::target("pclmul")]] u64 frob(u64 x, int k) {
+u64 frob(u64 x, int k) {
  for(int i= 0; i < k; ++i) x= sq(x);
  return x;
 }
-[[gnu::target("pclmul")]] u64 inv(u64 a) {
+u64 inv(u64 a) {
  // main chain: T_k = a^{2^k - 1} for k = 1, 2, 4, 8, 16, 32
  const u64 T1= a;
  const u64 T2= mul(T1, frob(T1, 1));      //  1 sq + 1 mul
@@ -53,7 +44,7 @@ using gf2_64_pclmul::sq;
 }
 }  // namespace gf2_64_pclmul_itoh_tsujii
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
   using gf2_64_pclmul_itoh_tsujii::inv;
   vector<u64> ans(as.size());
