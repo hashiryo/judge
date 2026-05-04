@@ -100,7 +100,6 @@ void init_tables() {
 }
 inline u64 embed_idx(u16 idx) { return EMBED_BYTE[0][u8(idx)] ^ EMBED_BYTE[1][u8(idx >> 8)]; }
 u64 pow_byte_window(u64 g, u64 e) {
- if(e == 0) return 1;
  u64 T[16]= {1, g};
 #pragma GCC unroll 14
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
@@ -117,16 +116,13 @@ u64 pow(u64 a, u64 e) {
  if(!e) return 1;
  if(!a) return 0;
  constexpr u64 M_VAL= (~u64(0)) / 65535u;
- const u16 e_low_red= e % 65535;
- const u64 e_high= e % M_VAL;
+ const u16 q= e / M_VAL;
+ if(!q) return pow_byte_window(a, e);
+ const u64 r= e - M_VAL * q;
  const u16 N= mul(mul(a, frob16(a)), mul(frob32(a), frob48(a)));
- const u16 log_beta= (u32(LN_SIGMA[N]) * 16384) % 65535;
- const u64 beta_inv_poly= embed_idx(PW_SIGMA_IDX[65535u - log_beta]);
- const u64 gamma= mul(a, beta_inv_poly);
- if(e_low_red == 0) return pow_byte_window(gamma, e_high);
- const u64 beta_pow= embed_idx(PW_SIGMA_IDX[(u32(log_beta) * e_low_red) % 65535]);
- const u64 gamma_pow= pow_byte_window(gamma, e_high);
- return mul(beta_pow, gamma_pow);
+ const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
+ const u64 g= pow_byte_window(a, r);
+ return mul(b, g);
 }
 }  // namespace gf2_64_pow_subfield_split_v4_3
 struct GF2_64Op {
