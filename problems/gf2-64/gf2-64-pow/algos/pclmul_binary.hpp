@@ -10,23 +10,12 @@
 //   戦略 (window 法 / subfield split / Frobenius など)」で更新された場合、 本
 //   baseline の "naive binary" の意味がなくなる。 pow 計算ロジックは algo 内に閉じる。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#define PCLMUL_RUN [[gnu::target("pclmul")]]
-#else
-#define PCLMUL_RUN
-#endif
-
 namespace gf2_64_pow_pclmul_binary {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-
-[[gnu::target("pclmul")]] inline u64 pow_binary(u64 a, u64 e) {
+inline u64 pow_binary(u64 a, u64 e) {
  u64 res= 1;
  while(e) {
   if(e & 1) res= mul(res, a);
@@ -36,9 +25,8 @@ using gf2_64_pclmul::sq;
  return res;
 }
 }
-
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_pclmul_binary::pow_binary;
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow_binary(as[i], es[i]);

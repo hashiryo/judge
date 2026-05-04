@@ -21,7 +21,7 @@
 namespace gf2_64_pow_pdep_window {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-[[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // odd 冪のみ precompute: tab[k] = a^{2k+1} for k = 0..7 → a, a^3, ..., a^{15}
  u64 tab[8];

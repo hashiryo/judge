@@ -20,18 +20,8 @@
 //       Zen 3 で PDEP 速いので gain は小さいかもしれない。ARM NEON では
 //       PSHUFB 相当 (vqtbl1q_u8) があるので意味がより大きい (PDEP 無いから)。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2,sse4.1,ssse3")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/mul.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2,sse4.1,ssse3")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pow_pshufb_batch4 {
 using gf2_64_pclmul::mul;
 // (lo, hi) を P(x) = x^64 + x^4 + x^3 + x + 1 で reduce → 64-bit
@@ -119,7 +109,7 @@ inline constexpr u8 SPREAD_TABLE[16]= {
 }
 }  // namespace gf2_64_pow_pshufb_batch4
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_pshufb_batch4::pow_batch4;
   using gf2_64_pow_pshufb_batch4::pow_single;
   const size_t T= as.size();

@@ -22,10 +22,10 @@
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
 namespace gf2_64_pow_frob_basis {
+using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob16;
-[[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // Precompute α^{2^k} for k = 0..63 を 4 stream 並列で生成
  u64 frob[64];
