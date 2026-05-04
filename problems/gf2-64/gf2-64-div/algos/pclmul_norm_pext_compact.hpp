@@ -15,6 +15,7 @@
 #endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #include <immintrin.h>
@@ -27,12 +28,12 @@
 namespace gf2_64_pclmul_norm_pext_compact {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
+using gf2_64_pclmul::frob16;
 using u16= unsigned short;
 using u32= unsigned;
 
 constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
 
-inline u64 FROB16_BYTE[8][256];
 inline u64 PEXT_MASK= 0;
 inline u16 INV_PEXT_IDX[65536];  // PEXT idx → idx of inverse (16-bit, 128 KiB)
 inline u64 EMBED_BYTE[2][256];   // 16-bit idx → 64-bit poly via 2 byte lookup (4 KiB)
@@ -44,24 +45,6 @@ inline bool inited= false;
 [[gnu::target("pclmul")]] void init_tables() {
  if(inited) return;
  inited= true;
- // Frobenius byte table (16 sqs)
- {
-  u64 col[64];
-  for(int j= 0; j < 64; ++j) {
-   u64 v= u64(1) << j;
-   for(int k= 0; k < 16; ++k) v= sq(v);
-   col[j]= v;
-  }
-  for(int p= 0; p < 8; ++p) {
-   for(int b= 0; b < 256; ++b) {
-    u64 v= 0;
-    for(int bit= 0; bit < 8; ++bit) {
-     if((b >> bit) & 1) v^= col[p * 8 + bit];
-    }
-    FROB16_BYTE[p][b]= v;
-   }
-  }
- }
  // σ^0..σ^15 + Gauss 消去で線型独立な 16 bit
  u64 sigma_pow[16];
  sigma_pow[0]= 1;
@@ -154,7 +137,6 @@ inline bool inited= false;
   }
  }
 }
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
 [[gnu::always_inline]] inline u32 extract_idx(u64 N) {
 #if HAVE_PEXT
  return u32(_pext_u64(N, PEXT_MASK));

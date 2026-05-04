@@ -18,43 +18,13 @@
 //   こちらは α^{2^k} を全部 precompute してから tree mul
 //   → 後者の方が tree mul の depth が log2(popcount(e)) と短い (= 5 levels)
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
+#include "../../_shared/frob.hpp"
 namespace gf2_64_pow_frob_basis {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
-inline bool inited= false;
-[[gnu::target("pclmul")]] void init_frob16_table() {
- if(inited) return;
- inited= true;
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < 16; ++k) v= sq(v);
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   FROB16_BYTE[p][b]= v;
-  }
- }
-}
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
+using gf2_64_pclmul::frob16;
 [[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // Precompute α^{2^k} for k = 0..63 を 4 stream 並列で生成
@@ -92,10 +62,8 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pow_frob_basis
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
-  using gf2_64_pow_frob_basis::init_frob16_table;
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_frob_basis::pow;
-  init_frob16_table();
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow(as[i], es[i]);
   return ans;

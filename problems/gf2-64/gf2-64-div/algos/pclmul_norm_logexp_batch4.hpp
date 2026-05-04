@@ -15,6 +15,7 @@
 #endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
@@ -26,27 +27,12 @@
 namespace gf2_64_pclmul_norm_logexp_batch4 {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
+using gf2_64_pclmul::frob16;
 inline u16 PW16[65536], LN16[65536];
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < 16; ++k) v= sq(v);
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   FROB16_BYTE[p][b]= v;
-  }
- }
  PW16[0]= PW16[65535]= 1;
  for(int i= 1; i < 65535; ++i) {
   PW16[i]= u16((PW16[i - 1] << 1) ^ (0x1681fu & u16(-(PW16[i - 1] >= 0x8000u))));
@@ -60,7 +46,6 @@ inline bool inited= false;
  }
  LN16[1]= 0;
 }
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
 [[gnu::target("pclmul")]] u64 inv_in_f16_logexp(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);
  const u16 n16= u16(N_nim);

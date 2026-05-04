@@ -10,6 +10,7 @@
 #endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
@@ -21,29 +22,13 @@
 namespace gf2_64_pclmul_norm_inv16 {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
+using gf2_64_pclmul::frob16;
 // F_{2^16} 直接 inv テーブル (nim 基底): INV16[A] = A^{-1} for A != 0, INV16[0] = 0.
 inline u16 INV16[65536];
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
- // Frobenius byte table (sq 16 回 = ^{2^16})
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < 16; ++k) v= sq(v);
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   FROB16_BYTE[p][b]= v;
-  }
- }
  // F_{2^16} の log/exp を一旦構築 → INV16 を作る → log/exp は捨てる
  u16 PW[65536], LN[65536];
  PW[0]= PW[65535]= 1;
@@ -64,7 +49,6 @@ inline bool inited= false;
   INV16[v]= PW[(65535u - u32(LN[v])) % 65535u];
  }
 }
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
 [[gnu::target("pclmul")]] u64 inv_in_f16_direct(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);
  const u16 inv_n16= INV16[u16(N_nim)];  // 1 lookup

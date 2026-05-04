@@ -16,6 +16,7 @@
 #endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #include <immintrin.h>
@@ -28,32 +29,10 @@
 namespace gf2_64_pow_subfield_split_v4 {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
-inline u64 FROB32_BYTE[8][256];
-inline u64 FROB48_BYTE[8][256];
-inline u64 FROB4_BYTE[8][256];
-[[gnu::target("pclmul")]] void build_frob_byte_table(int reps, u64 (&out)[8][256]) {
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < reps; ++k) v= sq(v);
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   out[p][b]= v;
-  }
- }
-}
-[[gnu::target("pclmul")]] u64 apply_byte_table(const u64 (&t)[8][256], u64 a) { return t[0][u8(a)] ^ t[1][u8(a >> 8)] ^ t[2][u8(a >> 16)] ^ t[3][u8(a >> 24)] ^ t[4][u8(a >> 32)] ^ t[5][u8(a >> 40)] ^ t[6][u8(a >> 48)] ^ t[7][u8(a >> 56)]; }
-[[gnu::target("pclmul")]] u64 frob4(u64 a) { return apply_byte_table(FROB4_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob16(u64 a) { return apply_byte_table(FROB16_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob32(u64 a) { return apply_byte_table(FROB32_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob48(u64 a) { return apply_byte_table(FROB48_BYTE, a); }
+using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob32;
+using gf2_64_pclmul::frob48;
 constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
 
 inline u64 PEXT_MASK= 0;
@@ -184,10 +163,7 @@ inline bool inited= false;
 [[gnu::target("pclmul")]] void init_tables() {
  if(inited) return;
  inited= true;
- build_frob_byte_table(4, FROB4_BYTE);
- build_frob_byte_table(16, FROB16_BYTE);
- build_frob_byte_table(32, FROB32_BYTE);
- build_frob_byte_table(48, FROB48_BYTE);
+ // frob byte tables は _shared/frob.hpp が compile-time に提供
  build_sigma_tables();
 }
 [[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {

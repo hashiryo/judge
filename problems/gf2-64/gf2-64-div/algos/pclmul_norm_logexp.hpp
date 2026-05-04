@@ -16,6 +16,7 @@
 #endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
@@ -27,30 +28,13 @@
 namespace gf2_64_pclmul_norm_logexp {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-// Frobenius (α → α^{2^16}) byte table
-inline u64 FROB16_BYTE[8][256];
+using gf2_64_pclmul::frob16;
 // F_{2^16} log/exp テーブル (Nimber 互換, nim 基底での値が index/値となる)
 inline u16 PW16[65536], LN16[65536];
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
- // Frobenius byte table
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < 16; ++k) v= sq(v);
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   FROB16_BYTE[p][b]= v;
-  }
- }
  // F_{2^16} log/exp テーブル (Nimber.hpp と同じ recurrence)。
  // 第 1 段で poly 基底 (s = 2 を生成元、r(s) = s^16 + ...) で PW[i] = s^i
  PW16[0]= PW16[65535]= 1;
@@ -67,7 +51,6 @@ inline bool inited= false;
  }
  LN16[1]= 0;
 }
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
 // F_{2^16} subfield 元 N (poly 基底 64-bit) の inv を log/exp で計算 → 64-bit poly に戻す
 [[gnu::target("pclmul")]] u64 inv_in_f16_logexp(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);

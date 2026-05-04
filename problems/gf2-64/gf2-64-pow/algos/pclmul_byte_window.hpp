@@ -13,44 +13,13 @@
 //
 // 期待: pclmul_pdep より速い、特に arm-clang (PDEP fallback が遅い) で大きく勝つ。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#define PCLMUL_RUN [[gnu::target("pclmul")]]
-#else
-#define PCLMUL_RUN
-#endif
+#include "../../_shared/frob.hpp"
 namespace gf2_64_pow_byte_window {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-
-// Frobenius 4-step (a → a^{2^4} = a^{16}) byte table
-inline u64 FROB4_BYTE[8][256];
-inline bool inited= false;
-[[gnu::target("pclmul")]] void init_frob4_table() {
- if(inited) return;
- inited= true;
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < 4; ++k) v= sq(v);  // 4 sqs = ^{2^4}
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   FROB4_BYTE[p][b]= v;
-  }
- }
-}
-[[gnu::always_inline]] inline u64 frob4(u64 a) { return FROB4_BYTE[0][u8(a)] ^ FROB4_BYTE[1][u8(a >> 8)] ^ FROB4_BYTE[2][u8(a >> 16)] ^ FROB4_BYTE[3][u8(a >> 24)] ^ FROB4_BYTE[4][u8(a >> 32)] ^ FROB4_BYTE[5][u8(a >> 40)] ^ FROB4_BYTE[6][u8(a >> 48)] ^ FROB4_BYTE[7][u8(a >> 56)]; }
+using gf2_64_pclmul::frob4;
 [[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // Precompute T[i] = a^i for i = 0..15 (14 muls)
@@ -74,10 +43,8 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pow_byte_window
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
-  using gf2_64_pow_byte_window::init_frob4_table;
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_byte_window::pow;
-  init_frob4_table();
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow(as[i], es[i]);
   return ans;

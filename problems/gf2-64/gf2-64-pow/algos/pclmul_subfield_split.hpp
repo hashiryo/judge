@@ -10,24 +10,16 @@
 // ただし decompose の overhead (~50 cycles) と pow 削減 (~40 cycles) が拮抗するため
 // 実機での効果は微妙な可能性が高い。実測で検証。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pow_subfield_split {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
-inline u64 FROB4_BYTE[8][256];
+using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob16;
 inline u16 PW16[65536], LN16[65536];
 
 // M^{-1} mod 65535 を事前計算 (compile-time):
@@ -36,46 +28,10 @@ inline u16 PW16[65536], LN16[65536];
 //   ⇒ 4 · u ≡ 1 mod 65535、 u = 16384 (= (65535+1)/4)
 constexpr u32 M_INV_MOD_65535= 16384;
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
- // frob16 byte table (16 sqs)
- {
-  u64 col[64];
-  for(int j= 0; j < 64; ++j) {
-   u64 v= u64(1) << j;
-   for(int k= 0; k < 16; ++k) v= sq(v);
-   col[j]= v;
-  }
-  for(int p= 0; p < 8; ++p) {
-   for(int b= 0; b < 256; ++b) {
-    u64 v= 0;
-    for(int bit= 0; bit < 8; ++bit) {
-     if((b >> bit) & 1) v^= col[p * 8 + bit];
-    }
-    FROB16_BYTE[p][b]= v;
-   }
-  }
- }
- // frob4 byte table for byte_window pow on γ
- {
-  u64 col[64];
-  for(int j= 0; j < 64; ++j) {
-   u64 v= u64(1) << j;
-   for(int k= 0; k < 4; ++k) v= sq(v);
-   col[j]= v;
-  }
-  for(int p= 0; p < 8; ++p) {
-   for(int b= 0; b < 256; ++b) {
-    u64 v= 0;
-    for(int bit= 0; bit < 8; ++bit) {
-     if((b >> bit) & 1) v^= col[p * 8 + bit];
-    }
-    FROB4_BYTE[p][b]= v;
-   }
-  }
- }
- // F_{2^16} log/exp (Nimber 互換)
+ // F_{2^16} log/exp (Nimber 互換) — frob byte tables は _shared/frob.hpp が提供
  PW16[0]= PW16[65535]= 1;
  for(int i= 1; i < 65535; ++i) {
   PW16[i]= u16((PW16[i - 1] << 1) ^ (0x1681fu & u16(-(PW16[i - 1] >= 0x8000u))));
@@ -89,8 +45,6 @@ inline bool inited= false;
  }
  LN16[1]= 0;
 }
-[[gnu::target("pclmul")]] u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
-[[gnu::target("pclmul")]] u64 frob4(u64 a) { return FROB4_BYTE[0][u8(a)] ^ FROB4_BYTE[1][u8(a >> 8)] ^ FROB4_BYTE[2][u8(a >> 16)] ^ FROB4_BYTE[3][u8(a >> 24)] ^ FROB4_BYTE[4][u8(a >> 32)] ^ FROB4_BYTE[5][u8(a >> 40)] ^ FROB4_BYTE[6][u8(a >> 48)] ^ FROB4_BYTE[7][u8(a >> 56)]; }
 // F_{2^16} subfield 元 (poly basis 64-bit) → 16-bit
 [[gnu::target("pclmul")]] u16 extract_f16(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);
@@ -165,7 +119,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pow_subfield_split
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_subfield_split::init_tables;
   using gf2_64_pow_subfield_split::pow;
   init_tables();

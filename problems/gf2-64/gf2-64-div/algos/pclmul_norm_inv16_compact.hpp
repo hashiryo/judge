@@ -9,11 +9,12 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 namespace gf2_64_pclmul_norm_inv16_compact {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
+using gf2_64_pclmul::frob16;
 // poly basis 64-bit (subfield 元) → 16-bit nim 表現
 inline u16 EXTRACT_F16_BYTE[8][256];
 // nim 16-bit → poly basis 64-bit
@@ -24,24 +25,6 @@ inline bool inited= false;
 void init_tables() {
  if(inited) return;
  inited= true;
- // Frobenius byte table (16 sqs = ^{2^16})
- {
-  u64 col[64];
-  for(int j= 0; j < 64; ++j) {
-   u64 v= u64(1) << j;
-   for(int k= 0; k < 16; ++k) v= sq(v);
-   col[j]= v;
-  }
-  for(int p= 0; p < 8; ++p) {
-   for(int b= 0; b < 256; ++b) {
-    u64 v= 0;
-    for(int bit= 0; bit < 8; ++bit) {
-     if((b >> bit) & 1) v^= col[p * 8 + bit];
-    }
-    FROB16_BYTE[p][b]= v;
-   }
-  }
- }
  // EXTRACT_F16 = low 16 bits of BASIS_BYTE
  for(int p= 0; p < 8; ++p) {
   for(int b= 0; b < 256; ++b) {
@@ -74,7 +57,6 @@ void init_tables() {
   INV16[v]= PW[(65535u - u32(LN[v])) % 65535u];
  }
 }
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
 [[gnu::always_inline]] inline u16 extract_f16(u64 N) { return EXTRACT_F16_BYTE[0][u8(N)] ^ EXTRACT_F16_BYTE[1][u8(N >> 8)] ^ EXTRACT_F16_BYTE[2][u8(N >> 16)] ^ EXTRACT_F16_BYTE[3][u8(N >> 24)] ^ EXTRACT_F16_BYTE[4][u8(N >> 32)] ^ EXTRACT_F16_BYTE[5][u8(N >> 40)] ^ EXTRACT_F16_BYTE[6][u8(N >> 48)] ^ EXTRACT_F16_BYTE[7][u8(N >> 56)]; }
 [[gnu::always_inline]] inline u64 embed_f16(u16 n) { return EMBED_F16_BYTE[0][u8(n)] ^ EMBED_F16_BYTE[1][u8(n >> 8)]; }
 u64 inv_in_f16(u64 N_poly) {

@@ -17,30 +17,30 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 namespace gf2_64_pclmul_itoh_tsujii {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-// k 回 Frobenius (= 二乗)。k=0 は何もしない。
-u64 frob(u64 x, int k) {
- for(int i= 0; i < k; ++i) x= sq(x);
- return x;
-}
+using gf2_64_pclmul::frob2;
+using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob8;
+using gf2_64_pclmul::frob16;
 u64 inv(u64 a) {
  // main chain: T_k = a^{2^k - 1} for k = 1, 2, 4, 8, 16, 32
+ // frobK(_) = sq×K の byte-table 版 (_shared/frob.hpp)
  const u64 T1= a;
- const u64 T2= mul(T1, frob(T1, 1));      //  1 sq + 1 mul
- const u64 T4= mul(T2, frob(T2, 2));      //  2 sqs + 1 mul
- const u64 T8= mul(T4, frob(T4, 4));      //  4 sqs + 1 mul
- const u64 T16= mul(T8, frob(T8, 8));     //  8 sqs + 1 mul
- const u64 T32= mul(T16, frob(T16, 16));  // 16 sqs + 1 mul
+ const u64 T2= mul(T1, sq(T1));         //  1 sq + 1 mul
+ const u64 T4= mul(T2, frob2(T2));      //  frob2 + 1 mul
+ const u64 T8= mul(T4, frob4(T4));      //  frob4 + 1 mul
+ const u64 T16= mul(T8, frob8(T8));     //  frob8 + 1 mul
+ const u64 T32= mul(T16, frob16(T16));  // frob16 + 1 mul
  // side chain: T_63 = a^{2^63 - 1} を 63 = 32+16+8+4+2+1 で組み立てる
- //   acc が a^{2^k - 1} のとき、acc = mul(frob(acc, j), T_j) すると a^{2^{k+j} - 1}
- u64 acc= mul(frob(T32, 16), T16);  // a^{2^48 - 1}, 16 sqs + 1 mul
- acc= mul(frob(acc, 8), T8);        // a^{2^56 - 1},  8 sqs + 1 mul
- acc= mul(frob(acc, 4), T4);        // a^{2^60 - 1},  4 sqs + 1 mul
- acc= mul(frob(acc, 2), T2);        // a^{2^62 - 1},  2 sqs + 1 mul
- acc= mul(frob(acc, 1), T1);        // a^{2^63 - 1},  1 sq  + 1 mul
- return sq(acc);                    // a^{2^64 - 2} = a^{-1}, 1 sq
+ u64 acc= mul(frob16(T32), T16);  // a^{2^48 - 1}
+ acc= mul(frob8(acc), T8);        // a^{2^56 - 1}
+ acc= mul(frob4(acc), T4);        // a^{2^60 - 1}
+ acc= mul(frob2(acc), T2);        // a^{2^62 - 1}
+ acc= mul(sq(acc), T1);           // a^{2^63 - 1}
+ return sq(acc);                  // a^{2^64 - 2} = a^{-1}
 }
 }  // namespace gf2_64_pclmul_itoh_tsujii
 struct GF2_64Op {

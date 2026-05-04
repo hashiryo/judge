@@ -8,69 +8,31 @@
 // メモリ: 3 × 16 KiB = 48 KiB byte tables (L1 ぎりぎり)。
 // 計算量: 同じく 24 lookups 合計、ただし依存チェーン解消。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pclmul_norm_parallel {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-// 3 段の Frobenius byte tables: α → α^{2^16}, α^{2^32}, α^{2^48}
-inline u64 FROB16_BYTE[8][256];
-inline u64 FROB32_BYTE[8][256];
-inline u64 FROB48_BYTE[8][256];
-inline bool frob_inited= false;
-[[gnu::target("pclmul")]] void init_frob_tables() {
- if(frob_inited) return;
- frob_inited= true;
- for(int stage= 0; stage < 3; ++stage) {
-  const int reps= 16 * (stage + 1);
-  u64 col[64];
-  for(int j= 0; j < 64; ++j) {
-   u64 v= u64(1) << j;
-   for(int k= 0; k < reps; ++k) v= sq(v);
-   col[j]= v;
-  }
-  auto* tbl= (stage == 0) ? &FROB16_BYTE[0][0] : (stage == 1) ? &FROB32_BYTE[0][0] : &FROB48_BYTE[0][0];
-  for(int p= 0; p < 8; ++p) {
-   for(int b= 0; b < 256; ++b) {
-    u64 v= 0;
-    for(int bit= 0; bit < 8; ++bit) {
-     if((b >> bit) & 1) v^= col[p * 8 + bit];
-    }
-    tbl[p * 256 + b]= v;
-   }
-  }
- }
-}
-[[gnu::always_inline]] inline u64 apply_byte_table(const u64 tbl[8][256], u64 a) { return tbl[0][u8(a)] ^ tbl[1][u8(a >> 8)] ^ tbl[2][u8(a >> 16)] ^ tbl[3][u8(a >> 24)] ^ tbl[4][u8(a >> 32)] ^ tbl[5][u8(a >> 40)] ^ tbl[6][u8(a >> 48)] ^ tbl[7][u8(a >> 56)]; }
-[[gnu::always_inline]] inline u64 frob16(u64 a) { return apply_byte_table(FROB16_BYTE, a); }
-[[gnu::always_inline]] inline u64 frob32(u64 a) { return apply_byte_table(FROB32_BYTE, a); }
-[[gnu::always_inline]] inline u64 frob48(u64 a) { return apply_byte_table(FROB48_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob_repeat_pdep(u64 a, int rep) {
- for(int i= 0; i < rep; ++i) a= sq(a);
- return a;
-}
+using gf2_64_pclmul::frob2;
+using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob32;
+using gf2_64_pclmul::frob48;
+
 // F_{2^16} 内の inv: N^{-1} = N^{2^16 - 2}, addition chain on 15 = 8+4+2+1
-[[gnu::target("pclmul")]] u64 inv_in_f16(u64 N) {
+u64 inv_in_f16(u64 N) {
  const u64 T1= N;
  const u64 T2= mul(T1, sq(T1));
- const u64 T4= mul(T2, frob_repeat_pdep(T2, 2));
- const u64 T8= mul(T4, frob_repeat_pdep(T4, 4));
- u64 acc= mul(frob_repeat_pdep(T8, 4), T4);
- acc= mul(frob_repeat_pdep(acc, 2), T2);
- acc= mul(frob_repeat_pdep(acc, 1), T1);
+ const u64 T4= mul(T2, frob2(T2));
+ const u64 T8= mul(T4, frob4(T4));
+ u64 acc= mul(frob4(T8), T4);
+ acc= mul(frob2(acc), T2);
+ acc= mul(sq(acc), T1);
  return sq(acc);
 }
-[[gnu::target("pclmul")]] u64 inv(u64 a) {
+u64 inv(u64 a) {
  // β1, β2, β3 を独立 byte table で並列計算 (依存なし → ILP 効くはず)
  const u64 b1= frob16(a);
  const u64 b2= frob32(a);
@@ -81,11 +43,9 @@ inline bool frob_inited= false;
 }
 }  // namespace gf2_64_pclmul_norm_parallel
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
-  using gf2_64_pclmul_norm_parallel::init_frob_tables;
   using gf2_64_pclmul_norm_parallel::inv;
-  init_frob_tables();
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= mul(as[i], inv(bs[i]));
   return ans;

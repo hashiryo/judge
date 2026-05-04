@@ -13,55 +13,26 @@
 //   - e mod 65535 = (e0 + e1 + e2 + e3) mod 65535 where e_i = 16-bit chunks
 //   - 64-bit % は ~10 cycle、桁和 + 1 reduce は ~5 cycle
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
+#include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pow_subfield_split_v2 {
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB16_BYTE[8][256];
-inline u64 FROB32_BYTE[8][256];
-inline u64 FROB48_BYTE[8][256];
-inline u64 FROB4_BYTE[8][256];
+using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob32;
+using gf2_64_pclmul::frob48;
 inline u16 PW16[65536], LN16[65536];
 
 constexpr u32 M_INV_MOD_65535= 16384;
 inline bool inited= false;
-[[gnu::target("pclmul")]] void build_frob_byte_table(int reps, u64 (&out)[8][256]) {
- u64 col[64];
- for(int j= 0; j < 64; ++j) {
-  u64 v= u64(1) << j;
-  for(int k= 0; k < reps; ++k) v= sq(v);
-  col[j]= v;
- }
- for(int p= 0; p < 8; ++p) {
-  for(int b= 0; b < 256; ++b) {
-   u64 v= 0;
-   for(int bit= 0; bit < 8; ++bit) {
-    if((b >> bit) & 1) v^= col[p * 8 + bit];
-   }
-   out[p][b]= v;
-  }
- }
-}
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
- build_frob_byte_table(4, FROB4_BYTE);
- build_frob_byte_table(16, FROB16_BYTE);
- build_frob_byte_table(32, FROB32_BYTE);
- build_frob_byte_table(48, FROB48_BYTE);
- // F_{2^16} log/exp (Nimber 互換)
+ // F_{2^16} log/exp (Nimber 互換) — frob byte tables は _shared/frob.hpp が提供
  PW16[0]= PW16[65535]= 1;
  for(int i= 1; i < 65535; ++i) {
   PW16[i]= u16((PW16[i - 1] << 1) ^ (0x1681fu & u16(-(PW16[i - 1] >= 0x8000u))));
@@ -75,11 +46,6 @@ inline bool inited= false;
  }
  LN16[1]= 0;
 }
-[[gnu::target("pclmul")]] u64 apply_byte_table(const u64 (&t)[8][256], u64 a) { return t[0][u8(a)] ^ t[1][u8(a >> 8)] ^ t[2][u8(a >> 16)] ^ t[3][u8(a >> 24)] ^ t[4][u8(a >> 32)] ^ t[5][u8(a >> 40)] ^ t[6][u8(a >> 48)] ^ t[7][u8(a >> 56)]; }
-[[gnu::target("pclmul")]] u64 frob4(u64 a) { return apply_byte_table(FROB4_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob16(u64 a) { return apply_byte_table(FROB16_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob32(u64 a) { return apply_byte_table(FROB32_BYTE, a); }
-[[gnu::target("pclmul")]] u64 frob48(u64 a) { return apply_byte_table(FROB48_BYTE, a); }
 [[gnu::target("pclmul")]] u16 extract_f16(u64 N_poly) { return u16(gf2_64_basis::poly_to_nim(N_poly)); }
 [[gnu::target("pclmul")]] u64 embed_f16(u16 n) { return gf2_64_basis::nim_to_poly(u64(n)); }
 // e mod 65535 を桁和で高速計算 (2^16 ≡ 1 mod 65535 を利用)
@@ -138,7 +104,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pow_subfield_split_v2
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_subfield_split_v2::init_tables;
   using gf2_64_pow_subfield_split_v2::pow;
   init_tables();
