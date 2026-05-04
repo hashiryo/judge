@@ -45,8 +45,8 @@ void init_tables() {
  }
  LN16[1]= 0;
 }
-[[gnu::target("pclmul")]] u16 extract_f16(u64 N_poly) { return u16(gf2_64_basis::poly_to_nim(N_poly)); }
-[[gnu::target("pclmul")]] u64 embed_f16(u16 n) { return gf2_64_basis::nim_to_poly(u64(n)); }
+u16 extract_f16(u64 N_poly) { return u16(gf2_64_basis::poly_to_nim(N_poly)); }
+u64 embed_f16(u16 n) { return gf2_64_basis::nim_to_poly(u64(n)); }
 // e mod 65535 を桁和で高速計算 (2^16 ≡ 1 mod 65535 を利用)
 [[gnu::always_inline]] inline u32 e_mod_65535(u64 e) {
  const u32 s= u32(e & 0xFFFF) + u32((e >> 16) & 0xFFFF) + u32((e >> 32) & 0xFFFF) + u32((e >> 48) & 0xFFFF);
@@ -57,7 +57,7 @@ void init_tables() {
  if(r >= 65535) r-= 65535;
  return r;
 }
-[[gnu::target("pclmul")]] u64 pow_byte_window(u64 g, u64 e) {
+u64 pow_byte_window(u64 g, u64 e) {
  if(e == 0) return 1;
  u64 T[16];
  T[0]= 1;
@@ -74,7 +74,7 @@ void init_tables() {
  }
  return acc;
 }
-[[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // ① N(α) 計算: 3 frob を独立 byte table で並列
  const u64 a16= frob16(a);

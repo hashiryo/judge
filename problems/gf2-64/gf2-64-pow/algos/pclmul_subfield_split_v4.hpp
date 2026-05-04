@@ -31,7 +31,7 @@ inline u64 EMBED_BYTE[2][256];   // idx (16-bit) → 64-bit poly via 2 byte look
 #if !HAVE_PEXT
 inline int PEXT_POS[16];
 #endif
-[[gnu::target("pclmul")]] void build_sigma_tables() {
+void build_sigma_tables() {
  // σ^0..σ^15 計算 + Gauss 消去で線型独立 16 bit 位置を特定
  u64 sigma_pow[16];
  sigma_pow[0]= 1;
@@ -129,7 +129,7 @@ inline int PEXT_POS[16];
  if(r >= 65535) r-= 65535;
  return r;
 }
-[[gnu::target("pclmul")]] u64 pow_byte_window(u64 g, u64 e) {
+u64 pow_byte_window(u64 g, u64 e) {
  if(e == 0) return 1;
  u64 T[16];
  T[0]= 1;
@@ -148,13 +148,13 @@ inline int PEXT_POS[16];
 }
 constexpr u32 M_INV_MOD_65535= 16384;
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
  // frob byte tables は _shared/frob.hpp が compile-time に提供
  build_sigma_tables();
 }
-[[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  const u64 a16= frob16(a);
  const u64 a32= frob32(a);

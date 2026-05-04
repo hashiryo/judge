@@ -18,7 +18,7 @@ using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 // 16-bit exponent の binary exp
-[[gnu::target("pclmul")]] u64 pow16(u64 a, u32 e) {
+u64 pow16(u64 a, u32 e) {
  u64 result= 1;
  while(e) {
   if(e & 1) result= mul(result, a);
@@ -27,7 +27,7 @@ using gf2_64_pclmul::sq;
  }
  return result;
 }
-[[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // e の 16-bit chunks
  const u32 e0= u32(e) & 0xFFFF;

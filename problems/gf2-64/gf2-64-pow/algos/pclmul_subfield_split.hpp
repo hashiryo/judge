@@ -45,14 +45,14 @@ void init_tables() {
  LN16[1]= 0;
 }
 // F_{2^16} subfield 元 (poly basis 64-bit) → 16-bit
-[[gnu::target("pclmul")]] u16 extract_f16(u64 N_poly) {
+u16 extract_f16(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);
  return u16(N_nim);
 }
 // 16-bit F_{2^16} 元 → 64-bit poly basis
-[[gnu::target("pclmul")]] u64 embed_f16(u16 n) { return gf2_64_basis::nim_to_poly(u64(n)); }
+u64 embed_f16(u16 n) { return gf2_64_basis::nim_to_poly(u64(n)); }
 // F_{2^16} 内の log/exp ベースの pow (in poly basis)
-[[gnu::target("pclmul")]] u64 f16_pow(u64 b_poly, u64 exp_value) {
+u64 f16_pow(u64 b_poly, u64 exp_value) {
  const u16 b16= extract_f16(b_poly);
  if(b16 == 0) return 0;
  const u32 e_red= u32(exp_value % 65535);
@@ -64,7 +64,7 @@ void init_tables() {
 // γ ∈ F_{2^64} に対する byte_window pow
 // 注: e_high = e mod M can be up to ~2^49 (M = 2^48 + 2^32 + 2^16 + 1 > 2^48)、
 //     なので 12 nibbles では足りない。安全側で 16 nibbles (64-bit) フルレンジ。
-[[gnu::target("pclmul")]] u64 pow_byte_window(u64 g, u64 e) {
+u64 pow_byte_window(u64 g, u64 e) {
  if(e == 0) return 1;
  u64 T[16];
  T[0]= 1;
@@ -81,7 +81,7 @@ void init_tables() {
  }
  return acc;
 }
-[[gnu::target("pclmul")]] u64 pow(u64 a, u64 e) {
+u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
  // Step 1: N(α) = α · α^{2^16} · α^{2^32} · α^{2^48}
  const u64 a16= frob16(a);
