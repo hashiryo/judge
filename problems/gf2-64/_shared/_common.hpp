@@ -5,7 +5,6 @@
 #else
 #include <immintrin.h>
 #endif
-
 #ifdef __x86_64__
 #define PCLMUL [[gnu::target("pclmul")]]
 #else

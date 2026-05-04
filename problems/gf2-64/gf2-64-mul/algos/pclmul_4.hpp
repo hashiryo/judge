@@ -2,7 +2,7 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 namespace gf2_64_mul_pclmul_baseline {
-inline u64 mul(u64 a, u64 b) {
+PCLMUL inline u64 mul(u64 a, u64 b) {
  static constexpr u64 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
  __m128i v= _mm_clmulepi64_si128(_mm_cvtsi64_si128(a), _mm_cvtsi64_si128(b), 0);
  u64 h= (u64)v[1], d= h ^ (h << 1);

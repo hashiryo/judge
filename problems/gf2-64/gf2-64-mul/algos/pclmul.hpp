@@ -9,7 +9,7 @@
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../_shared/_common.hpp"
 namespace gf2_64_mul_pclmul_baseline {
-inline __m128i clmul(u64 a, u64 b) {
+PCLMUL inline __m128i clmul(u64 a, u64 b) {
  __m128i av{(long long)a, 0};
  __m128i bv{(long long)b, 0};
  return _mm_clmulepi64_si128(av, bv, 0);
