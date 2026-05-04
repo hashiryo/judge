@@ -1,5 +1,5 @@
 #pragma once
-// pclmul_norm_logexp_batch4.hpp の発展形:
+// pclmul_norm_logexp.hpp の発展形:
 // F_{2^16} subfield の inv を log/exp 2 lookups → 直接 inv table 1 lookup に置換。
 //
 // memory: 256 KiB (PW + LN) → 128 KiB (INV16 のみ) で半減 + 1 lookup 節約。
@@ -54,27 +54,7 @@ void init_tables() {
  const u16 inv_n16= INV16[u16(N_nim)];  // 1 lookup
  return gf2_64_basis::nim_to_poly(u64(inv_n16));
 }
-[[gnu::target("pclmul")]] void inv_batch4(const u64 a[4], u64 out[4]) {
- u64 b1[4], b2[4], b3[4];
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) b1[k]= frob16(a[k]);
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) b2[k]= frob16(b1[k]);
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) b3[k]= frob16(b2[k]);
- u64 beta[4];
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) beta[k]= mul(mul(b1[k], b2[k]), b3[k]);
- u64 N[4];
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) N[k]= mul(a[k], beta[k]);
- u64 N_inv[4];
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) N_inv[k]= inv_in_f16_direct(N[k]);
-#pragma GCC unroll 4
- for(int k= 0; k < 4; ++k) out[k]= mul(beta[k], N_inv[k]);
-}
-[[gnu::target("pclmul")]] u64 inv_single(u64 a) {
+[[gnu::target("pclmul")]] u64 inv(u64 a) {
  const u64 b1= frob16(a);
  const u64 b2= frob16(b1);
  const u64 b3= frob16(b2);
@@ -87,19 +67,10 @@ struct GF2_64Op {
  PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
   using gf2_64_pclmul_norm_inv16::init_tables;
-  using gf2_64_pclmul_norm_inv16::inv_batch4;
-  using gf2_64_pclmul_norm_inv16::inv_single;
+  using gf2_64_pclmul_norm_inv16::inv;
   init_tables();
-  const size_t T= as.size();
-  vector<u64> ans(T);
-  size_t i= 0;
-  for(; i + 4 <= T; i+= 4) {
-   u64 b_inv[4];
-   inv_batch4(&bs[i], b_inv);
-#pragma GCC unroll 4
-   for(int k= 0; k < 4; ++k) ans[i + k]= mul(as[i + k], b_inv[k]);
-  }
-  for(; i < T; ++i) ans[i]= mul(as[i], inv_single(bs[i]));
+  vector<u64> ans(as.size());
+  for(size_t i= 0; i < as.size(); ++i) ans[i]= mul(as[i], inv(bs[i]));
   return ans;
  }
 };
