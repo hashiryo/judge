@@ -30,14 +30,14 @@
 
 #include "_common.hpp"
 namespace gf2_64_pclmul {
-[[gnu::target("pclmul")]] inline u64 mul(u64 a, u64 b) {
- static constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
+constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
+PCLMUL inline u64 mul(u64 a, u64 b) {
  __m128i v= _mm_clmulepi64_si128(_mm_cvtsi64_si128(a), _mm_cvtsi64_si128(b), 0);
  u64 h= (u64)v[1], d= h ^ (h << 1);
  return (u64)v[0] ^ RED[h >> 60] ^ d ^ (d << 3);
 }
-[[gnu::target("bmi2")]] [[gnu::always_inline]] inline u64 spread_bits(u32 a) {
-#if HAS_PDEP
+inline u64 spread_bits(u32 a) {
+#ifdef __BMI2__
  return _pdep_u64(u64(a), 0x5555555555555555ull);
 #else
  // fallback: bit interleave for 32-bit input
@@ -50,9 +50,9 @@ namespace gf2_64_pclmul {
  return x;
 #endif
 }
-[[gnu::target("bmi2")]] inline u64 sq(u64 a) {
- u64 h= spread_bits(u32(a >> 32)), d= h ^ (h << 1);
- return spread_bits(u32(a)) ^ ((u8[]){0, 27, 45, 54, 90, 65, 119, 108})[h >> 60] ^ d ^ (d << 3);
+inline u64 sq(u64 a) {
+ u64 h= spread_bits(a >> 32), d= h ^ (h << 1);
+ return spread_bits(a) ^ RED[h >> 60] ^ d ^ (d << 3);
 }
 // 累乗 (a^e) 二進展開。
 [[gnu::target("pclmul")]] inline u64 pow(u64 a, u64 e) {
