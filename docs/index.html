@@ -371,6 +371,72 @@
         padding: 40px;
         color: var(--red);
       }
+
+      /* Tip side panel */
+      [data-tip] { cursor: help; }
+      .tip-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 99;
+        display: none;
+      }
+      .tip-backdrop.open { display: block; }
+      .tip-panel {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: min(720px, 92vw);
+        background: var(--bg2);
+        border-left: 1px solid var(--border);
+        box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+        display: flex;
+        flex-direction: column;
+        z-index: 100;
+        transform: translateX(100%);
+        transition: transform 0.18s ease-out;
+      }
+      .tip-panel.open { transform: translateX(0); }
+      .tip-panel-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .tip-panel-label {
+        flex: 1;
+        color: var(--text2);
+        font-size: 0.85em;
+        font-family: ui-monospace, monospace;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tip-panel-btn {
+        padding: 4px 10px;
+        background: transparent;
+        color: var(--text2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85em;
+      }
+      .tip-panel-btn:hover { color: var(--text); }
+      .tip-panel-body {
+        flex: 1;
+        overflow: auto;
+        padding: 12px 14px;
+      }
+      .tip-panel-body pre {
+        font-family: ui-monospace, monospace;
+        font-size: 0.85em;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+        color: var(--text);
+      }
     </style>
   </head>
   <body>
@@ -449,6 +515,16 @@
       </div>
       <div id="detail-content"></div>
     </div>
+
+    <div id="tip-backdrop" class="tip-backdrop"></div>
+    <aside id="tip-panel" class="tip-panel" aria-hidden="true">
+      <div class="tip-panel-header">
+        <span class="tip-panel-label" id="tip-panel-label"></span>
+        <button class="tip-panel-btn" id="tip-panel-copy">Copy</button>
+        <button class="tip-panel-btn" id="tip-panel-close" title="Close (Esc)">✕</button>
+      </div>
+      <div class="tip-panel-body"><pre id="tip-panel-text"></pre></div>
+    </aside>
 
     <script>
       const ENVS = ["x64-g++", "x64-clang++", "arm-g++", "arm-clang++"];
@@ -765,7 +841,7 @@
             <th>${env}</th>
             <td>${escapeAttr(r.cpu_model || "-")}</td>
             <td>${escapeAttr(r.compiler_version || "-")}</td>
-            <td class="cxxflags" title="${escapeAttr(r.cxxflags || "")}">${escapeAttr(r.cxxflags || "-")}</td>
+            <td class="cxxflags"${tooltipAttr(r.cxxflags || "", `${env} · cxxflags`)}>${escapeAttr(r.cxxflags || "-")}</td>
           </tr>`;
         }).join("");
         return `
@@ -796,10 +872,53 @@
           .replace(/>/g, "&gt;");
       }
 
-      function tooltipAttr(detail) {
+      function tooltipAttr(detail, label) {
         if (!detail) return "";
-        return ` title="${escapeAttr(detail)}" style="cursor:help"`;
+        const labelAttr = label ? ` data-tip-label="${escapeAttr(label)}"` : "";
+        return ` data-tip="${escapeAttr(detail)}"${labelAttr}`;
       }
+
+      // ============================================================
+      // Tip side panel — クリックで開く / Esc または背景で閉じる / Copy ボタン付き
+      // ============================================================
+      function openTipPanel(text, label) {
+        document.getElementById("tip-panel-text").textContent = text || "";
+        document.getElementById("tip-panel-label").textContent = label || "";
+        document.getElementById("tip-panel").classList.add("open");
+        document.getElementById("tip-backdrop").classList.add("open");
+      }
+      function closeTipPanel() {
+        document.getElementById("tip-panel").classList.remove("open");
+        document.getElementById("tip-backdrop").classList.remove("open");
+      }
+      // capture phase で受ける: 親 (例 .problem-card) の onclick より先に判定し、
+      // tip セルのクリックでは伝播を止めて意図しない遷移を防ぐ
+      document.addEventListener("click", (e) => {
+        if (e.target.closest("#tip-panel")) return;
+        const el = e.target.closest("[data-tip]");
+        if (!el) return;
+        // ボタン/リンク/select 等の操作要素配下のクリックでは開かない
+        if (e.target.closest("button, a, input, select, summary")) return;
+        e.stopPropagation();
+        openTipPanel(el.dataset.tip, el.dataset.tipLabel);
+      }, true);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeTipPanel();
+      });
+      document.getElementById("tip-panel-close").addEventListener("click", closeTipPanel);
+      document.getElementById("tip-backdrop").addEventListener("click", closeTipPanel);
+      document.getElementById("tip-panel-copy").addEventListener("click", async () => {
+        const text = document.getElementById("tip-panel-text").textContent;
+        const btn = document.getElementById("tip-panel-copy");
+        const orig = btn.textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.textContent = "Copied!";
+        } catch {
+          btn.textContent = "Failed";
+        }
+        setTimeout(() => { btn.textContent = orig; }, 1200);
+      });
 
       function getProblemDir(filePath) {
         const parts = String(filePath || "").split("/");
@@ -901,10 +1020,10 @@
                 );
               if (!r) return "<td>-</td>";
               if (r.status === "CE") {
-                const tip = tooltipAttr(r.compile_error || r.detail);
+                const tip = tooltipAttr(r.compile_error || r.detail, `${problemDir}/${f} · ${env} · CE`);
                 return `<td${tip}><span class="${statusClass(r.status)}">${r.status}</span></td>`;
               }
-              const tip = tooltipAttr(r.detail);
+              const tip = tooltipAttr(r.detail, `${problemDir}/${f} · ${env}`);
               const best = bestByEnv[env];
               const v = r[overviewMetric.field];
               let suffix = "";
@@ -1302,7 +1421,7 @@
               continue;
             }
             if (r.status === "CE") {
-              const tooltip = tooltipAttr(r.compile_error || r.detail);
+              const tooltip = tooltipAttr(r.compile_error || r.detail, `${f} · ${env} · CE`);
               html += `<td${tooltip} class="env-group-start"><span class="${statusClass("CE")}">CE</span></td><td>-</td>`;
               continue;
             }
@@ -1320,8 +1439,8 @@
                 suffix = ` <span class="diff-muted">(${sign}${displayMetric.format(Math.abs(d))})</span>`;
               }
             }
-            const fullTip = escapeAttr(buildMetricTooltip(r, bestByEnv[env]));
-            html += `<td title="${fullTip}" style="cursor:help" class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td title="${fullTip}" style="cursor:help">${valueCell}${suffix}</td>`;
+            const tip = tooltipAttr(buildMetricTooltip(r, bestByEnv[env]), `${f} · ${env}`);
+            html += `<td${tip} class="env-group-start"><span class="${statusClass(r.status)}">${r.status}</span></td><td${tip}>${valueCell}${suffix}</td>`;
           }
           html += "</tr>";
         }
@@ -1370,7 +1489,7 @@
                 html += `<td class="env-group-start">-</td><td>-</td><td>-</td>`;
                 continue;
               }
-              html += `<td${tooltipAttr(c.detail)} class="env-group-start"><span class="${statusClass(c.status)}">${c.status}</span></td><td>${renderTimeCell(c)}</td><td>${formatMemory(c.memory_kb)}</td>`;
+              html += `<td${tooltipAttr(c.detail, `${f} · ${env} · ${cn}`)} class="env-group-start"><span class="${statusClass(c.status)}">${c.status}</span></td><td>${renderTimeCell(c)}</td><td>${formatMemory(c.memory_kb)}</td>`;
             }
             html += "</tr>";
           }
