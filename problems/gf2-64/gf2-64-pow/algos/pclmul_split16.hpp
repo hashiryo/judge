@@ -13,11 +13,10 @@
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
-
 namespace gf2_64_pow_split16 {
+using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob16;
 // 16-bit exponent の binary exp
 [[gnu::target("pclmul")]] u64 pow16(u64 a, u32 e) {
  u64 result= 1;

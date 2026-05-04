@@ -11,28 +11,16 @@
 // per F_{2^16} op: 1 PEXT + 4 lookup (= LN + PW + 2 byte) ≈ 18 cycle
 //   (v3: 1 PEXT + 2 lookup ≈ 16 cycle、v2: ~25 cycle)
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#define HAVE_PEXT 1
-#else
-#define PCLMUL_RUN
-#define HAVE_PEXT 0
-#endif
 namespace gf2_64_pow_subfield_split_v4 {
-using gf2_64_pclmul::mul;
-using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob32;
+using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob48;
+using gf2_64_pclmul::mul;
+using gf2_64_pclmul::sq;
 constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
 
 inline u64 PEXT_MASK= 0;
@@ -188,7 +176,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pow_subfield_split_v4
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_subfield_split_v4::init_tables;
   using gf2_64_pow_subfield_split_v4::pow;
   init_tables();

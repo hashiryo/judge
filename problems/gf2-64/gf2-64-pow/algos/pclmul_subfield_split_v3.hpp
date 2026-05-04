@@ -12,28 +12,16 @@
 //
 // Nimber 依存ゼロ。div の pclmul_norm_pext.hpp と同じ基底思想。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#define HAVE_PEXT 1
-#else
-#define PCLMUL_RUN
-#define HAVE_PEXT 0
-#endif
 namespace gf2_64_pow_subfield_split_v3 {
-using gf2_64_pclmul::mul;
-using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob32;
+using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob48;
+using gf2_64_pclmul::mul;
+using gf2_64_pclmul::sq;
 // =============================================================================
 // σ-coeff 基底 + PEXT
 // =============================================================================
@@ -166,7 +154,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pow_subfield_split_v3
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
   using gf2_64_pow_subfield_split_v3::init_tables;
   using gf2_64_pow_subfield_split_v3::pow;
   init_tables();

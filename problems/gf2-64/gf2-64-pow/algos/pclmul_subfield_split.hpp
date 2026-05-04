@@ -14,12 +14,11 @@
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
-
 namespace gf2_64_pow_subfield_split {
+using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob4;
-using gf2_64_pclmul::frob16;
 inline u16 PW16[65536], LN16[65536];
 
 // M^{-1} mod 65535 を事前計算 (compile-time):

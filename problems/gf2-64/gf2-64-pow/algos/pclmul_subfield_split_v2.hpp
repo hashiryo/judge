@@ -17,14 +17,13 @@
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
-
 namespace gf2_64_pow_subfield_split_v2 {
-using gf2_64_pclmul::mul;
-using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob32;
+using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob48;
+using gf2_64_pclmul::mul;
+using gf2_64_pclmul::sq;
 inline u16 PW16[65536], LN16[65536];
 
 constexpr u32 M_INV_MOD_65535= 16384;
