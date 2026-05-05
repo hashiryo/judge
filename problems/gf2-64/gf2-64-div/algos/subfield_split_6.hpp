@@ -6,7 +6,9 @@
 #include "../../_shared/frob.hpp"
 namespace gf2_64_pclmul_window {
 using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob48;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 
@@ -48,10 +50,7 @@ void init_tables() {
 }
 u64 inv(u64 a) {
  assert(a != 0);
- u64 a16= frob16(a);
- u64 a32= frob16(a16);
- u64 a48= frob16(a32);
- u64 g= mul(a16, mul(a32, a48));
+ u64 g= mul(frob16(a), mul(frob32(a), frob48(a)));
  u64 b= embed_idx(INV[u16(mul(g, a))]);
  return mul(b, g);
 }
