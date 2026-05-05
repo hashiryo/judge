@@ -29,7 +29,7 @@ constexpr auto EMBED_BYTE= []() {
 }();
 inline u64 embed_idx(u16 idx) { return EMBED_BYTE[0][u8(idx)] ^ EMBED_BYTE[1][u8(idx >> 8)]; }
 // runtime-init される big tables (σ^k chain 経由)
-inline u16 INV[65535];
+inline u16 INV[65536];
 inline bool inited= false;
 void init_tables() {
  if(inited) return;
@@ -45,7 +45,7 @@ void init_tables() {
   cur= mul(cur, SIGMA);
  }
  LN_SIGMA[0]= 0;
- for(u32 i= 1; i < 65535; ++i) INV[i]= PW_SIGMA_IDX[(65535 - LN_SIGMA[i]) % 65535];
+ for(u32 i= 1; i < 65536; ++i) INV[i]= PW_SIGMA_IDX[(65535 - LN_SIGMA[i]) % 65535];
 }
 u64 inv(u64 a) {
  assert(a != 0);
