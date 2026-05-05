@@ -56,10 +56,10 @@ u64 pow_byte_window(u64 g, u64 e) {
  u64 T[8]= {1, g};
  for(int i= 2; i < 8; ++i) T[i]= mul(T[i - 1], g);
  int top= 16 - ((__builtin_clzll(e) - 13) / 3);
- u64 acc= T[(e >> (3 * top)) & 0x7];
+ u64 acc= T[(e >> (3 * top)) & 7];
  for(int i= top - 1; i >= 0; --i) {
   acc= frob3(acc);
-  u32 chunk= u32((e >> (3 * i)) & 0x7);
+  u8 chunk= (e >> (3 * i)) & 7;
   if(chunk) acc= mul(acc, T[chunk]);
  }
  return acc;
