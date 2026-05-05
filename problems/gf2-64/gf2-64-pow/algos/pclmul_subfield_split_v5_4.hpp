@@ -69,13 +69,13 @@ struct H2Hash {
  u64 keys[CAP]= {};
  u32 vals[CAP];
  void insert(u64 key, u32 val) {
-  u32 h= (key * 0x9E3779B97F4A7C15ull) & MASK;
+  u32 h= key & MASK;
   while(keys[h]) h= (h + 1) & MASK;
   keys[h]= key;
   vals[h]= val;
  }
  u32 lookup(u64 key) const {
-  u32 h= (key * 0x9E3779B97F4A7C15ull) & MASK;
+  u32 h= key & MASK;
   while(keys[h]) {
    if(keys[h] == key) return vals[h];
    h= (h + 1) & MASK;
@@ -136,8 +136,8 @@ u64 pow(u64 a, u64 e) {
  const u16 L_a= LN_SIGMA[u16(x_a)];      // log_σ(x_a) · (65537)^{-1} = l_a mod 65535
  const u32 L_b= LN_H2.lookup(x_b);       // log_h2(x_b) · (65535)^{-1} = l_b mod 65537
  // l_a × q mod 65535, l_b × q mod 65537 を計算
- const u16 e_a= u32(L_a) * q % 65535u;
- const u32 e_b= u64(L_b) * q % 65537u;
+ const u16 e_a= u64(q) * L_a % 65535u;
+ const u32 e_b= u64(q) * L_b % 65537u;
  const u64 b_a= embed_idx(PW_SIGMA_IDX[e_a]);  // SIGMA^{e_a} (= α-part^q)
  const u64 b_b= PW_H2[e_b];                    // h2^{e_b}    (= β-part^q)
  const u64 b= mul(b_a, b_b);
