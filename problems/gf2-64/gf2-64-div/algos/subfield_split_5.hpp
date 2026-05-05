@@ -38,10 +38,11 @@ void init_tables() {
  u64 cur= 1;
  for(u16 k= 0; k < 65535; ++k) {
   u16 idx= cur;
-  LN_SIGMA[idx]= k;
+  LN_SIGMA[idx]= 65535 - k;
   PW_SIGMA_IDX[k]= idx;
   cur= mul(cur, SIGMA);
  }
+ LN_SIGMA[1]= 0;
  LN_SIGMA[0]= 0;
 }
 u64 inv(u64 a) {
@@ -51,7 +52,7 @@ u64 inv(u64 a) {
  u64 a32= frob16(a16);
  u64 a48= frob16(a32);
  u64 g= mul(a16, mul(a32, a48));
- u64 b= embed_idx(PW_SIGMA_IDX[(65535 - LN_SIGMA[u16(mul(g, a))]) % 65535]);
+ u64 b= embed_idx(PW_SIGMA_IDX[LN_SIGMA[u16(mul(g, a))]]);
  return mul(b, g);
 }
 }  // namespace gf2_64_pclmul_window
