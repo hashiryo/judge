@@ -27,15 +27,9 @@ inline u64 inv(u64 a) {
   int du= 63 - __builtin_clzll(u);
   int dv= 63 - __builtin_clzll(a);
   if(du < dv) {
-   u64 tmp= u;
-   u= a;
-   a= tmp;
-   tmp= s;
-   s= t;
-   t= tmp;
-   int td= du;
-   du= dv;
-   dv= td;
+   swap(u, a);
+   swap(s, t);
+   swap(du, dv);
   }
   shift= du - dv;
   u^= a << shift;
