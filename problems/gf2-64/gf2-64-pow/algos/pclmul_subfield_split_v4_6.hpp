@@ -10,8 +10,9 @@
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
-namespace gf2_64_pow_subfield_split_v4_5 {
+namespace gf2_64_pow_subfield_split_v4_6 {
 using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob3;
 using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob48;
@@ -52,13 +53,13 @@ void init_tables() {
  LN_SIGMA[0]= 0;
 }
 u64 pow_byte_window(u64 g, u64 e) {
- u64 T[16]= {1, g};
- for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
- int top= 15 - (__builtin_clzll(e) >> 2);
- u64 acc= T[(e >> (4 * top)) & 0xF];
+ u64 T[8]= {1, g};
+ for(int i= 2; i < 8; ++i) T[i]= mul(T[i - 1], g);
+ int top= 16 - ((__builtin_clzll(e) - 13) / 3);
+ u64 acc= T[(e >> (3 * top)) & 0x7];
  for(int i= top - 1; i >= 0; --i) {
-  acc= frob4(acc);
-  u32 chunk= u32((e >> (4 * i)) & 0xF);
+  acc= frob3(acc);
+  u32 chunk= u32((e >> (3 * i)) & 0x7);
   if(chunk) acc= mul(acc, T[chunk]);
  }
  return acc;
@@ -76,11 +77,11 @@ u64 pow(u64 a, u64 e) {
  const u64 g= pow_byte_window(a, r);
  return mul(b, g);
 }
-}  // namespace gf2_64_pow_subfield_split_v4_5
+}  // namespace gf2_64_pow_subfield_split_v4_6
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
-  using gf2_64_pow_subfield_split_v4_5::init_tables;
-  using gf2_64_pow_subfield_split_v4_5::pow;
+  using gf2_64_pow_subfield_split_v4_6::init_tables;
+  using gf2_64_pow_subfield_split_v4_6::pow;
   init_tables();
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow(as[i], es[i]);

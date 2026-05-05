@@ -10,7 +10,7 @@
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
-namespace gf2_64_pow_subfield_split_v4_3 {
+namespace gf2_64_pow_subfield_split_v4_4 {
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
@@ -116,11 +116,11 @@ u64 pow(u64 a, u64 e) {
  const u64 g= pow_byte_window(a, r);
  return mul(b, g);
 }
-}  // namespace gf2_64_pow_subfield_split_v4_3
+}  // namespace gf2_64_pow_subfield_split_v4_4
 struct GF2_64Op {
  static vector<u64> run(const vector<u64>& as, const vector<u64>& es) {
-  using gf2_64_pow_subfield_split_v4_3::init_tables;
-  using gf2_64_pow_subfield_split_v4_3::pow;
+  using gf2_64_pow_subfield_split_v4_4::init_tables;
+  using gf2_64_pow_subfield_split_v4_4::pow;
   init_tables();
   vector<u64> ans(as.size());
   for(size_t i= 0; i < as.size(); ++i) ans[i]= pow(as[i], es[i]);
