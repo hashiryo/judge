@@ -66,20 +66,17 @@ inline u64 PW_H2[65537];  // PW_H2[k] = h2^k ∈ F_{2^32} ⊂ F_{2^64}
 struct H2Hash {
  static constexpr u64 CAP= 131072;  // 2 × 65537 を超える 2 冪 (load ~50%)
  static constexpr u64 MASK= CAP - 1;
- u64 keys[CAP];
+ u64 keys[CAP]= {};
  u32 vals[CAP];
- void clear() {
-  for(u32 i= 0; i < CAP; ++i) keys[i]= ~u64(0);
- }
  void insert(u64 key, u32 val) {
   u32 h= (key * 0x9E3779B97F4A7C15ull) & MASK;
-  while(keys[h] != ~u64(0)) h= (h + 1) & MASK;
+  while(keys[h]) h= (h + 1) & MASK;
   keys[h]= key;
   vals[h]= val;
  }
  u32 lookup(u64 key) const {
   u32 h= (key * 0x9E3779B97F4A7C15ull) & MASK;
-  while(keys[h] != ~u64(0)) {
+  while(keys[h]) {
    if(keys[h] == key) return vals[h];
    h= (h + 1) & MASK;
   }
@@ -116,7 +113,6 @@ void init_tables() {
  PW_SIGMA_IDX[65535]= 1;
  // G_b chain: h2^k for k = 0..65536
  const u64 h2= pow_byte_window(2, H2_EXP);
- LN_H2.clear();
  cur= 1;
  for(u32 k= 0; k < 65537; ++k) {
   PW_H2[k]= cur;
