@@ -44,15 +44,13 @@ void init_tables() {
  }
  LN_SIGMA[0]= 0;
 }
-u64 pow_byte_window(u64 g, u64 e) {
- u64 T[16]= {1, g};
- for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
- int top= 15 - (__builtin_clzll(e) >> 2);
- u64 acc= T[(e >> (4 * top)) & 0xF];
- for(int i= top - 1; i >= 0; --i) {
+u64 pow_byte_window(u64 g) {
+ constexpr u64 e= 0x1000100010000ull;
+ u64 acc= g;
+ for(int i= 11; i >= 0; --i) {
   acc= frob4(acc);
   u32 chunk= u32((e >> (4 * i)) & 0xF);
-  if(chunk) acc= mul(acc, T[chunk]);
+  if(chunk) acc= mul(acc, g);
  }
  return acc;
 }
@@ -64,7 +62,7 @@ u64 inv(u64 a) {
  const u64 N2= mul(a, frob32(a));
  const u16 N= mul(N2, frob16(N2));
  const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
- const u64 g= pow_byte_window(a, r);
+ const u64 g= pow_byte_window(a);
  return mul(b, g);
 }
 }  // namespace gf2_64_pclmul_window
