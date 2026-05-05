@@ -63,27 +63,49 @@ inline u16 LN_SIGMA[65536];
 inline u16 PW_SIGMA_IDX[65536];
 
 inline u64 PW_H2[65537];  // PW_H2[k] = h2^k ∈ F_{2^32} ⊂ F_{2^64}
-struct H2Hash {
- static constexpr u64 CAP= 131072;  // 2 × 65537 を超える 2 冪 (load ~50%)
- static constexpr u64 MASK= CAP - 1;
- u64 keys[CAP]= {};
- u32 vals[CAP];
- void insert(u64 key, u32 val) {
-  u32 h= key & MASK;
-  while(keys[h]) h= (h + 1) & MASK;
-  keys[h]= key;
-  vals[h]= val;
- }
- u32 lookup(u64 key) const {
-  u32 h= key & MASK;
-  while(keys[h]) {
-   if(keys[h] == key) return vals[h];
-   h= (h + 1) & MASK;
+// G_b の log table: counting-sort で N=65537 個の (key, log) を 2^17 バケットに振り分け、
+// 各バケット内を線形走査。key の下位 17 bit はバケット index と一致するので保存不要 →
+// vs 1 entry に upper47(key) | log17 を pack して 8 byte/entry に圧縮。
+//   vs = 65537 × 8 = 512 KiB
+//   os = 131073 × 4 ≈ 512 KiB
+//   合計 1 MiB (open-addressing 版 1.5 MiB から ~33% 削減)
+struct H2BucketLog {
+ static constexpr u32 N= 65537;
+ static constexpr u32 HASH_SIZE= 1u << 17;
+ static constexpr u64 MASK= HASH_SIZE - 1;
+ u32 os[HASH_SIZE + 1];  // bucket start (BSS zero 初期化)
+ u64 vs[N];              // packed: (key & ~MASK) | log
+ void build(u64 g) {
+  // Pass 1: count → os[i+1]
+  u64 cur= 1;
+  for(u32 k= 0; k < N; ++k) {
+   ++os[(cur & MASK) + 1];
+   cur= mul(cur, g);
   }
-  return ~u32(0);  // not found (subfield 元が想定通りなら起きない)
+  // Prefix sum: os[i] = start of bucket i, os[H_S] = N
+  for(u32 i= 1; i <= HASH_SIZE; ++i) os[i]+= os[i - 1];
+  // Pass 2: fill (os[bucket] を書き込みポインタとして使用、後で復元)
+  cur= 1;
+  for(u32 k= 0; k < N; ++k) {
+   u64 logv= u64(k) * INV2_F17 % 65537u;
+   u32 bucket= u32(cur & MASK);
+   vs[os[bucket]++]= (cur & ~MASK) | logv;
+   cur= mul(cur, g);
+  }
+  // Restore: fill 後 os[i] = old_os[i+1] になっているので 1 つ右シフト
+  for(u32 i= HASH_SIZE; i > 0; --i) os[i]= os[i - 1];
+  os[0]= 0;
+ }
+ u32 lookup(u64 y) const {
+  u64 yh= y & ~MASK;
+  u32 m= u32(y & MASK);
+  for(u32 i= os[m]; i < os[m + 1]; ++i) {
+   if((vs[i] & ~MASK) == yh) return u32(vs[i] & MASK);
+  }
+  return ~u32(0);
  }
 };
-inline H2Hash LN_H2;
+inline H2BucketLog LN_H2;
 u64 pow_byte_window(u64 g, u64 e) {
  u64 T[16]= {1, g};
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
@@ -111,13 +133,14 @@ void init_tables() {
  }
  LN_SIGMA[0]= 0;
  PW_SIGMA_IDX[65535]= 1;
- // G_b chain: h2^k for k = 0..65536
+ // G_b chain: PW_H2[k] = h2^k for k = 0..65536
  cur= 1;
  for(u32 k= 0; k < 65537; ++k) {
   PW_H2[k]= cur;
-  LN_H2.insert(cur, k * INV2_F17 % 65537u);  // log_h2(cur) · (65535)^{-1} を記録
   cur= mul(cur, h2);
  }
+ // LN_H2 (counting-sort バケット) を別パスで構築
+ LN_H2.build(h2);
 }
 u64 pow(u64 a, u64 e) {
  if(!e) return 1;
