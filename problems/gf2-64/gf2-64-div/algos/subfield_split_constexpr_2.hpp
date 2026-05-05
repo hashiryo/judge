@@ -28,11 +28,11 @@ constexpr auto INV_LOW= []() {
   T_lo[v]= lo;
   T_hi[v]= hi;
  }
- array<u16, 65536> t{};
  // σ chain を natural 表現で 1 周だけ走らせ nat[k] = σ^k を保持。
  // log/exp テーブル経由を廃止 → INV_LOW を nat 空間でじか埋めする。
  u16 nat[65535];
  for(u16 i= 0, cur= 1; i < 65535; ++i) nat[i]= cur, cur= u16(cur << 1) ^ (0x002DU & -u16(cur >> 15));
+ array<u16, 65536> t{};
  // σ^0 = 1: INV_LOW[low(1)] = low(1)
  u16 lo1= T_lo[1] ^ T_hi[0];
  t[lo1]= lo1;
@@ -48,20 +48,22 @@ constexpr auto INV_LOW= []() {
  return t;
 }();
 // === embed テーブル(low16 → 64bit、SUBFIELD_BASIS による)===
-constexpr auto EMBED= []() {
- u64 SUBFIELD_BASIS[]= {1ULL, 6899425322512154626ULL, 12712641506861907972ULL, 12687683756412895240ULL, 13108774640850436112ULL, 1196746230653255712ULL, 13779846473293824064ULL, 1136705091741089920ULL, 13132935623751303424ULL, 12256911237861802496ULL, 1968662052679910400ULL, 13476734309037115392ULL, 31478309824172032ULL, 5397840376063860736ULL, 18145356609018085376ULL, 2133828226494464000ULL};
- array<array<u64, 256>, 2> t{};
- for(int half= 0; half < 2; ++half) {
-  for(int i= 0; i < 256; ++i) {
-   u64 v= 0;
-   for(int b= 0; b < 8; ++b)
-    if((i >> b) & 1) v^= SUBFIELD_BASIS[b + half * 8];
-   t[half][i]= v;
+constexpr u64 embed_idx(u16 idx) {
+ constexpr auto EMBED= []() {
+  u64 SUBFIELD_BASIS[]= {1ULL, 6899425322512154626ULL, 12712641506861907972ULL, 12687683756412895240ULL, 13108774640850436112ULL, 1196746230653255712ULL, 13779846473293824064ULL, 1136705091741089920ULL, 13132935623751303424ULL, 12256911237861802496ULL, 1968662052679910400ULL, 13476734309037115392ULL, 31478309824172032ULL, 5397840376063860736ULL, 18145356609018085376ULL, 2133828226494464000ULL};
+  array<array<u64, 256>, 2> t{};
+  for(int half= 0; half < 2; ++half) {
+   for(int i= 0; i < 256; ++i) {
+    u64 v= 0;
+    for(int b= 0; b < 8; ++b)
+     if((i >> b) & 1) v^= SUBFIELD_BASIS[b + half * 8];
+    t[half][i]= v;
+   }
   }
- }
- return t;
-}();
-constexpr u64 embed_idx(u16 idx) { return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8]; }
+  return t;
+ }();
+ return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8];
+}
 u64 inv(u64 a) {
  assert(a != 0);
  u64 g= mul(frob16(a), mul(frob32(a), frob48(a)));
