@@ -45,7 +45,7 @@ void init_tables() {
  u64 cur= 1;
  for(u16 k= 0; k < 65535; ++k) {
   u16 idx= cur;
-  LN_SIGMA[idx]= u16(k);
+  LN_SIGMA[idx]= k;
   PW_SIGMA_IDX[k]= u16(idx);
   cur= mul(cur, SIGMA);
  }
@@ -54,7 +54,6 @@ void init_tables() {
 }
 u64 pow_byte_window(u64 g, u64 e) {
  u64 T[16]= {1, g};
-#pragma GCC unroll 14
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
  int top= 15 - (__builtin_clzll(e) >> 2);
  u64 acc= T[(e >> (4 * top)) & 0xF];
