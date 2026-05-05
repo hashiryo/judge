@@ -9,19 +9,16 @@ using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 u64 inv(u64 a) {
- u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64 - 2
+ constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64 - 2
  // Precompute T[i] = a^i for i = 0..15 (14 muls)
  u64 T[16]= {1, a};
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], a);
 
- // Find top nonzero nibble of e
- int top= 15 - (__builtin_clzll(e) >> 2);
-
- u64 acc= T[(e >> (4 * top)) & 0xF];
- for(int i= top - 1; i >= 0; --i) {
+ u64 acc= T[15];
+ for(int i= 14; i >= 0; --i) {
   acc= frob4(acc);
   u16 chunk= (e >> (4 * i)) & 0xF;
-  if(chunk) acc= mul(acc, T[chunk]);
+  acc= mul(acc, T[chunk]);
  }
  return acc;
 }
