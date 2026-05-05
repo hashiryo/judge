@@ -24,14 +24,13 @@ inline u64 inv(u64 a) {
  u64 u= 0x1Bull ^ (a << shift);  // P-a*x^shift
  u64 t= 1, s= 1ull << shift;
  while(a != 1) {
-  int du= 63 - __builtin_clzll(u);
-  int dv= 63 - __builtin_clzll(a);
-  if(du < dv) {
+  int du= __builtin_clzll(u), dv= __builtin_clzll(a);
+  if(du > dv) {
    swap(u, a);
    swap(s, t);
    swap(du, dv);
   }
-  shift= du - dv;
+  shift= dv - du;
   u^= a << shift;
   s^= t << shift;
  }
