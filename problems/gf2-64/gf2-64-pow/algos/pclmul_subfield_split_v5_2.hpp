@@ -94,7 +94,7 @@ u64 pow_byte_window(u64 g, u64 e) {
  u64 acc= T[(e >> (4 * top)) & 0xF];
  for(int i= top - 1; i >= 0; --i) {
   acc= frob4(acc);
-  u32 chunk= u32((e >> (4 * i)) & 0xF);
+  u8 chunk= (e >> (4 * i)) & 0xF;
   if(chunk) acc= mul(acc, T[chunk]);
  }
  return acc;

@@ -12,17 +12,8 @@
 // 我々の F_{2^16} log/exp テーブルを使って同じ計算を行う。basis change は
 // pclmul_norm_logexp.hpp と同じ仕組み。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/basis_change.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_sqrt_norm_logexp {
 using u16= unsigned short;
 
@@ -46,10 +37,10 @@ inline bool inited= false;
  LN16[1]= 0;
 }
 // half<h>(A) = pw[(ln[A] + h) % 65535]   (Nimber では half の h は塔の補正定数)
-template <u16 h> [[gnu::always_inline]] inline u16 half(u16 A) { return A ? PW16[(u32(LN16[A]) + h) % 65535] : 0; }
+template <u16 h> inline u16 half(u16 A) { return A ? PW16[(u32(LN16[A]) + h) % 65535] : 0; }
 // F_{2^16} sqrt: A^{2^15} を log/exp で
-[[gnu::always_inline]] inline u16 sqrt_f16(u16 A) { return A ? PW16[u16((65537u * u32(LN16[A])) >> 1)] : 0; }
-[[gnu::target("pclmul")]] u64 sqrt_via_tower(u64 a_poly) {
+inline u16 sqrt_f16(u16 A) { return A ? PW16[u16((65537u * u32(LN16[A])) >> 1)] : 0; }
+u64 sqrt_via_tower(u64 a_poly) {
  const u64 a_nim= gf2_64_basis::poly_to_nim(a_poly);
  u16 a0= u16(a_nim), a1= u16(a_nim >> 16), a2= u16(a_nim >> 32), a3= u16(a_nim >> 48);
  // half 補正 (Nimber.hpp と同じ順序・定数)
@@ -63,7 +54,7 @@ template <u16 h> [[gnu::always_inline]] inline u16 half(u16 A) { return A ? PW16
 }
 }  // namespace gf2_64_sqrt_norm_logexp
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as) {
+ static vector<u64> run(const vector<u64>& as) {
   using gf2_64_sqrt_norm_logexp::init_tables;
   using gf2_64_sqrt_norm_logexp::sqrt_via_tower;
   init_tables();
