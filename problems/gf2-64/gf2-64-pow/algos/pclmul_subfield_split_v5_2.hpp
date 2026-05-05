@@ -130,21 +130,19 @@ u64 pow(u64 a, u64 e) {
  const u32 q= u32(e / M_VAL2);
  if(!q) return pow_byte_window(a, e);
  const u64 r= e - u64(q) * M_VAL2;
- // x_a = N(α) = α · α^{2^16} · α^{2^32} · α^{2^48} ∈ G_a (= F_{2^16}^*)
- const u64 x_a= mul(mul(a, frob16(a)), mul(frob32(a), frob48(a)));
- // x_b = N2(α)^{65535} ∈ G_b (Itoh-Tsujii 4 mul + 4 frob)
  const u64 N2= mul(a, frob32(a));
+ // x_a = N(α) = α · α^{2^16} · α^{2^32} · α^{2^48} ∈ G_a (= F_{2^16}^*)
+ const u64 x_a= mul(N2, frob16(N2));
+ // x_b = N2(α)^{65535} ∈ G_b (Itoh-Tsujii 4 mul + 4 frob)
  const u64 T3= mul(N2, sq(N2));          // N2^3
  const u64 T15= mul(T3, frob2(T3));      // N2^15
  const u64 T255= mul(T15, frob4(T15));   // N2^255
  const u64 x_b= mul(T255, frob8(T255));  // N2^65535
- const u32 L_a= LN_SIGMA[u16(x_a)];      // log_σ(x_a) = 2 · l_a mod 65535
+ const u16 L_a= LN_SIGMA[u16(x_a)];      // log_σ(x_a) = 2 · l_a mod 65535
  const u32 L_b= LN_H2.lookup(x_b);       // log_h2(x_b) = -2 · l_b mod 65537
  // l_a × q mod 65535, l_b × q mod 65537 を計算 (l_* = L_* × 32768 を吸収)
- const u32 q1= q % 65535u;
- const u32 q2= q % 65537u;
- const u32 e_a= u32((u64(L_a) * INV2_F16 % 65535u) * q1 % 65535u);
- const u32 e_b= u32((u64(L_b) * INV2_F17 % 65537u) * q2 % 65537u);
+ const u16 e_a= u64(L_a) * q * INV2_F16 % 65535u;
+ const u32 e_b= u64(L_b) * q * INV2_F17 % 65537u;
  const u64 b_a= embed_idx(PW_SIGMA_IDX[e_a]);  // SIGMA^{e_a} (= α-part^q)
  const u64 b_b= PW_H2[e_b];                    // h2^{e_b}    (= β-part^q)
  const u64 b= mul(b_a, b_b);
