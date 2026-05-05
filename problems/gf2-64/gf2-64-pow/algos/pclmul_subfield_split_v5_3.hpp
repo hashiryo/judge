@@ -105,7 +105,7 @@ void init_tables() {
  u64 cur= 1;
  for(u16 k= 0; k < 65535; ++k) {
   u16 idx= u16(cur);
-  LN_SIGMA[idx]= k;
+  LN_SIGMA[idx]= u32(k) * INV2_F16 % 65535u;  // log_σ(cur) · (65537)^{-1} を記録
   PW_SIGMA_IDX[k]= idx;
   cur= mul(cur, SIGMA);
  }
@@ -116,7 +116,7 @@ void init_tables() {
  cur= 1;
  for(u32 k= 0; k < 65537; ++k) {
   PW_H2[k]= cur;
-  LN_H2.insert(cur, k);
+  LN_H2.insert(cur, k * INV2_F17 % 65537u);  // log_h2(cur) · (65535)^{-1} を記録
   cur= mul(cur, h2);
  }
 }
@@ -127,18 +127,18 @@ u64 pow(u64 a, u64 e) {
  if(!q) return pow_byte_window(a, e);
  const u64 r= e - u64(q) * M_VAL2;
  const u64 N2= mul(a, frob32(a));
- // x_a = N(α) = α · α^{2^16} · α^{2^32} · α^{2^48} ∈ G_a (= F_{2^16}^*)
+ // x_a = N2(α)^{65537} = α · α^{2^16} · α^{2^32} · α^{2^48} ∈ G_a (= F_{2^16}^*)
  const u64 x_a= mul(N2, frob16(N2));
  // x_b = N2(α)^{65535} ∈ G_b (Itoh-Tsujii 4 mul + 4 frob)
  const u64 T3= mul(N2, sq(N2));          // N2^3
  const u64 T15= mul(T3, frob2(T3));      // N2^15
  const u64 T255= mul(T15, frob4(T15));   // N2^255
  const u64 x_b= mul(T255, frob8(T255));  // N2^65535
- const u16 L_a= LN_SIGMA[u16(x_a)];      // log_σ(x_a) = 2 · l_a mod 65535
- const u32 L_b= LN_H2.lookup(x_b);       // log_h2(x_b) = -2 · l_b mod 65537
- // l_a × q mod 65535, l_b × q mod 65537 を計算 (l_* = L_* × 32768 を吸収)
- const u16 e_a= u64(L_a) * q * INV2_F16 % 65535u;
- const u32 e_b= u64(L_b) * q * INV2_F17 % 65537u;
+ const u16 L_a= LN_SIGMA[u16(x_a)];      // log_σ(x_a) · (65537)^{-1} = l_a mod 65535
+ const u32 L_b= LN_H2.lookup(x_b);       // log_h2(x_b) · (65535)^{-1} = l_b mod 65537
+ // l_a × q mod 65535, l_b × q mod 65537 を計算
+ const u16 e_a= u64(L_a) * q % 65535u;
+ const u32 e_b= u64(L_b) * q % 65537u;
  const u64 b_a= embed_idx(PW_SIGMA_IDX[e_a]);  // SIGMA^{e_a} (= α-part^q)
  const u64 b_b= PW_H2[e_b];                    // h2^{e_b}    (= β-part^q)
  const u64 b= mul(b_a, b_b);
