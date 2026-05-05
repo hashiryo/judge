@@ -21,27 +21,24 @@ inline int clz128(u128 x) {
  u64 hi= u64(x >> 64);
  return hi ? __builtin_clzll(hi) : 64 + __builtin_clzll(u64(x));
 }
+constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
 // u128 (deg ≤ 127 多項式) を mod P (= x^64 + 0x1B) で u64 に還元。
 inline u64 reduce_modP(u128 x) {
- u64 lo= u64(x);
- u64 hi= u64(x >> 64);
- // hi · x^64 ≡ hi · 0x1B (mod P)。0x1B = 1 + x + x^3 + x^4 = bits {0,1,3,4}。
- u128 prod= (u128)hi ^ ((u128)hi << 1) ^ ((u128)hi << 3) ^ ((u128)hi << 4);
- lo^= u64(prod);
- u64 hi2= u64(prod >> 64);  // ≤ 4 bit
- lo^= hi2 ^ (hi2 << 1) ^ (hi2 << 3) ^ (hi2 << 4);
- return lo;
+ u64 h= x >> 64, d= h ^ (h << 1);
+ return u64(x) ^ RED[h >> 60] ^ d ^ (d << 3);
 }
 inline u64 inv(u64 a) {
  if(!a) return 0;
- u128 u= ((u128)1 << 64) | 0x1Bull;  // P
- u128 v= a;
+
  u128 s= 0, t= 1;
+ u64 u= 0x1Bull ^ (a << (__builtin_clzll(a) + 1));  // P-a*x^shift
+ s^= t << (__builtin_clzll(a) + 1);
+ u64 v= a;
  while(v != 1) {
   int du= 127 - clz128(u);
-  int dv= 127 - clz128(v);
+  int dv= 63 - __builtin_clzll(v);
   if(du < dv) {
-   u128 tmp= u;
+   u64 tmp= u;
    u= v;
    v= tmp;
    tmp= s;
