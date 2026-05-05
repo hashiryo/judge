@@ -46,17 +46,14 @@ void init_tables() {
 }
 u64 pow_byte_window(u64 g) {
  constexpr u64 e= 0x1000100010000ull;
- u64 acc= g;
- for(int i= 11; i >= 0; --i) {
-  acc= frob4(acc);
-  u32 chunk= u32((e >> (4 * i)) & 0xF);
-  if(chunk) acc= mul(acc, g);
- }
- return acc;
+ u64 g16= frob16(g);
+ u64 g32= frob16(g16);
+ u64 g48= frob16(g32);
+ return mul(g16, mul(g32, g48));
 }
 u64 inv(u64 a) {
  constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
- constexpr u64 M_VAL= (~u64(0)) / 65535u;
+ constexpr u64 M_VAL= 0x1000100010001ull;
  constexpr u16 q= e / M_VAL;
  constexpr u64 r= e - M_VAL * q;
  const u64 N2= mul(a, frob32(a));
