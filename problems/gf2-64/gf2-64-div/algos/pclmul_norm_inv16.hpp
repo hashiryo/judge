@@ -39,12 +39,12 @@ void init_tables() {
   INV16[v]= PW[(65535u - u32(LN[v])) % 65535u];
  }
 }
-[[gnu::target("pclmul")]] u64 inv_in_f16_direct(u64 N_poly) {
+u64 inv_in_f16_direct(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);
  const u16 inv_n16= INV16[u16(N_nim)];  // 1 lookup
  return gf2_64_basis::nim_to_poly(u64(inv_n16));
 }
-[[gnu::target("pclmul")]] u64 inv(u64 a) {
+u64 inv(u64 a) {
  const u64 b1= frob16(a);
  const u64 b2= frob16(b1);
  const u64 b3= frob16(b2);

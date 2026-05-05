@@ -42,7 +42,7 @@ void init_tables() {
  LN16[1]= 0;
 }
 // F_{2^16} subfield 元 N (poly 基底 64-bit) の inv を log/exp で計算 → 64-bit poly に戻す
-[[gnu::target("pclmul")]] u64 inv_in_f16_logexp(u64 N_poly) {
+u64 inv_in_f16_logexp(u64 N_poly) {
  const u64 N_nim= gf2_64_basis::poly_to_nim(N_poly);
  const u16 n16= u16(N_nim);  // nim 基底では subfield 元の上位 48 bit は 0
  const u16 log_n= LN16[n16];
@@ -50,7 +50,7 @@ void init_tables() {
  const u16 inv_n16= PW16[inv_log];
  return gf2_64_basis::nim_to_poly(u64(inv_n16));
 }
-[[gnu::target("pclmul")]] u64 inv(u64 a) {
+u64 inv(u64 a) {
  const u64 b1= frob16(a);
  const u64 b2= frob16(b1);
  const u64 b3= frob16(b2);

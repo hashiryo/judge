@@ -31,7 +31,7 @@ inline u64 EMBED_BYTE[2][256];   // 16-bit idx → 64-bit poly via 2 byte lookup
 inline int PEXT_POS[16];
 #endif
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
  // σ^0..σ^15 + Gauss 消去で線型独立な 16 bit

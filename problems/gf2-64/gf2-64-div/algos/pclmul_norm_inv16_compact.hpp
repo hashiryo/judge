@@ -12,9 +12,9 @@
 #include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
 namespace gf2_64_pclmul_norm_inv16_compact {
+using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob16;
 // poly basis 64-bit (subfield 元) → 16-bit nim 表現
 inline u16 EXTRACT_F16_BYTE[8][256];
 // nim 16-bit → poly basis 64-bit
