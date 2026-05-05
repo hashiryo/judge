@@ -11,20 +11,12 @@ using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob48;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-struct LinTable {
- u16 T_lo[256];
- u16 T_hi[256];
-};
-// 行列 M (16x16) を 2段ルックアップに変換
-// (M を「列」表現として持ち、入力ビットが1の列を XOR)
-constexpr LinTable mat_to_table(const array<u16, 16>& M) {
- // M の i 列 = (M.row[r].bit(i) for r=0..15) を 16bit にまとめる
- u16 col[16]= {};
- for(int i= 0; i < 16; ++i)
-  for(int r= 0; r < 16; ++r)
-   if((M[r] >> i) & 1) col[i]|= 1 << r;
 
- LinTable t{};
+// === メイン: low16 → low16 の inverse テーブル ===
+constexpr auto INV_LOW= []() {
+ u16 col[]= {1U, 11778U, 7028U, 51115U, 48663U, 26081U, 17458U, 40223U, 30334U, 42368U, 14380U, 2223U, 49688U, 11217U, 44239U, 63445U};
+ u16 T_lo[256]= {};
+ u16 T_hi[256]= {};
  for(int v= 0; v < 256; ++v) {
   u16 lo= 0, hi= 0;
   for(int j= 0; j < 8; ++j) {
@@ -33,15 +25,9 @@ constexpr LinTable mat_to_table(const array<u16, 16>& M) {
     hi^= col[j + 8];
    }
   }
-  t.T_lo[v]= lo;
-  t.T_hi[v]= hi;
+  T_lo[v]= lo;
+  T_hi[v]= hi;
  }
- return t;
-}
-// === メイン: low16 → low16 の inverse テーブル ===
-constexpr auto INV_LOW= []() {
- constexpr array<u16, 16> M_NAT_TO_LOW= {59577U, 18906U, 52628U, 23944U, 45524U, 3436U, 57636U, 59944U, 41644U, 45342U, 50170U, 27798U, 34196U, 59186U, 37224U, 53912U};
- constexpr auto NAT_TO_LOW= mat_to_table(M_NAT_TO_LOW);
  array<u16, 65536> t{};
  // σ chain を natural 表現で 1 周だけ走らせ nat[k] = σ^k を保持。
  // log/exp テーブル経由を廃止 → INV_LOW を nat 空間でじか埋めする。
@@ -54,14 +40,14 @@ constexpr auto INV_LOW= []() {
   }
  }
  // σ^0 = 1: INV_LOW[low(1)] = low(1)
- u16 lo1= NAT_TO_LOW.T_lo[1] ^ NAT_TO_LOW.T_hi[0];
+ u16 lo1= T_lo[1] ^ T_hi[0];
  t[lo1]= lo1;
  // pair (k, 65535-k) で 2 entry ずつ書く → 反復は 32767 回で済む
  for(uint32_t k= 1; k <= 32767; ++k) {
   u16 nk= nat[k];
   u16 nik= nat[65535 - k];
-  u16 lo_k= NAT_TO_LOW.T_lo[u8(nk)] ^ NAT_TO_LOW.T_hi[nk >> 8];
-  u16 lo_ik= NAT_TO_LOW.T_lo[u8(nik)] ^ NAT_TO_LOW.T_hi[nik >> 8];
+  u16 lo_k= T_lo[u8(nk)] ^ T_hi[nk >> 8];
+  u16 lo_ik= T_lo[u8(nik)] ^ T_hi[nik >> 8];
   t[lo_k]= lo_ik;
   t[lo_ik]= lo_k;
  }
