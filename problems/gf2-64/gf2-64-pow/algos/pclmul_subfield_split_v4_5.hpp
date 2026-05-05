@@ -46,7 +46,7 @@ void init_tables() {
  for(u16 k= 0; k < 65535; ++k) {
   u16 idx= cur;
   LN_SIGMA[idx]= k;
-  PW_SIGMA_IDX[k]= u16(idx);
+  PW_SIGMA_IDX[k]= idx;
   cur= mul(cur, SIGMA);
  }
  LN_SIGMA[0]= 0;
