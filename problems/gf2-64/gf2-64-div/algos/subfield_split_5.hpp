@@ -34,17 +34,18 @@ void init_tables() {
  if(inited) return;
  inited= true;
  u16 LN_SIGMA[65536];
- u16 PW_SIGMA_IDX[65535];
+ u16 PW_SIGMA_IDX[65536];
  constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
- u64 cur= 1;
- for(u16 k= 0; k < 65535; ++k) {
-  u16 idx= cur;
-  LN_SIGMA[idx]= 65535 - k;
+ u64 cur= SIGMA;
+ for(u16 k= 1, idx= cur;;) {
+  LN_SIGMA[idx]= k;
   PW_SIGMA_IDX[k]= idx;
-  cur= mul(cur, SIGMA);
+  if(k == 65534) break;
+  idx= cur= mul(cur, SIGMA);
+  ++k;
  }
- LN_SIGMA[1]= 0;
- for(u16 k= 1; k < 65535; ++k) INV[k]= PW_SIGMA_IDX[LN_SIGMA[k]];
+ INV[1]= 1;
+ for(u32 i= 2; i < 65535; ++i) INV[i]= PW_SIGMA_IDX[65535 - LN_SIGMA[i]];
 }
 u64 inv(u64 a) {
  assert(a != 0);
