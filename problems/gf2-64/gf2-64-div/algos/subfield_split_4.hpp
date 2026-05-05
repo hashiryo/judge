@@ -47,14 +47,11 @@ void init_tables() {
 u64 inv(u64 a) {
  constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
  constexpr u64 M_VAL= 0x1000100010001ull;
- constexpr u16 q= e / M_VAL;
- constexpr u64 r= e - M_VAL * q;
  u64 a16= frob16(a);
  u64 a32= frob16(a16);
  u64 a48= frob16(a32);
  u64 g= mul(a16, mul(a32, a48));
- const u16 N= mul(g, a);
- const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
+ u64 b= embed_idx(PW_SIGMA_IDX[(65535 - LN_SIGMA[u16(mul(g, a))]) % 65535]);
  return mul(b, g);
 }
 }  // namespace gf2_64_pclmul_window
