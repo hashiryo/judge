@@ -112,7 +112,7 @@ void init_tables() {
  LN_SIGMA[0]= 0;
  PW_SIGMA_IDX[65535]= 1;
  // G_b chain: h2^k for k = 0..65536
- const u64 h2= pow_byte_window(2, H2_EXP);
+ constexpr u64 h2= 0x1c1e79669b95a7ce;
  cur= 1;
  for(u32 k= 0; k < 65537; ++k) {
   PW_H2[k]= cur;
