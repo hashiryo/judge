@@ -30,6 +30,7 @@ inline u64 embed_idx(u16 idx) { return EMBED_BYTE[0][u8(idx)] ^ EMBED_BYTE[1][u8
 // runtime-init される big tables (σ^k chain 経由)
 inline u16 LN_SIGMA[65536];
 inline u16 PW_SIGMA_IDX[65535];
+inline u16 INV[65535];
 inline bool inited= false;
 void init_tables() {
  if(inited) return;
@@ -44,6 +45,7 @@ void init_tables() {
  }
  LN_SIGMA[1]= 0;
  LN_SIGMA[0]= 0;
+ for(u16 k= 0; k < 65535; ++k) INV[k]= PW_SIGMA_IDX[LN_SIGMA[k]];
 }
 u64 inv(u64 a) {
  constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
@@ -52,7 +54,7 @@ u64 inv(u64 a) {
  u64 a32= frob16(a16);
  u64 a48= frob16(a32);
  u64 g= mul(a16, mul(a32, a48));
- u64 b= embed_idx(PW_SIGMA_IDX[LN_SIGMA[u16(mul(g, a))]]);
+ u64 b= embed_idx(INV[u16(mul(g, a))]);
  return mul(b, g);
 }
 }  // namespace gf2_64_pclmul_window
