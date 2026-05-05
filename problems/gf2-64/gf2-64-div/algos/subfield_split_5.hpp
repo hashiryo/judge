@@ -28,13 +28,13 @@ constexpr auto EMBED_BYTE= []() {
 }();
 inline u64 embed_idx(u16 idx) { return EMBED_BYTE[0][u8(idx)] ^ EMBED_BYTE[1][u8(idx >> 8)]; }
 // runtime-init される big tables (σ^k chain 経由)
-inline u16 LN_SIGMA[65536];
-inline u16 PW_SIGMA_IDX[65535];
 inline u16 INV[65535];
 inline bool inited= false;
 void init_tables() {
  if(inited) return;
  inited= true;
+ u16 LN_SIGMA[65536];
+ u16 PW_SIGMA_IDX[65535];
  constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
  u64 cur= 1;
  for(u16 k= 0; k < 65535; ++k) {
@@ -44,13 +44,10 @@ void init_tables() {
   cur= mul(cur, SIGMA);
  }
  LN_SIGMA[1]= 0;
- LN_SIGMA[0]= 0;
- for(u16 k= 0; k < 65535; ++k) INV[k]= PW_SIGMA_IDX[LN_SIGMA[k]];
+ for(u16 k= 1; k < 65535; ++k) INV[k]= PW_SIGMA_IDX[LN_SIGMA[k]];
 }
 u64 inv(u64 a) {
  assert(a != 0);
- constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
- constexpr u64 M_VAL= 0x1000100010001ull;
  u64 a16= frob16(a);
  u64 a32= frob16(a16);
  u64 a48= frob16(a32);
