@@ -57,7 +57,7 @@ constexpr u64 M_VAL2= (u64(1) << 32) + 1;
 constexpr u32 INV2_F16= 32768;  // = 2^{-1} mod 65535
 constexpr u32 INV2_F17= 32768;  // = (-2)^{-1} mod 65537 (= 65535^{-1} mod 65537)
 // G_b 生成元: h2 = 2^{(2^32+1)(2^16-1)} = 2^{0x0000ffff0000ffff} ∈ F_{2^32}, order 65537
-constexpr u64 H2_EXP= 0x0000ffff0000ffffull;
+constexpr u64 h2= 0x1c1e79669b95a7ce;
 
 inline u16 LN_SIGMA[65536];
 inline u16 PW_SIGMA_IDX[65536];
@@ -112,7 +112,6 @@ void init_tables() {
  LN_SIGMA[0]= 0;
  PW_SIGMA_IDX[65535]= 1;
  // G_b chain: h2^k for k = 0..65536
- constexpr u64 h2= 0x1c1e79669b95a7ce;
  cur= 1;
  for(u32 k= 0; k < 65537; ++k) {
   PW_H2[k]= cur;
@@ -137,7 +136,7 @@ u64 pow(u64 a, u64 e) {
  const u16 L_a= LN_SIGMA[u16(x_a)];      // log_σ(x_a) · (65537)^{-1} = l_a mod 65535
  const u32 L_b= LN_H2.lookup(x_b);       // log_h2(x_b) · (65535)^{-1} = l_b mod 65537
  // l_a × q mod 65535, l_b × q mod 65537 を計算
- const u16 e_a= u64(L_a) * q % 65535u;
+ const u16 e_a= u32(L_a) * q % 65535u;
  const u32 e_b= u64(L_b) * q % 65537u;
  const u64 b_a= embed_idx(PW_SIGMA_IDX[e_a]);  // SIGMA^{e_a} (= α-part^q)
  const u64 b_b= PW_H2[e_b];                    // h2^{e_b}    (= β-part^q)
