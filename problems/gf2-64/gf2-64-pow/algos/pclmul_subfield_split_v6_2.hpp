@@ -48,7 +48,6 @@ constexpr u32 M_F17= 65537;  // 2^16 + 1
 inline u16 LN_SIGMA[65536];      // LN_SIGMA[u16(σ^k)] = k  (raw log)
 inline u16 PW_SIGMA_IDX[65536];  // PW_SIGMA_IDX[k] = u16(σ^k)
 u64 pow_byte_window(u64 g, u64 e) {
- if(!e) return 1;
  u64 T[16]= {1, g};
  for(int i= 2; i < 16; ++i) T[i]= mul(T[i - 1], g);
  int top= 15 - (__builtin_clzll(e) >> 2);
@@ -82,17 +81,13 @@ u64 pow(u64 a, u64 e) {
  if(!q) return pow_byte_window(a, e);
  const u64 r= e - u64(q) * M_VAL2;
  // q = q_2 · (2^16+1) + r_2
- const u32 q_2= q / M_F17;           // ∈ [0, 65535]
+ const u16 q_2= q / M_F17;           // ∈ [0, 65535]
  const u32 r_2= q - q_2 * M_F17;     // ∈ [0, 65537)
  const u64 N2= mul(a, frob32(a));    // N2(α) ∈ F_{2^32}^*
- const u64 Na= mul(N2, frob16(N2));  // N(α) = N2(α)^{2^16+1} ∈ F_{2^16}^*
+ const u16 Na= mul(N2, frob16(N2));  // N(α) = N2(α)^{2^16+1} ∈ F_{2^16}^*
  // b1 = N(α)^{q_2}  (q_2 = 0 でも LN_SIGMA[Na]·0 = 0 → PW_SIGMA_IDX[0] = 1 で正しく)
- const u32 L_a= LN_SIGMA[u16(Na)];
- const u32 e_a= u64(q_2) * L_a % 65535u;
- const u64 b1= embed_idx(PW_SIGMA_IDX[e_a]);
- // b2 = N2(α)^{r_2}  (r_2 ≤ 65537、~17 bit)
- const u64 b2= pow_byte_window(N2, r_2);
- const u64 b= mul(b1, b2);
+ const u64 b1= embed_idx(PW_SIGMA_IDX[u32(q_2) * LN_SIGMA[Na] % 65535u]);
+ const u64 b= r_2 ? mul(b1, pow_byte_window(N2, r_2)) : b1;
  if(!r) return b;
  const u64 g= pow_byte_window(a, r);
  return mul(b, g);
