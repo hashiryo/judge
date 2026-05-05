@@ -18,11 +18,8 @@
 
 using gf2_64_pclmul::mul;
 namespace gf2_64_extgcd {
-using u128= __uint128_t;
-constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
 inline u64 inv(u64 a) {
  if(!a) return 0;
-
  u64 u= 0x1Bull ^ (a << (__builtin_clzll(a) + 1));  // P-a*x^shift
  u64 t= 1, s= 1ull << (__builtin_clzll(a) + 1);
  u64 v= a;
