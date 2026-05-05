@@ -20,17 +20,11 @@ using gf2_64_pclmul::mul;
 namespace gf2_64_extgcd {
 using u128= __uint128_t;
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
-// u128 (deg ≤ 127 多項式) を mod P (= x^64 + 0x1B) で u64 に還元。
-inline u64 reduce_modP(u128 x) {
- u64 h= x >> 64, d= h ^ (h << 1);
- return u64(x) ^ RED[h >> 60] ^ d ^ (d << 3);
-}
 inline u64 inv(u64 a) {
  if(!a) return 0;
 
- u64 s= 0, t= 1;
  u64 u= 0x1Bull ^ (a << (__builtin_clzll(a) + 1));  // P-a*x^shift
- s^= t << (__builtin_clzll(a) + 1);
+ u64 t= 1, s= 1ull << (__builtin_clzll(a) + 1);
  u64 v= a;
  while(v != 1) {
   int du= 63 - __builtin_clzll(u);
@@ -50,7 +44,7 @@ inline u64 inv(u64 a) {
   u^= v << shift;
   s^= t << shift;
  }
- return reduce_modP(t);
+ return t;
 }
 }  // namespace gf2_64_extgcd
 struct GF2_64Op {
