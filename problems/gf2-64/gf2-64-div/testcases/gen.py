@@ -3,6 +3,7 @@
 # requires-python = ">=3.12"
 # ///
 """GF(2^64) 除算 a / b のテストケース生成。b ≠ 0。"""
+import hashlib
 import random
 import sys
 from pathlib import Path
@@ -24,7 +25,7 @@ CASES = {
 
 
 def make_pairs(name: str, T: int, kind: str) -> list[tuple[int, int]]:
-    rng = random.Random(hash(("div", name)) & 0xFFFFFFFF)
+    rng = random.Random(int.from_bytes(hashlib.sha256(f"div:{name}".encode()).digest()[:8], "big"))
     if kind == "sample":
         return [
             (0, 1), (1, 1), (2, 2), (3, 5), (5, 3),

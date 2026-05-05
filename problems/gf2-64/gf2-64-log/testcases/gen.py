@@ -9,6 +9,7 @@ g = 2 は P(x)=x^64+x^4+x^3+x+1 の下で原始元 (位数 2^64-1)。
 期待出力 (.out) は k だが、checker.cpp が g^k_user == x で再検証するので
 複数解可。
 """
+import hashlib
 import random
 import sys
 from pathlib import Path
@@ -33,7 +34,7 @@ CASES = {
 
 def make_ks(name: str, T: int, kind: str) -> list[int]:
     """正解 k のリストを返す。x は後で batch_log_inv (g^k) で一括計算。"""
-    rng = random.Random(hash(("log", name)) & 0xFFFFFFFF)
+    rng = random.Random(int.from_bytes(hashlib.sha256(f"log:{name}".encode()).digest()[:8], "big"))
     if kind == "sample":
         return [0, 1, 2, 100, 1 << 16, 1 << 32, 1 << 60, ORDER - 1][:T]
     if kind == "small":

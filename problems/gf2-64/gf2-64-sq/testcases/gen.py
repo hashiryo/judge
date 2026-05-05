@@ -9,6 +9,7 @@
   ./gen.py                # 全ケース
   ./gen.py random_large_00  # 指定ケースのみ
 """
+import hashlib
 import random
 import sys
 from pathlib import Path
@@ -30,7 +31,7 @@ CASES: dict[str, tuple[int, str]] = {
 
 
 def make_values(name: str, T: int, kind: str) -> list[int]:
-    rng = random.Random(hash(("sq", name)) & 0xFFFFFFFF)
+    rng = random.Random(int.from_bytes(hashlib.sha256(f"sq:{name}".encode()).digest()[:8], "big"))
     if kind == "sample":
         return [0, 1, 2, 3, 0xFF, MASK64,
                 0x12345678ABCDEF00, 0xFEDCBA9876543210][:T]

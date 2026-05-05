@@ -7,6 +7,7 @@
 注意: sqrt は GF(2^64) では一意 (Frobenius が全単射、char 2 なので)。
 任意の値 a に対し sqrt(a) は存在し一意。
 """
+import hashlib
 import random
 import sys
 from pathlib import Path
@@ -28,7 +29,7 @@ CASES = {
 
 
 def make_values(name: str, T: int, kind: str) -> list[int]:
-    rng = random.Random(hash(("sqrt", name)) & 0xFFFFFFFF)
+    rng = random.Random(int.from_bytes(hashlib.sha256(f"sqrt:{name}".encode()).digest()[:8], "big"))
     if kind == "sample":
         return [0, 1, 2, 3, 5, MASK64, 0xDEADBEEFCAFE0000, 0x12345678ABCDEF00][:T]
     if kind == "small":

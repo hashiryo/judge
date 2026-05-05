@@ -3,6 +3,7 @@
 # requires-python = ">=3.12"
 # ///
 """GF(2^64) で a^65536 (= a^{2^16}) を計算するテストケース生成。"""
+import hashlib
 import random
 import sys
 from pathlib import Path
@@ -24,7 +25,7 @@ CASES: dict[str, tuple[int, str]]= {
 
 
 def make_values(name: str, T: int, kind: str) -> list[int]:
-    rng= random.Random(hash(("frob16", name)) & 0xFFFFFFFF)
+    rng= random.Random(int.from_bytes(hashlib.sha256(f"frob16:{name}".encode()).digest()[:8], "big"))
     if kind == "sample":
         return [0, 1, 2, 3, 0xFF, MASK64,
                 0x12345678ABCDEF00, 0xFEDCBA9876543210][:T]
