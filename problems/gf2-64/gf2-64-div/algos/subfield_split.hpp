@@ -59,11 +59,11 @@ u64 pow_byte_window(u64 g, u64 e) {
 u64 inv(u64 a) {
  constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
  constexpr u64 M_VAL= (~u64(0)) / 65535u;
- const u16 q= e / M_VAL;
+ constexpr u16 q= e / M_VAL;
+ constexpr u64 r= e - M_VAL * q;
  const u64 N2= mul(a, frob32(a));
  const u16 N= mul(N2, frob16(N2));
  const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
- const u64 r= e - M_VAL * q;
  const u64 g= pow_byte_window(a, r);
  return mul(b, g);
 }
