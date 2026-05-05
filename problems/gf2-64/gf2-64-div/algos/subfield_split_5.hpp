@@ -48,6 +48,7 @@ void init_tables() {
  for(u16 k= 0; k < 65535; ++k) INV[k]= PW_SIGMA_IDX[LN_SIGMA[k]];
 }
 u64 inv(u64 a) {
+ assert(a != 0);
  constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
  constexpr u64 M_VAL= 0x1000100010001ull;
  u64 a16= frob16(a);
