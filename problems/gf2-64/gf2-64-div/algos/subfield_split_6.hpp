@@ -34,8 +34,8 @@ inline bool inited= false;
 void init_tables() {
  if(inited) return;
  inited= true;
- u16 LN_SIGMA[65536];
- u16 PW_SIGMA_IDX[65536];
+ u16 LN_SIGMA[65536]= {};
+ u16 PW_SIGMA_IDX[65536]= {};
  constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
  u64 cur= SIGMA;
  for(u16 k= 1, idx= cur;;) {
