@@ -49,13 +49,12 @@ u64 inv(u64 a) {
  constexpr u64 M_VAL= 0x1000100010001ull;
  constexpr u16 q= e / M_VAL;
  constexpr u64 r= e - M_VAL * q;
- const u64 N2= mul(a, frob32(a));
- const u16 N= mul(N2, frob16(N2));
- const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
  u64 a16= frob16(a);
  u64 a32= frob16(a16);
  u64 a48= frob16(a32);
- const u64 g= mul(a16, mul(a32, a48));
+ u64 g= mul(a16, mul(a32, a48));
+ const u16 N= mul(g, a);
+ const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
  return mul(b, g);
 }
 }  // namespace gf2_64_pclmul_window
