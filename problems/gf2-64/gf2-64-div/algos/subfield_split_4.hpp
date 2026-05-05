@@ -44,13 +44,6 @@ void init_tables() {
  }
  LN_SIGMA[0]= 0;
 }
-u64 pow_byte_window(u64 g) {
- constexpr u64 e= 0x1000100010000ull;
- u64 g16= frob16(g);
- u64 g32= frob16(g16);
- u64 g48= frob16(g32);
- return mul(g16, mul(g32, g48));
-}
 u64 inv(u64 a) {
  constexpr u64 e= 0xFFFFFFFFFFFFFFFEull;  // 2^64-2 = -1 mod 2^64-1
  constexpr u64 M_VAL= 0x1000100010001ull;
@@ -59,7 +52,10 @@ u64 inv(u64 a) {
  const u64 N2= mul(a, frob32(a));
  const u16 N= mul(N2, frob16(N2));
  const u64 b= embed_idx(PW_SIGMA_IDX[(u32(LN_SIGMA[N]) * q) % 65535]);
- const u64 g= pow_byte_window(a);
+ u64 a16= frob16(a);
+ u64 a32= frob16(a16);
+ u64 a48= frob16(a32);
+ const u64 g= mul(a16, mul(a32, a48));
  return mul(b, g);
 }
 }  // namespace gf2_64_pclmul_window
