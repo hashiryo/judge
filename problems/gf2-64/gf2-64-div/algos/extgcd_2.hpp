@@ -20,16 +20,16 @@ using gf2_64_pclmul::mul;
 namespace gf2_64_extgcd {
 inline u64 inv(u64 a) {
  if(!a) return 0;
- u64 u= 0x1Bull ^ (a << (__builtin_clzll(a) + 1));  // P-a*x^shift
- u64 t= 1, s= 1ull << (__builtin_clzll(a) + 1);
- u64 v= a;
- while(v != 1) {
+ int shift= __builtin_clzll(a) + 1;
+ u64 u= 0x1Bull ^ (a << shift);  // P-a*x^shift
+ u64 t= 1, s= 1ull << shift;
+ while(a != 1) {
   int du= 63 - __builtin_clzll(u);
-  int dv= 63 - __builtin_clzll(v);
+  int dv= 63 - __builtin_clzll(a);
   if(du < dv) {
    u64 tmp= u;
-   u= v;
-   v= tmp;
+   u= a;
+   a= tmp;
    tmp= s;
    s= t;
    t= tmp;
@@ -37,8 +37,8 @@ inline u64 inv(u64 a) {
    du= dv;
    dv= td;
   }
-  int shift= du - dv;
-  u^= v << shift;
+  shift= du - dv;
+  u^= a << shift;
   s^= t << shift;
  }
  return t;
