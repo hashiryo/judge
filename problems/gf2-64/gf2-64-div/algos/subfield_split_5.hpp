@@ -35,16 +35,15 @@ void init_tables() {
  u16 LN_SIGMA[65536]= {};
  u16 PW_SIGMA_IDX[65536]= {};
  constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
- u64 cur= SIGMA;
- for(u16 k= 1, idx= cur;;) {
+ u64 cur= 1;
+ for(u16 k= 0; k < 65535; ++k) {
+  u16 idx= cur;
   LN_SIGMA[idx]= k;
   PW_SIGMA_IDX[k]= idx;
-  if(k == 65534) break;
-  idx= cur= mul(cur, SIGMA);
-  ++k;
+  cur= mul(cur, SIGMA);
  }
- INV[1]= 1;
- for(u32 i= 2; i < 65535; ++i) INV[i]= PW_SIGMA_IDX[65535 - LN_SIGMA[i]];
+ LN_SIGMA[0]= 0;
+ for(u32 i= 1; i < 65535; ++i) INV[i]= PW_SIGMA_IDX[(65535 - LN_SIGMA[i]) % 65535];
 }
 u64 inv(u64 a) {
  assert(a != 0);
