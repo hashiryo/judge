@@ -22,6 +22,7 @@ CASES = {
     "random_large_00":     (100_000, "random"),  # pow は 1 つあたり ~64 mul なので 1e5 で十分
     "chunk_top_bit_00":    (100_000, "chunk_top_bit"),  # e の各 16-bit chunk で MSB が立っている
     "dense_e_00":          (100_000, "dense_e"),        # popcount(e) が 56〜64 の dense
+    "huge_e_00":           (100_000, "huge_e"),         # e ∈ [2^60, 2^64)
 }
 
 
@@ -48,6 +49,9 @@ def make_pairs(name: str, T: int, kind: str) -> list[tuple[int, int]]:
                 e |= (0x8000 | rng.randint(0, 0x7FFF)) << s
             out.append((a, e))
         return out
+    if kind == "huge_e":
+        # e ∈ [2^60, 2^64) (上位 4 bit 中に必ず 1 が立っている)
+        return [(rng.randint(0, MASK64), rng.randint(1 << 60, MASK64)) for _ in range(T)]
     if kind == "dense_e":
         # popcount(e) が 56〜64 になるように MASK64 から少数 bit を落とす。
         out = []
