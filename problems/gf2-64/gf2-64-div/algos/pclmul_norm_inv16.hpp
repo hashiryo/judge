@@ -5,24 +5,14 @@
 // memory: 256 KiB (PW + LN) → 128 KiB (INV16 のみ) で半減 + 1 lookup 節約。
 // 1 inv あたり ~12 cycle 短縮見込み。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pclmul_norm_inv16 {
+using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob16;
 // F_{2^16} 直接 inv テーブル (nim 基底): INV16[A] = A^{-1} for A != 0, INV16[0] = 0.
 inline u16 INV16[65536];
 inline bool inited= false;
@@ -64,7 +54,7 @@ void init_tables() {
 }
 }  // namespace gf2_64_pclmul_norm_inv16
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
   using gf2_64_pclmul_norm_inv16::init_tables;
   using gf2_64_pclmul_norm_inv16::inv;

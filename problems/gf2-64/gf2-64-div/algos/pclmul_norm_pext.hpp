@@ -17,27 +17,14 @@
 // 注: σ は gen_tower_custom_sparse から取った 0xa1573a4da2bc3a32
 //     (r(s) = s^16 + s^12 + s^3 + s + 1 で r(σ) = 0)。
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
+
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#define HAVE_PEXT 1
-#else
-#define PCLMUL_RUN
-#define HAVE_PEXT 0
-#endif
 namespace gf2_64_pclmul_norm_pext {
+using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob16;
-using u16= unsigned short;
-using u32= unsigned;
 
 // F_{2^16} subfield 生成元 (poly basis、r(σ) = 0 で r = s^16 + s^12 + s^3 + s + 1)
 constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
@@ -51,7 +38,7 @@ inline int PEXT_POS[16];
 #endif
 
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
 
@@ -178,8 +165,8 @@ inline bool inited= false;
  return r;
 #endif
 }
-[[gnu::target("pclmul")]] u64 inv_in_f16(u64 N_poly) { return INV_PEXT[extract_idx(N_poly)]; }
-[[gnu::target("pclmul")]] u64 inv(u64 a) {
+u64 inv_in_f16(u64 N_poly) { return INV_PEXT[extract_idx(N_poly)]; }
+u64 inv(u64 a) {
  const u64 b1= frob16(a);
  const u64 b2= frob16(b1);
  const u64 b3= frob16(b2);
@@ -189,7 +176,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_pclmul_norm_pext
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
   using gf2_64_pclmul_norm_pext::init_tables;
   using gf2_64_pclmul_norm_pext::inv;

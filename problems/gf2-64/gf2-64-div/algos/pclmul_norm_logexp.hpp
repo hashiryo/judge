@@ -10,25 +10,15 @@
 //     合計 8 + 2 + 8 = 18 byte lookups (~50 cycles)。
 //
 // log/exp テーブルは Nimber.hpp と同じ recurrence で構築 (PW[i] = nim 表現での s^i)。
-#pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
+
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
 #include "../../_shared/basis_change.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#else
-#define PCLMUL_RUN
-#endif
 namespace gf2_64_pclmul_norm_logexp {
+using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-using gf2_64_pclmul::frob16;
 // F_{2^16} log/exp テーブル (Nimber 互換, nim 基底での値が index/値となる)
 inline u16 PW16[65536], LN16[65536];
 inline bool inited= false;
@@ -70,7 +60,7 @@ void init_tables() {
 }
 }  // namespace gf2_64_pclmul_norm_logexp
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
+ static vector<u64> run(const vector<u64>& as, const vector<u64>& bs) {
   using gf2_64_pclmul::mul;
   using gf2_64_pclmul_norm_logexp::init_tables;
   using gf2_64_pclmul_norm_logexp::inv;
