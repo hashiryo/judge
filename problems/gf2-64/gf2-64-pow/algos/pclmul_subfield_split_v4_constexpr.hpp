@@ -19,8 +19,6 @@ namespace gf2_64_pow_subfield_split_v4_7 {
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob3;
 using gf2_64_pclmul::frob32;
-using gf2_64_pclmul::frob4;
-using gf2_64_pclmul::frob48;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 // embed: low 16-bit subfield 識別子 → 64-bit poly 表現 (subfield 元の埋め込み)
