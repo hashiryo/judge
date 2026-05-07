@@ -41,8 +41,8 @@ VPCLMUL inline void mul2(u64 a0, u64 b0, u64 a1, u64 b1, u64& r0, u64& r1) {
  __m256i partial= _mm256_xor_si256(prod, red1_shift);
  __m128i p0= _mm256_castsi256_si128(partial);
  __m128i p1= _mm256_extracti128_si256(partial, 1);
- r0= (u64)p0[0] ^ RED[(u64)p0[1] >> 60];
- r1= (u64)p1[0] ^ RED[(u64)p1[1] >> 60];
+ r0= u64(p0[0]) ^ RED[p0[1] >> 60];
+ r1= u64(p1[0]) ^ RED[p1[1] >> 60];
 }
 u64 pow(u64 a, u64 e) {
  if(e == 0) return 1;
