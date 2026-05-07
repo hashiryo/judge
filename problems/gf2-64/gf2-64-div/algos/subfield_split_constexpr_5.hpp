@@ -70,7 +70,7 @@ constexpr inline u64 embed_idx(u16 idx) {
  return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8];
 }
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
-inline u64 inv(u64 a) {
+VPCLMUL inline u64 inv(u64 a) {
  assert(a != 0);
  u64 a32= frob32(a);
  u64 N= mul(a, a32);
