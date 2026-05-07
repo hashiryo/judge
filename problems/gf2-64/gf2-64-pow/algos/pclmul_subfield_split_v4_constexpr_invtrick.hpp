@@ -57,26 +57,21 @@ constexpr auto TABLES= []() {
   T_hi[v]= hi;
  }
  Tables t{};
- // chain で nat[k] = σ^k を保持しつつ LN_SIGMA / PW_SIGMA_IDX を埋める
- u16 nat[65535];
+ // chain で LN_SIGMA / PW_SIGMA_IDX を埋める
  u16 cur= 1;
  for(u32 k= 0; k < 65535; ++k) {
   u16 lo= T_lo[u8(cur)] ^ T_hi[cur >> 8];
-  nat[k]= cur;
   t.LN_SIGMA[lo]= u16(k);
   t.PW_SIGMA_IDX[k]= lo;
   cur= u16(cur << 1) ^ (0x002DU & -u16(cur >> 15));
  }
  t.LN_SIGMA[0]= 0;
- // INV_LOW: σ^0 = 1 はそのまま
- u16 lo1= T_lo[1] ^ T_hi[0];
- t.INV_LOW[lo1]= lo1;
- // pair (k, 65535-k) で 2 entry ずつ埋める (反復 32767 回)
+ // INV_LOW: σ^k inverse = σ^{65535-k} (順序 65535)
+ //   PW_SIGMA_IDX[k] = u16(σ^k) なのでそれを使えば nat[] や T_lo/T_hi 再 lookup 不要。
+ t.INV_LOW[t.PW_SIGMA_IDX[0]]= t.PW_SIGMA_IDX[0];  // σ^0 = 1 → INV[1] = 1
  for(u32 k= 1; k <= 32767; ++k) {
-  u16 nk= nat[k];
-  u16 nik= nat[65535 - k];
-  u16 lo_k= T_lo[u8(nk)] ^ T_hi[nk >> 8];
-  u16 lo_ik= T_lo[u8(nik)] ^ T_hi[nik >> 8];
+  u16 lo_k= t.PW_SIGMA_IDX[k];
+  u16 lo_ik= t.PW_SIGMA_IDX[65535 - k];
   t.INV_LOW[lo_k]= lo_ik;
   t.INV_LOW[lo_ik]= lo_k;
  }
