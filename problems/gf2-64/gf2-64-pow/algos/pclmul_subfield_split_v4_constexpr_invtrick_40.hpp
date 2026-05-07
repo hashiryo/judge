@@ -99,7 +99,7 @@ inline u64 pow(u64 a, u64 e) {
  if(!e) return 1;
  if(!a) return 0;
  // popcount(e) > 32 のとき a^e = (a^{-1})^{~e}
- if(__builtin_popcountll(e) > 32) {
+ if(__builtin_popcountll(e) > 40) {
   a= inv(a);
   e= ~e;
   if(!e) return 1;  // e == 2^64-1 のケース → (a^{-1})^0 = 1
