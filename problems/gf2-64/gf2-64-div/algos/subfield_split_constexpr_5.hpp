@@ -1,6 +1,17 @@
-// INV_LOW[low16(a)] = low16(a^{-1}) を constexpr で構築
-// 元のコードの「u16(mul(g, a)) で直接引く」スタイルと互換
-
+// subfield_split_constexpr_5: 独立な 2 mul を VPCLMULQDQ で並列実行
+//
+// 元の inv() 内で:
+//   g    = mul(a32, N16)        ← clmul(a32, N16) + reduction
+//   tmp  = mul(N,   N16)        ← clmul(N,   N16) + reduction (u16 のみ使用)
+// は a32, N, N16 が出揃った後、互いに独立。
+// VPCLMULQDQ (AVX2) の `_mm256_clmulepi64_epi128` で 2 PCLMUL を 1 命令に。
+//
+// 必要な拡張: VPCLMULQDQ + AVX2 (Intel Ice Lake / AMD Zen3 以降)。
+// AMD EPYC 7763 = Zen3 → VPCLMULQDQ 対応 (GFNI と違って dashboard で動く期待)。
+#pragma GCC optimize("O3,unroll-loops")
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
+#pragma GCC target("pclmul,vpclmulqdq,avx,avx2")
+#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
@@ -26,15 +37,11 @@ constexpr auto INV_LOW= []() {
   T_lo[v]= lo;
   T_hi[v]= hi;
  }
- // σ chain を natural 表現で 1 周だけ走らせ nat[k] = σ^k を保持。
- // log/exp テーブル経由を廃止 → INV_LOW を nat 空間でじか埋めする。
  u16 nat[65535];
  for(u16 i= 0, cur= 1; i < 65535; ++i) nat[i]= cur, cur= u16(cur << 1) ^ (0x002DU & -u16(cur >> 15));
  array<u16, 65536> t{};
- // σ^0 = 1: INV_LOW[low(1)] = low(1)
  u16 lo1= T_lo[1] ^ T_hi[0];
  t[lo1]= lo1;
- // pair (k, 65535-k) で 2 entry ずつ書く → 反復は 32767 回で済む
  for(uint32_t k= 1; k <= 32767; ++k) {
   u16 nk= nat[k];
   u16 nik= nat[65535 - k];
@@ -62,13 +69,31 @@ constexpr inline u64 embed_idx(u16 idx) {
  }();
  return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8];
 }
-u64 inv(u64 a) {
+constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
+PCLMUL inline u64 inv(u64 a) {
  assert(a != 0);
  u64 a32= frob32(a);
  u64 N= mul(a, a32);
  u64 N16= frob16(N);
- u64 g= mul(a32, N16);
- u64 b= embed_idx(INV_LOW[u16(mul(N, N16))]);
+ // VPCLMULQDQ で 2 並列 clmul:
+ //   lane 0: clmul(a32, N16) → 後で reduce → g
+ //   lane 1: clmul(N,   N16) → 後で reduce → mul(N, N16)
+ // _mm256_set_epi64x(e3, e2, e1, e0): 128-bit lane 0 = [e1:e0], lane 1 = [e3:e2]
+ // PCLMUL imm8=0 は各 lane の low64 を mul する → e0, e2 だけ意味あり。
+ __m256i a_vec= _mm256_set_epi64x(0, N, 0, a32);
+ __m256i b_vec= _mm256_set1_epi64x(N16);
+ __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
+ __m128i p0= _mm256_castsi256_si128(prod);       // clmul(a32, N16)
+ __m128i p1= _mm256_extracti128_si256(prod, 1);  // clmul(N, N16)
+ // reduce each (mul.hpp と同形)
+ u64 g_h= (u64)p0[1], g_l= (u64)p0[0];
+ u64 d_g= g_h ^ (g_h << 1);
+ u64 g= g_l ^ RED[g_h >> 60] ^ d_g ^ (d_g << 3);
+ u64 t_h= (u64)p1[1], t_l= (u64)p1[0];
+ u64 d_t= t_h ^ (t_h << 1);
+ u64 NN16= t_l ^ RED[t_h >> 60] ^ d_t ^ (d_t << 3);
+ // 残り
+ u64 b= embed_idx(INV_LOW[u16(NN16)]);
  return mul(b, g);
 }
 struct GF2_64Op {
