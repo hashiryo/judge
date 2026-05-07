@@ -23,8 +23,8 @@ using gf2_64_pclmul::sq;
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
 // 2 並列 mul: (mul(a0, b0), mul(a1, b1)) を VPCLMULQDQ + 並列 reduction で計算
 VPCLMUL inline void mul2(u64 a0, u64 b0, u64 a1, u64 b1, u64& r0, u64& r1) {
- __m256i a_vec= _mm256_set_epi64x(0, (i64)a1, 0, (i64)a0);
- __m256i b_vec= _mm256_set_epi64x(0, (i64)b1, 0, (i64)b0);
+ __m256i a_vec= _mm256_set_epi64x(0, a1, 0, a0);
+ __m256i b_vec= _mm256_set_epi64x(0, b1, 0, b0);
  __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
  __m256i d_full= _mm256_xor_si256(prod, _mm256_slli_epi64(prod, 1));
  __m256i red1_full= _mm256_xor_si256(d_full, _mm256_slli_epi64(d_full, 3));
@@ -32,8 +32,8 @@ VPCLMUL inline void mul2(u64 a0, u64 b0, u64 a1, u64 b1, u64& r0, u64& r1) {
  __m256i partial= _mm256_xor_si256(prod, red1_shift);
  __m128i p0= _mm256_castsi256_si128(partial);
  __m128i p1= _mm256_extracti128_si256(partial, 1);
- r0= (u64)p0[0] ^ RED[(u64)p0[1] >> 60];
- r1= (u64)p1[0] ^ RED[(u64)p1[1] >> 60];
+ r0= u64(p0[0]) ^ RED[p0[1] >> 60];
+ r1= u64(p1[0]) ^ RED[p1[1] >> 60];
 }
 inline u64 pow_binary(u64 a, u64 e) {
  u64 res= 1;

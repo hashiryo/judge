@@ -32,8 +32,8 @@ using gf2_64_pclmul::sq;
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
 // 2 並列 mul: (mul(a0, b0), mul(a1, b1)) を VPCLMULQDQ + 並列 reduction で計算
 VPCLMUL inline void mul2(u64 a0, u64 b0, u64 a1, u64 b1, u64& r0, u64& r1) {
- __m256i a_vec= _mm256_set_epi64x(0, (i64)a1, 0, (i64)a0);
- __m256i b_vec= _mm256_set_epi64x(0, (i64)b1, 0, (i64)b0);
+ __m256i a_vec= _mm256_set_epi64x(0, a1, 0, a0);
+ __m256i b_vec= _mm256_set_epi64x(0, b1, 0, b0);
  __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
  __m256i d_full= _mm256_xor_si256(prod, _mm256_slli_epi64(prod, 1));
  __m256i red1_full= _mm256_xor_si256(d_full, _mm256_slli_epi64(d_full, 3));
