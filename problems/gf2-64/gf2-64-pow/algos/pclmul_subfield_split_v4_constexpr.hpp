@@ -23,10 +23,9 @@ using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::frob48;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-
 // embed: low 16-bit subfield 識別子 → 64-bit poly 表現 (subfield 元の埋め込み)
 constexpr u64 embed_idx(u16 idx) {
- constexpr auto EMBED= []() {
+ static constexpr auto EMBED= []() {
   u64 SUBFIELD_BASIS[]= {0x0000000000000001ULL, 0x5fbfaec6aeac0002ULL, 0xb06c601895640004ULL, 0xb013b5277b7c0008ULL, 0xb5ebb915248a0010ULL, 0x109bb25b2c600020ULL, 0xbf3bd95bd4190040ULL, 0x0fc66342279b0080ULL, 0xb6418f5e57c50100ULL, 0xaa194bd4b83f0200ULL, 0x1b5217b4dcc70400ULL, 0xbb06fa73867a0800ULL, 0x006fd55b23331000ULL, 0x4ae8fb39198c2000ULL, 0xfbd141b29b4f4000ULL, 0x1d9ce1776be78000ULL};
   array<array<u64, 256>, 2> t{};
   for(int half= 0; half < 2; ++half)
@@ -40,7 +39,6 @@ constexpr u64 embed_idx(u16 idx) {
  }();
  return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8];
 }
-
 // LN_SIGMA[u16(BETA^k)] = k, PW_SIGMA_IDX[k] = u16(BETA^k)
 // natural chain で 65535 周しつつ T_lo/T_hi byte table で nat→low 変換し、両テーブル同時に埋める。
 struct Tables {
@@ -73,7 +71,6 @@ constexpr auto TABLES= []() {
  t.LN_SIGMA[0]= 0;
  return t;
 }();
-
 u64 pow_byte_window(u64 g, u64 e) {
  u64 T[8]= {1, g};
  for(int i= 2; i < 8; ++i) T[i]= mul(T[i - 1], g);
