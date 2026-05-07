@@ -7,8 +7,6 @@
 
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob32;
-using gf2_64_pclmul::frob4;
-using gf2_64_pclmul::frob48;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 
@@ -66,7 +64,10 @@ constexpr u64 embed_idx(u16 idx) {
 }
 u64 inv(u64 a) {
  assert(a != 0);
- u64 g= mul(frob16(a), mul(frob32(a), frob48(a)));
+ u64 a32= frob32(a);
+ u64 N= mul(a, a32);
+ u64 N16= frob16(N);
+ u64 g= mul(a32, N16);
  u64 b= embed_idx(INV_LOW[u16(mul(g, a))]);
  return mul(b, g);
 }
