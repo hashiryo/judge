@@ -75,7 +75,7 @@ constexpr inline u64 embed_idx(u16 idx) {
  return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8];
 }
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
-PCLMUL inline u64 inv(u64 a) {
+VPCLMUL inline u64 inv(u64 a) {
  assert(a != 0);
  u64 a32= frob32(a);
  u64 N= mul(a, a32);
@@ -94,8 +94,8 @@ PCLMUL inline u64 inv(u64 a) {
  __m128i p0= _mm256_castsi256_si128(partial);
  __m128i p1= _mm256_extracti128_si256(partial, 1);
  // RED[h_k >> 60] を scalar で加算
- u64 g= (u64)p0[0] ^ RED[(u64)p0[1] >> 60];
- u64 NN16= (u64)p1[0] ^ RED[(u64)p1[1] >> 60];
+ u64 g= (u64)p0[0] ^ RED[p0[1] >> 60];
+ u64 NN16= (u64)p1[0] ^ RED[p1[1] >> 60];
  u64 b= embed_idx(INV_LOW[u16(NN16)]);
  return mul(b, g);
 }

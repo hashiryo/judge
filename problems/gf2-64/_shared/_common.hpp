@@ -8,8 +8,10 @@
 #endif
 #ifdef __x86_64__
 #define PCLMUL [[gnu::target("pclmul")]]
+#define VPCLMUL [[gnu::target("vpclmulqdq")]]
 #else
 #define PCLMUL
+#define VPCLMUL
 #endif
 
 #include <bits/stdc++.h>
