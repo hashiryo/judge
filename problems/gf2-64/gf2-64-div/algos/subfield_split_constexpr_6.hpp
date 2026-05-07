@@ -91,12 +91,13 @@ VPCLMUL inline u64 inv(u64 a) {
  __m256i red1_shift= _mm256_srli_si256(red1_full, 8);
  // prod (各 lane low 64 = lo_k) と XOR → 各 lane low 64 = lo_k ^ red1_k
  __m256i partial= _mm256_xor_si256(prod, red1_shift);
+ // RED[h_k >> 60] を scalar で加算
+ // (__m256i 直接 subscript は SIMDe (union) で値が違うので __m128i 経由で取り出す)
  __m128i p0= _mm256_castsi256_si128(partial);
  __m128i p1= _mm256_extracti128_si256(partial, 1);
- // RED[h_k >> 60] を scalar で加算
- u64 g= (u64)p0[0] ^ RED[p0[1] >> 60];
- u64 NN16= (u64)p1[0] ^ RED[p1[1] >> 60];
- u64 b= embed_idx(INV_LOW[u16(NN16)]);
+ u64 g= u64(p0[0]) ^ RED[p0[1] >> 60];
+ u16 NN16= u16(p1[0]) ^ RED[p1[1] >> 60];
+ u64 b= embed_idx(INV_LOW[NN16]);
  return mul(b, g);
 }
 struct GF2_64Op {

@@ -86,14 +86,13 @@ VPCLMUL inline u64 inv(u64 a) {
  __m128i p0= _mm256_castsi256_si128(prod);       // clmul(a32, N16)
  __m128i p1= _mm256_extracti128_si256(prod, 1);  // clmul(N, N16)
  // reduce each (mul.hpp と同形)
- u64 g_h= (u64)p0[1], g_l= (u64)p0[0];
+ u64 g_h= (u64)p0[1];
  u64 d_g= g_h ^ (g_h << 1);
- u64 g= g_l ^ RED[g_h >> 60] ^ d_g ^ (d_g << 3);
- u64 t_h= (u64)p1[1], t_l= (u64)p1[0];
- u64 d_t= t_h ^ (t_h << 1);
- u64 NN16= t_l ^ RED[t_h >> 60] ^ d_t ^ (d_t << 3);
+ u64 g= u64(p0[0]) ^ RED[g_h >> 60] ^ d_g ^ (d_g << 3);
+ u16 t_h= p1[1], d_t= t_h ^ (t_h << 1);
+ u16 NN16= u16(p1[0]) ^ RED[p1[1] >> 60] ^ d_t ^ (d_t << 3);
  // 残り
- u64 b= embed_idx(INV_LOW[u16(NN16)]);
+ u64 b= embed_idx(INV_LOW[NN16]);
  return mul(b, g);
 }
 struct GF2_64Op {
