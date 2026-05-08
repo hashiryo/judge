@@ -119,9 +119,9 @@ constexpr auto LN16= []() {
 struct DirectLogTable {
  std::vector<u64> keys;
  std::vector<u32> values;
- u64 mask;
+ u32 mask;
  void build(u64 base, u32 p) {
-  u64 cap= 8;
+  u32 cap= 8;
   while(cap < 2u * p) cap*= 2;
   keys.assign(cap, ~u64(0));
   values.assign(cap, 0);
@@ -151,8 +151,8 @@ inline DirectLogTable direct_641, direct_65537;
 struct BSGSTable {
  std::vector<u64> keys;
  std::vector<u32> values;
- u64 mask;
- u64 m;
+ u32 mask;
+ u32 m;
  u64 q;
  u64 inv_base_m;
  void build(u64 base, u64 q_, u64 m_override= 0) {
@@ -160,9 +160,9 @@ struct BSGSTable {
   if(m_override) m= m_override;
   else {
    m= 1;
-   while(m * m < q) ++m;
+   while((u64(m) * m) < q) ++m;
   }
-  u64 cap= 8;
+  u32 cap= 8;
   while(cap < 4 * m) cap*= 2;
   keys.assign(cap, ~u64(0));
   values.assign(cap, 0);
