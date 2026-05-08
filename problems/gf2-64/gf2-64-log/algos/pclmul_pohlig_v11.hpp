@@ -244,15 +244,15 @@ u64 log_g(u64 x) {
  const u32 r0= direct_641.lookup(x_641);
  const u32 r2= direct_65537.lookup(x_65537);
  const u32 r3= bsgs_6700417.solve(x_6700417);
- const u64 cur_mod_641= u64(r1) % P_641;
- const u64 diff0= (r0 + P_641 - cur_mod_641) % P_641;
- const u64 t0= (diff0 * INV_65535_641) % P_641;
- const u64 cur_after0_mod_F17= (u64(r1) + MOD_F16 * t0) % P_F17;
- const u64 diff2= (r2 + P_F17 - cur_after0_mod_F17) % P_F17;
- const u64 t2= (diff2 * INV_MOD2_F17) % P_F17;
- const u64 cur_after2_mod_BIG= (u64(r1) + (MOD_F16 * t0) % P_BIG + (MOD_F16_641 * t2) % P_BIG) % P_BIG;
- const u64 diff3= (r3 + P_BIG - cur_after2_mod_BIG) % P_BIG;
- const u64 t3= (__uint128_t(diff3) * INV_MOD3_BIG) % P_BIG;
+ const u16 cur_mod_641= r1 % P_641;
+ const u16 diff0= (r0 + P_641 - cur_mod_641) % P_641;
+ const u16 t0= (diff0 * INV_65535_641) % P_641;
+ const u32 cur_after0_mod_F17= (r1 + MOD_F16 * t0) % P_F17;
+ const u32 diff2= (r2 + P_F17 - cur_after0_mod_F17) % P_F17;
+ const u32 t2= (diff2 * INV_MOD2_F17) % P_F17;
+ const u32 cur_after2_mod_BIG= (r1 + (MOD_F16 * t0) % P_BIG + (MOD_F16_641 * t2) % P_BIG) % P_BIG;
+ const u32 diff3= (r3 + P_BIG - cur_after2_mod_BIG) % P_BIG;
+ const u32 t3= (u64(diff3) * INV_MOD3_BIG) % P_BIG;
  return u64(r1) + MOD_F16 * t0 + MOD_F16_641 * t2 + MOD_F16_641_F17 * t3;
 }
 }  // namespace gf2_64_log_pohlig_v11
