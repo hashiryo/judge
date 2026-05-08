@@ -155,7 +155,7 @@ struct BSGSTable {
  u32 m;
  u64 q;
  u64 inv_base_m;
- void build(u64 base, u64 q_, u64 m_override= 0) {
+ void build(u64 base, u64 q_, u32 m_override= 0) {
   q= q_;
   if(m_override) m= m_override;
   else {
