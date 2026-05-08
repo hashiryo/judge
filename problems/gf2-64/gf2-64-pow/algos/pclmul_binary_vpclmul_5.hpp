@@ -33,7 +33,7 @@ using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 const __m256i RED_TABLE= _mm256_setr_epi8(0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0);
 // state: lane 0 low 64 = res, lane 1 low 64 = a, high 64 はゴミ (clmul imm=0 で無視)
-[[gnu::always_inline]] inline __m256i step_vec(__m256i state) {
+VPCLMUL inline __m256i step_vec(__m256i state) {
  // b_vec: element 2 (= a) を 全 lane に broadcast
  __m256i b_vec= _mm256_permute4x64_epi64(state, _MM_SHUFFLE(2, 2, 2, 2));
  __m256i prod= _mm256_clmulepi64_epi128(state, b_vec, 0);
