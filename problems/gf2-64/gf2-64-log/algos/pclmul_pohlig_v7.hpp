@@ -15,26 +15,14 @@
 // パラメータ tune (random_00 T=10K, x64-g++):
 //   m=65536: 37ms, m=131072: 32ms*, m=262144: 34ms, m=524288: 39ms
 #pragma GCC optimize("O3,unroll-loops")
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#pragma GCC target("pclmul,bmi2")
-#endif
 #include "../../_shared/_common.hpp"
 #include "../../_shared/sq.hpp"
-
-#if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
-#include <immintrin.h>
-#define PCLMUL_RUN [[gnu::target("pclmul,bmi2")]]
-#define HAVE_PEXT 1
-#else
-#define PCLMUL_RUN
-#define HAVE_PEXT 0
-#endif
+#include "../../_shared/frob.hpp"
 namespace gf2_64_log_pohlig_v7 {
+using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-inline u64 FROB4_BYTE[8][256];
-[[gnu::target("pclmul")]] u64 frob4(u64 a) { return FROB4_BYTE[0][u8(a)] ^ FROB4_BYTE[1][u8(a >> 8)] ^ FROB4_BYTE[2][u8(a >> 16)] ^ FROB4_BYTE[3][u8(a >> 24)] ^ FROB4_BYTE[4][u8(a >> 32)] ^ FROB4_BYTE[5][u8(a >> 40)] ^ FROB4_BYTE[6][u8(a >> 48)] ^ FROB4_BYTE[7][u8(a >> 56)]; }
-[[gnu::target("pclmul")]] u64 pow_bw(u64 a, u64 e) {
+u64 pow_bw(u64 a, u64 e) {
  if(e == 0) return 1;
  u64 T[16];
  T[0]= 1;
@@ -60,7 +48,7 @@ inline u16 LN_SIGMA_PEXT[65536];
 #if !HAVE_PEXT
 inline int PEXT_POS[16];
 #endif
-[[gnu::target("pclmul")]] void build_sigma_pext_table() {
+void build_sigma_pext_table() {
  u64 sigma_pow[16];
  sigma_pow[0]= 1;
  for(int i= 1; i < 16; ++i) sigma_pow[i]= mul(sigma_pow[i - 1], SIGMA);
@@ -122,7 +110,7 @@ struct DirectLogTable {
  std::vector<u64> keys;
  std::vector<u32> values;
  u64 mask;
- PCLMUL_RUN void build(u64 base, u32 p) {
+ void build(u64 base, u32 p) {
   // capacity = next pow2 >= 2*p (load ~50%)
   u64 cap= 8;
   while(cap < 2u * p) cap*= 2;
@@ -138,7 +126,7 @@ struct DirectLogTable {
    cur= mul(cur, base);
   }
  }
- PCLMUL_RUN u32 lookup(u64 target) const {
+ u32 lookup(u64 target) const {
   u64 h= (target * 0x9E3779B97F4A7C15ull) & mask;
   while(keys[h] != ~u64(0)) {
    if(keys[h] == target) return values[h];
@@ -158,7 +146,7 @@ struct BSGSTable {
  u64 m;
  u64 q;
  u64 inv_base_m;
- PCLMUL_RUN void build(u64 base, u64 q_, u64 m_override= 0) {
+ void build(u64 base, u64 q_, u64 m_override= 0) {
   q= q_;
   if(m_override) {
    m= m_override;
@@ -181,7 +169,7 @@ struct BSGSTable {
   }
   inv_base_m= pow_bw(base, q - m);
  }
- PCLMUL_RUN u32 solve(u64 target) const {
+ u32 solve(u64 target) const {
   u64 t= target;
   // giant step は ceil(q/m) 回で十分 (元コードは m 回で過剰)
   u64 max_i= (q + m - 1) / m;
@@ -202,7 +190,7 @@ struct BSGSTable {
 inline BSGSTable bsgs_6700417;
 
 inline u32 H_LOG_INV;
-[[gnu::target("pclmul")]] u32 solve_f16(u64 x_proj_poly) {
+u32 solve_f16(u64 x_proj_poly) {
  const u32 idx= extract_idx(x_proj_poly);
  if(idx == 0) return 0;
  const u32 log_x= LN_SIGMA_PEXT[idx];
@@ -244,26 +232,9 @@ constexpr u64 EXP_F17= 0x0000ffff0000ffffull;
 constexpr u64 EXP_BIG= 0x00000280fffffd7full;
 
 inline bool inited= false;
-[[gnu::target("pclmul")]] void init_tables() {
+void init_tables() {
  if(inited) return;
  inited= true;
- {
-  u64 col[64];
-  for(int j= 0; j < 64; ++j) {
-   u64 v= u64(1) << j;
-   for(int k= 0; k < 4; ++k) v= sq(v);
-   col[j]= v;
-  }
-  for(int p= 0; p < 8; ++p) {
-   for(int b= 0; b < 256; ++b) {
-    u64 v= 0;
-    for(int bit= 0; bit < 8; ++bit) {
-     if((b >> bit) & 1) v^= col[p * 8 + bit];
-    }
-    FROB4_BYTE[p][b]= v;
-   }
-  }
- }
  build_sigma_pext_table();
  const u64 h_poly= pow_bw(G_2, EXP_F16);
  const u32 h_idx= extract_idx(h_poly);
@@ -278,7 +249,7 @@ inline bool inited= false;
  // 6700417 は m を 131072 (=2^17) に拡大して L2/L3 fit + giant step を ~50 倍縮小
  bsgs_6700417.build(g_6700417, P_BIG, 131072);
 }
-[[gnu::target("pclmul")]] u64 log_g(u64 x) {
+u64 log_g(u64 x) {
  const u64 x_f16= pow_bw(x, EXP_F16);
  const u64 x_641= pow_bw(x, EXP_641);
  const u64 x_65537= pow_bw(x, EXP_F17);
@@ -300,7 +271,7 @@ inline bool inited= false;
 }
 }  // namespace gf2_64_log_pohlig_v7
 struct GF2_64Op {
- PCLMUL_RUN static vector<u64> run(const vector<u64>& xs) {
+ static vector<u64> run(const vector<u64>& xs) {
   using gf2_64_log_pohlig_v7::init_tables;
   using gf2_64_log_pohlig_v7::log_g;
   init_tables();
