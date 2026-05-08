@@ -223,11 +223,6 @@ constexpr u64 G_641= 0x6bf808f7824282a2ull;
 constexpr u64 G_65537= 0x1c1e79669b95a7ceull;
 constexpr u64 G_6700417= 0x00f542601703f991ull;
 constexpr u64 H_POLY= 0x4dfe343f936d3999ull;
-u32 solve_f16(u64 x_proj_poly) {
- const u32 idx= u16(x_proj_poly);
- if(idx == 0) return 0;
- return LN16[idx];
-}
 inline bool inited= false;
 void init_tables() {
  if(inited) return;
@@ -238,13 +233,14 @@ void init_tables() {
  bsgs_6700417.build(G_6700417, P_BIG, 131072);
 }
 u64 log_g(u64 x) {
+ assert(x);
  u64 T[16];
  build_T(x, T);
- const u64 x_f16= pow_bw_with_T(T, EXP_F16);
+ const u16 x_f16= pow_bw_with_T(T, EXP_F16);
  const u64 x_641= pow_bw_with_T(T, EXP_641);
  const u64 x_65537= pow_bw_with_T(T, EXP_F17);
  const u64 x_6700417= pow_bw_with_T(T, EXP_BIG);
- const u32 r1= solve_f16(x_f16);
+ const u16 r1= LN16[x_f16];
  const u32 r0= direct_641.lookup(x_641);
  const u32 r2= direct_65537.lookup(x_65537);
  const u32 r3= bsgs_6700417.solve(x_6700417);
