@@ -45,9 +45,6 @@ u64 pow_bw(u64 a, u64 e) {
 constexpr u64 SIGMA= 0xa1573a4da2bc3a32ull;
 inline u64 PEXT_MASK= 0;
 inline u16 LN_SIGMA_PEXT[65536];
-#if !HAVE_PEXT
-inline int PEXT_POS[16];
-#endif
 void build_sigma_pext_table() {
  u64 sigma_pow[16];
  sigma_pow[0]= 1;
@@ -77,32 +74,17 @@ void build_sigma_pext_table() {
  }
  PEXT_MASK= 0;
  for(int i= 0; i < 16; ++i) PEXT_MASK|= (u64(1) << picked[i]);
-#if !HAVE_PEXT
- for(int i= 0; i < 16; ++i) PEXT_POS[i]= picked[i];
-#endif
+
  u64 cur= 1;
  for(u32 k= 0; k < 65535; ++k) {
   u32 idx;
-#if HAVE_PEXT
   idx= u32(_pext_u64(cur, PEXT_MASK));
-#else
-  idx= 0;
-  for(int i= 0; i < 16; ++i) idx|= u32((cur >> picked[i]) & 1) << i;
-#endif
   LN_SIGMA_PEXT[idx]= u16(k);
   cur= mul(cur, SIGMA);
  }
  LN_SIGMA_PEXT[0]= 0;
 }
-[[gnu::always_inline]] inline u32 extract_idx(u64 N) {
-#if HAVE_PEXT
- return u32(_pext_u64(N, PEXT_MASK));
-#else
- u32 r= 0;
- for(int i= 0; i < 16; ++i) r|= u32((N >> PEXT_POS[i]) & 1) << i;
- return r;
-#endif
-}
+inline u32 extract_idx(u64 N) { return u32(_pext_u64(N, PEXT_MASK)); }
 // =============================================================================
 // 65537 subgroup 用の直接 hash log table (open addressing)
 // =============================================================================
