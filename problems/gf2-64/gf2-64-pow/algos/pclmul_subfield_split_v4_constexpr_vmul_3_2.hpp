@@ -95,12 +95,11 @@ u64 pow(u64 a, u64 e) {
   return embed_idx(TABLES.PW_SIGMA_IDX[(u32(TABLES.LN_SIGMA[N]) * q) % 65535]);
  }
 
- const u64 N2= mul(a, frob32(a));
- const u16 N= mul(N2, frob16(N2));
- const u64 b= embed_idx(TABLES.PW_SIGMA_IDX[(u32(TABLES.LN_SIGMA[N]) * q) % 65535]);
-
  // T[i] = a^i for i = 0..15、 binary-tree で 4 層に分けて VPCLMUL 並列化
- u64 T[16]= {1, a, sq(a)};
+ u64 T[16]= {1, a};
+ u64 N;
+ mul2(_mm256_set1_epi64x(a), _mm256_set_epi64x(0, frob32(a), 0, a), T[2], N);
+
  // L2: T[3], T[4]
  __m256i T2a= _mm256_set_epi64x(0, T[2], 0, a);
  __m256i T43= mul2(T2a, _mm256_set1_epi64x(T[2]), T[3], T[4]);
@@ -113,7 +112,7 @@ u64 pow(u64 a, u64 e) {
  mul2(T8, T2a, T[9], T[10]);
  mul2(T8, T43, T[11], T[12]);
  mul2(T8, T56, T[13], T[14]);
- T[15]= mul(T[8], T[7]);
+ mul2(_mm256_set_epi64x(0, frob16(N), 0, T[7]), _mm256_set_epi64x(0, N, 0, T[8]), T[15], N);
  // メイン loop: 4-bit nibble ごとに frob4 + mul で進める (serial chain なので変更なし)
  int top= 15 - (__builtin_clzll(r) >> 2);
  u64 g= T[(r >> (4 * top)) & 0xF];
@@ -122,6 +121,7 @@ u64 pow(u64 a, u64 e) {
   u16 chunk= (r >> (4 * i)) & 0xF;
   if(chunk) g= mul(g, T[chunk]);
  }
+ const u64 b= embed_idx(TABLES.PW_SIGMA_IDX[(u32(TABLES.LN_SIGMA[u16(N)]) * q) % 65535]);
  return mul(b, g);
 }
 }  // namespace gf2_64_pow_subfield_split_v4_7
