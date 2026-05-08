@@ -64,20 +64,18 @@ inline void build_T(u64 a, u64 T[16]) {
 }
 // precomputed T[16] を使った pow_bw (T 設定を skip するので main loop だけ)
 inline u64 pow_bw_with_T(const u64 T[16], u64 e) {
- if(e == 0) return 1;
  int top= 15;
  while(top > 0 && ((e >> (4 * top)) & 0xF) == 0) --top;
  u64 acc= T[(e >> (4 * top)) & 0xF];
  for(int i= top - 1; i >= 0; --i) {
   acc= frob4(acc);
-  unsigned chunk= unsigned((e >> (4 * i)) & 0xF);
+  u32 chunk= u32((e >> (4 * i)) & 0xF);
   if(chunk) acc= mul(acc, T[chunk]);
  }
  return acc;
 }
 // init 用 (T 共有しない単発版)
 inline u64 pow_bw(u64 a, u64 e) {
- if(e == 0) return 1;
  u64 T[16];
  build_T(a, T);
  return pow_bw_with_T(T, e);
