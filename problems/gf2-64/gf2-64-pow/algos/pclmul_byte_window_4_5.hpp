@@ -1,23 +1,4 @@
 #pragma once
-// pclmul_byte_window_3 + VPCLMULQDQ で T[2..15] precompute を並列化:
-//
-// 元の sequential T[i] = T[i-1]·a (14 直列 mul) を binary tree で組み直し、
-// 独立な mul を 2 個ずつ VPCLMUL で同時実行する。 critical path 14 → 4 layer まで短縮。
-//
-// 構造:
-//   L0: T[1] = a
-//   L1: T[2] = a·a                                    (1 mul)
-//   L2: T[3] = T[2]·a, T[4] = T[2]·T[2]              (1 vpclmul)
-//   L3: T[5] = T[4]·a, T[6] = T[4]·T[2]              (1 vpclmul)
-//       T[7] = T[3]·T[4], T[8] = T[4]·T[4]           (1 vpclmul)
-//   L4: T[9] = T[8]·a,  T[10] = T[8]·T[2]            (1 vpclmul)
-//       T[11] = T[8]·T[3], T[12] = T[8]·T[4]         (1 vpclmul)
-//       T[13] = T[8]·T[5], T[14] = T[8]·T[6]         (1 vpclmul)
-//       T[15] = T[8]·T[7]                            (1 mul)
-//
-// メイン loop (acc に対する frob4 + conditional mul) は serial dependency なので変更なし。
-//
-// 必要な拡張: VPCLMULQDQ + AVX2 (Intel Ice Lake / AMD Zen3 以降, dashboard EPYC 7763 で動作)。
 #pragma GCC optimize("O3,unroll-loops")
 #if (defined(__x86_64__) || defined(__i386__)) && !defined(USE_SIMDE)
 #endif
