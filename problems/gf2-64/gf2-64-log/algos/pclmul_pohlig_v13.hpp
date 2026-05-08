@@ -30,7 +30,7 @@ using gf2_64_pclmul::sq;
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
 const __m256i RED_TABLE= _mm256_setr_epi8(0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0);
 // VPCLMUL 2 並列 mul + 並列 reduction (vmul_3_2 と同じ idiom)
-inline __m256i mul2(__m256i a_vec, __m256i b_vec, u64& r0, u64& r1) {
+VPCLMUL inline __m256i mul2(__m256i a_vec, __m256i b_vec, u64& r0, u64& r1) {
  __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
  __m256i d_full= _mm256_xor_si256(prod, _mm256_slli_epi64(prod, 1));
  __m256i red1_full= _mm256_xor_si256(d_full, _mm256_slli_epi64(d_full, 3));
