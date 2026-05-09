@@ -26,8 +26,10 @@
 namespace gf2_64_log_pohlig_v11 {
 using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob2;
+using gf2_64_pclmul::frob3;
 using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob5;
 using gf2_64_pclmul::frob6;
 using gf2_64_pclmul::frob7;
 using gf2_64_pclmul::frob8;
@@ -75,24 +77,21 @@ inline u64 pow_bw(u64 a, u64 e) {
  return acc;
 }
 inline u64 pow_bw_6700417(u64 a) {
- u64 T[16]= {1, a, sq(a)};
- __m256i Ta2= _mm256_set_epi64x(0, T[2], 0, a);
- // L2: T[3] = T[2]·a, T[4] = T[2]·T[2]
- __m256i T34= mul2(Ta2, _mm256_set1_epi64x(T[2]), T[3], T[4]);
- // L3: T[5..8]
- T[7]= mul(T[4], T[3]);
- // L4: T[9..15]
- T[11]= mul(T[4], T[7]);
+ u64 T3= mul(a, sq(a));
 
- u64 acc= T[3];
+ u64 acc= T3;
  acc= frob4(acc);
- acc= mul(acc, T[3]);
+ acc= mul(acc, T3);
 
- acc= frob6(acc);
+ acc= frob5(acc);
+ acc= mul(acc, T3);
 
- acc= mul(acc, T[7]);
- acc= frob4(acc);
- acc= mul(acc, T[11]);
+ acc= frob2(acc);
+ acc= mul(acc, T3);
+
+ acc= frob3(acc);
+ acc= mul(acc, T3);
+
  return mul(frob7(acc), a);
 }
 // =============================================================================
