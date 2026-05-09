@@ -230,7 +230,6 @@ u64 log_g(u64 x) {
  s= mul(s, frob4(s));
  s= mul(s, frob8(s));  // 2^16-1
  mul2(_mm256_set_epi64x(0, frob16(s), 0, frob32(s)), _mm256_set1_epi64x(s), x_65537, s);
-
  u64 T2= sq(s), T3= mul(s, T2), T5, T10;
  u64 acc= T3;
  mul2(_mm256_set_epi64x(0, T2, 0, frob4(acc)), _mm256_set1_epi64x(T3), acc, T5);
