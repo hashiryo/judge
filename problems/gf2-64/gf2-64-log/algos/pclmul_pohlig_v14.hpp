@@ -24,6 +24,8 @@
 #include "../../_shared/sq.hpp"
 #include "../../_shared/frob.hpp"
 namespace gf2_64_log_pohlig_v11 {
+using gf2_64_pclmul::frob16;
+using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
@@ -231,7 +233,8 @@ u64 log_g(u64 x) {
  assert(x);
  u64 T[16];
  build_T(x, T);
- const u16 x_f16= pow_bw_with_T(T, EXP_F16);
+ u64 N= mul(x, frob32(x));
+ const u16 x_f16= mul(N, frob16(N));
  const u64 x_641= pow_bw_with_T(T, EXP_641);
  const u64 x_65537= pow_bw_with_T(T, EXP_F17);
  const u64 x_6700417= pow_bw_with_T(T, EXP_BIG);
