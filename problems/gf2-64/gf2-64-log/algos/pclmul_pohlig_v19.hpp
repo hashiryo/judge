@@ -54,17 +54,17 @@ inline u64 pow_bw(u64 a, u64 e) {
  T[0]= 1;
  T[1]= a;
  T[2]= mul(a, a);
- __m256i T2a= _mm256_set_epi64x(0, T[2], 0, (i64)a);
+ __m256i Ta2= _mm256_set_epi64x(0, T[2], 0, a);
  // L2: T[3] = T[2]·a, T[4] = T[2]·T[2]
- __m256i T43= mul2(T2a, _mm256_set1_epi64x(T[2]), T[3], T[4]);
+ __m256i T34= mul2(Ta2, _mm256_set1_epi64x(T[2]), T[3], T[4]);
  // L3: T[5..8]
  __m256i T4_v= _mm256_set1_epi64x(T[4]);
- __m256i T56= mul2(T4_v, T2a, T[5], T[6]);
- mul2(T4_v, T43, T[7], T[8]);
+ __m256i T56= mul2(T4_v, Ta2, T[5], T[6]);
+ mul2(T4_v, T34, T[7], T[8]);
  // L4: T[9..15]
  __m256i T8_v= _mm256_set1_epi64x(T[8]);
- mul2(T8_v, T2a, T[9], T[10]);
- mul2(T8_v, T43, T[11], T[12]);
+ mul2(T8_v, Ta2, T[9], T[10]);
+ mul2(T8_v, T34, T[11], T[12]);
  mul2(T8_v, T56, T[13], T[14]);
  T[15]= mul(T[8], T[7]);
  int top= 15;
@@ -79,30 +79,26 @@ inline u64 pow_bw(u64 a, u64 e) {
 }
 inline u64 pow_bw_6700417(u64 a) {
  u64 T[16]= {1, a, sq(a)};
- __m256i T2a= _mm256_set_epi64x(0, T[2], 0, (i64)a);
+ __m256i Ta2= _mm256_set_epi64x(0, T[2], 0, (i64)a);
  // L2: T[3] = T[2]·a, T[4] = T[2]·T[2]
- __m256i T43= mul2(T2a, _mm256_set1_epi64x(T[2]), T[3], T[4]);
+ __m256i T2_v= _mm256_set1_epi64x(T[2]);
+ __m256i T34= mul2(Ta2, T2_v, T[3], T[4]);
  // L3: T[5..8]
- __m256i T4_v= _mm256_set1_epi64x(T[4]);
- __m256i T56= mul2(T4_v, T2a, T[5], T[6]);
- mul2(T4_v, T43, T[7], T[8]);
+ mul2(T2_v, T34, T[5], T[6]);
+ T[8]= sq(T[4]);
  // L4: T[9..15]
- __m256i T8_v= _mm256_set1_epi64x(T[8]);
- mul2(T8_v, T2a, T[9], T[10]);
- mul2(T8_v, T43, T[11], T[12]);
- mul2(T8_v, T56, T[13], T[14]);
- T[15]= mul(T[8], T[7]);
+ T[13]= mul(T[8], T[5]);
  u64 acc= T[6];
  acc= frob4(acc);
  acc= mul(acc, T[6]);
  acc= frob4(acc);
  acc= mul(acc, T[3]);
  acc= frob4(acc);
- acc= mul(acc, T[0xD]);
+ acc= mul(acc, T[13]);
  acc= frob4(acc);
  acc= mul(acc, T[8]);
  acc= frob4(acc);
- acc= mul(acc, T[1]);
+ acc= mul(acc, a);
  return acc;
 }
 // =============================================================================
