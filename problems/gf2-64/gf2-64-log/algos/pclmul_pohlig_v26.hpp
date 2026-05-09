@@ -140,52 +140,6 @@ struct DirectLogTable {
  }
 };
 inline DirectLogTable direct_641, direct_65537;
-// =============================================================================
-// BSGS for 6700417
-// =============================================================================
-struct BSGSTable {
- std::vector<u64> keys;
- std::vector<u32> values;
- u32 mask;
- u32 m;
- u64 q;
- u64 inv_base_m;
- void build(u64 base, u64 q_, u32 m_) {
-  q= q_;
-  m= m_;
-  u32 cap= 8;
-  while(cap < 4 * m) cap*= 2;
-  keys.assign(cap, ~u64(0));
-  values.assign(cap, 0);
-  mask= cap - 1;
-  u64 cur= 1;
-  for(u64 j= 0; j < m; ++j) {
-   u32 h= cur & mask;
-   while(keys[h] != ~u64(0)) h= (h + 1) & mask;
-   keys[h]= cur;
-   values[h]= u32(j);
-   cur= mul(cur, base);
-  }
-  inv_base_m= pow_bw(base, q - m);
- }
- u32 solve(u64 target) const {
-  u64 t= target;
-  u64 max_i= (q + m - 1) / m;
-  for(u64 i= 0; i <= max_i; ++i) {
-   u32 h= t & mask;
-   while(keys[h] != ~u64(0)) {
-    if(keys[h] == t) {
-     u64 res= i * m + values[h];
-     if(res < q) return u32(res);
-    }
-    h= (h + 1) & mask;
-   }
-   t= mul(t, inv_base_m);
-  }
-  return u32(q);
- }
-};
-inline BSGSTable bsgs_6700417;
 constexpr u64 P_F16= 65535;
 constexpr u64 P_641= 641;
 constexpr u64 P_F17= 65537;
@@ -209,6 +163,49 @@ constexpr u64 EXP_BIG= 0x00000280fffffd7full;
 constexpr u64 G_641= 0x6bf808f7824282a2ull;
 constexpr u64 G_65537= 0x1c1e79669b95a7ceull;
 constexpr u64 G_6700417= 0x00f542601703f991ull;
+// =============================================================================
+// BSGS for 6700417
+// =============================================================================
+struct BSGSTable6700417 {
+ std::vector<u64> keys;
+ std::vector<u32> values;
+ static constexpr u32 mask= 524287;
+ static constexpr u64 q= P_BIG;
+ static constexpr u32 m= 131072;
+ static constexpr u64 max_i= 52;
+ u64 inv_base_m;
+ void build() {
+  u64 base= G_6700417;
+  keys.assign(mask + 1, ~u64(0));
+  values.assign(mask + 1, 0);
+  u64 cur= 1;
+  for(u32 j= 0; j < m; ++j) {
+   u32 h= cur & mask;
+   while(keys[h] != ~u64(0)) h= (h + 1) & mask;
+   keys[h]= cur;
+   values[h]= j;
+   cur= mul(cur, base);
+  }
+  inv_base_m= pow_bw(base, q - m);
+ }
+ u32 solve(u64 target) const {
+  u64 t= target;
+  for(u8 i= 0; i <= max_i; ++i) {
+   u32 h= t & mask;
+   while(keys[h] != ~u64(0)) {
+    if(keys[h] == t) {
+     u32 res= i * m + values[h];
+     if(res < q) return res;
+    }
+    h= (h + 1) & mask;
+   }
+   t= mul(t, inv_base_m);
+  }
+  return u32(q);
+ }
+};
+inline BSGSTable6700417 bsgs_6700417;
+
 inline bool inited= false;
 void init_tables() {
  if(inited) return;
@@ -216,7 +213,7 @@ void init_tables() {
 
  direct_641.build(G_641, u32(P_641));
  direct_65537.build(G_65537, u32(P_F17));
- bsgs_6700417.build(G_6700417, P_BIG, 131072);
+ bsgs_6700417.build();
 }
 u64 log_g(u64 x) {
  assert(x);
