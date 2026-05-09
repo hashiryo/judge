@@ -235,17 +235,15 @@ void init_tables() {
 }
 u64 log_g(u64 x) {
  assert(x);
- u64 N= mul(x, frob32(x));
- const u16 x_f16= mul(N, frob16(N));
- u64 s= mul(x, sq(x));
- s= mul(s, frob2(s));
+ u64 N, s, x_f16, x_65537;
+ __m256i Ns= mul2(_mm256_set_epi64x(0, sq(x), 0, frob32(x)), _mm256_set1_epi64x(x), N, s);
+ mul2(_mm256_set_epi64x(0, frob2(s), 0, frob16(N)), Ns, x_f16, s);
  s= mul(s, frob4(s));
  s= mul(s, frob8(s));  // 2^16-1
- const u64 x_65537= mul(s, frob32(s));
- u64 a= mul(s, frob16(s));  // 2^32-1
- const u64 x_6700417= mul(mul(a, frob7(a)), frob9(a));
- const u64 x_641= pow_bw(a, 6700417);
- const u16 r1= LN16[x_f16];
+ mul2(_mm256_set_epi64x(0, frob16(s), 0, frob32(s)), _mm256_set1_epi64x(s), x_65537, s);
+ const u64 x_6700417= mul(s, frob7(mul(s, frob2(s))));
+ const u64 x_641= pow_bw(s, 6700417);
+ const u16 r1= LN16[u16(x_f16)];
  const u32 r0= direct_641.lookup(x_641);
  const u32 r2= direct_65537.lookup(x_65537);
  const u32 r3= bsgs_6700417.solve(x_6700417);
