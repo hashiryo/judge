@@ -236,14 +236,10 @@ u64 log_g(u64 x) {
  __m256i ss= _mm256_set1_epi64x(s);
  mul2(_mm256_set_epi64x(0, frob2(s), 0, sq(s)), ss, T3, T5);
  u64 acc= T3;
- acc= frob4(acc);
- acc= mul(acc, T3);
- acc= frob5(acc);
- acc= mul(acc, T3);
- acc= frob2(acc);
- acc= mul(acc, T3);
- acc= frob3(acc);
- acc= mul(acc, T3);
+ acc= mul(frob4(acc), T3);
+ acc= mul(frob5(acc), T3);
+ acc= mul(frob2(acc), T3);
+ acc= mul(frob3(acc), T3);
  mul2(_mm256_set_epi64x(0, frob7(acc), 0, frob7(T5)), ss, x_6700417, x_641);
  const u16 r1= LN16[u16(x_f16)];
  const u32 r0= direct_641.lookup(x_641);
