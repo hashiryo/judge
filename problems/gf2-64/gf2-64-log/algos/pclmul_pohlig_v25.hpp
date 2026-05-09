@@ -29,7 +29,6 @@ using gf2_64_pclmul::frob2;
 using gf2_64_pclmul::frob3;
 using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
-using gf2_64_pclmul::frob5;
 using gf2_64_pclmul::frob6;
 using gf2_64_pclmul::frob7;
 using gf2_64_pclmul::frob8;
@@ -232,16 +231,13 @@ u64 log_g(u64 x) {
  s= mul(s, frob8(s));  // 2^16-1
  mul2(_mm256_set_epi64x(0, frob16(s), 0, frob32(s)), _mm256_set1_epi64x(s), x_65537, s);
 
- u64 T3, T5;
- __m256i ss= _mm256_set1_epi64x(s);
- mul2(_mm256_set_epi64x(0, frob2(s), 0, sq(s)), ss, T3, T5);
+ u64 T2= sq(s), T3= mul(s, T2), T5, T10;
  u64 acc= T3;
- acc= mul(frob4(acc), T3);
- u64 T10;
+ mul2(_mm256_set_epi64x(0, T2, 0, frob4(acc)), _mm256_set1_epi64x(T3), acc, T5);
  mul2(_mm256_set_epi64x(0, T5, 0, frob7(acc)), _mm256_set1_epi64x(T5), acc, T10);
  acc= mul(acc, T10);
  acc= mul(frob3(acc), T3);
- mul2(_mm256_set_epi64x(0, frob7(acc), 0, frob7(T5)), ss, x_6700417, x_641);
+ mul2(_mm256_set_epi64x(0, frob7(acc), 0, frob7(T5)), _mm256_set1_epi64x(s), x_6700417, x_641);
  const u16 r1= LN16[u16(x_f16)];
  const u32 r0= direct_641.lookup(x_641);
  const u32 r2= direct_65537.lookup(x_65537);
