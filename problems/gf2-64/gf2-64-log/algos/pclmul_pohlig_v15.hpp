@@ -233,12 +233,16 @@ void init_tables() {
 }
 u64 log_g(u64 x) {
  assert(x);
- u64 T[16];
- build_T(x, T);
  u64 N= mul(x, frob32(x));
  const u16 x_f16= mul(N, frob16(N));
+ u64 s= mul(x, sq(x));
+ s= mul(s, frob2(s));
+ s= mul(s, frob4(s));
+ s= mul(s, frob8(s));  // 2^16-1
+ const u64 x_65537= mul(s, frob32(s));
+ u64 T[16];
+ build_T(x, T);
  const u64 x_641= pow_bw_with_T(T, EXP_641);
- const u64 x_65537= pow_bw_with_T(T, EXP_F17);
  const u64 x_6700417= pow_bw_with_T(T, EXP_BIG);
  const u16 r1= LN16[x_f16];
  const u32 r0= direct_641.lookup(x_641);
