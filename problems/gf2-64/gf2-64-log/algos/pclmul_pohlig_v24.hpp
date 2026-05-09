@@ -237,8 +237,9 @@ u64 log_g(u64 x) {
  mul2(_mm256_set_epi64x(0, frob2(s), 0, sq(s)), ss, T3, T5);
  u64 acc= T3;
  acc= mul(frob4(acc), T3);
- acc= mul(frob5(acc), T3);
- acc= mul(frob2(acc), T3);
+ u64 T10;
+ mul2(_mm256_set_epi64x(0, T5, 0, frob7(acc)), _mm256_set1_epi64x(T5), acc, T10);
+ acc= mul(acc, T10);
  acc= mul(frob3(acc), T3);
  mul2(_mm256_set_epi64x(0, frob7(acc), 0, frob7(T5)), ss, x_6700417, x_641);
  const u16 r1= LN16[u16(x_f16)];
