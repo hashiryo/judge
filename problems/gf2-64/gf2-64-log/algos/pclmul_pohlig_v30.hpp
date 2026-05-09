@@ -235,17 +235,30 @@ struct BSGSTable6700417 {
   }
  }
  u32 solve(u64 target) const {
-  u64 t= target;
+  u64 ts[5];
+  ts[0]= target;
+  for(int i= 1; i <= 4; ++i) ts[i]= mul(ts[i - 1], inv_base_m);
+  for(int i= 0; i <= 4; ++i) _mm_prefetch((const char*)&tab[u32(ts[i]) & mask], _MM_HINT_T0);
+
   for(u8 i= 0; i <= max_i; ++i) {
+   u64 t= ts[0];
    u32 h= u32(t) & mask;
    while(tab[h] != EMPTY) {
     u64 e= tab[h];
     if(((e ^ t) & HI_MASK) == 0) return u32(i * m + u32(e & mask));
     h= (h + 1) & mask;
    }
-   t= mul(t, inv_base_m);
+   // shift pipeline
+   ts[0]= ts[1];
+   ts[1]= ts[2];
+   ts[2]= ts[3];
+   ts[3]= ts[4];
+   if(i + 4 <= max_i) {
+    ts[4]= mul(ts[3], inv_base_m);
+    _mm_prefetch((const char*)&tab[u32(ts[4]) & mask], _MM_HINT_T0);
+   }
   }
-  return q;  // not found
+  return q;
  }
 };
 inline BSGSTable6700417 bsgs_6700417;
