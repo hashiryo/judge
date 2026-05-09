@@ -166,15 +166,12 @@ struct BSGSTable6700417 {
   for(u8 i= 0; i <= max_i; ++i) {
    u32 h= t & mask;
    while(keys[h] != ~u64(0)) {
-    if(keys[h] == t) {
-     u32 res= i * m + values[h];
-     if(res < q) return res;
-    }
+    if(keys[h] == t) return i * m + values[h];
     h= (h + 1) & mask;
    }
    t= mul(t, inv_base_m);
   }
-  return u32(q);
+  return q;  // not found
  }
 };
 inline BSGSTable6700417 bsgs_6700417;
