@@ -34,7 +34,6 @@ using gf2_64_pclmul::frob7;
 using gf2_64_pclmul::frob8;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
 const __m256i RED_TABLE= _mm256_setr_epi8(0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0);
 // VPCLMUL 2 並列 mul + 並列 reduction (vmul_3_2 と同じ idiom)
 VPCLMUL inline __m256i mul2(__m256i a_vec, __m256i b_vec, u64& r0, u64& r1) {
@@ -49,31 +48,6 @@ VPCLMUL inline __m256i mul2(__m256i a_vec, __m256i b_vec, u64& r0, u64& r1) {
  r0= _mm256_extract_epi64(result, 0);
  r1= _mm256_extract_epi64(result, 2);
  return result;
-}
-inline u64 pow_bw(u64 a, u64 e) {
- u64 T[16]= {1, a, sq(a)};
- __m256i Ta2= _mm256_set_epi64x(0, T[2], 0, a);
- // L2: T[3] = T[2]·a, T[4] = T[2]·T[2]
- __m256i T34= mul2(Ta2, _mm256_set1_epi64x(T[2]), T[3], T[4]);
- // L3: T[5..8]
- __m256i T4_v= _mm256_set1_epi64x(T[4]);
- __m256i T56= mul2(T4_v, Ta2, T[5], T[6]);
- mul2(T4_v, T34, T[7], T[8]);
- // L4: T[9..15]
- __m256i T8_v= _mm256_set1_epi64x(T[8]);
- mul2(T8_v, Ta2, T[9], T[10]);
- mul2(T8_v, T34, T[11], T[12]);
- mul2(T8_v, T56, T[13], T[14]);
- T[15]= mul(T[8], T[7]);
- int top= 15;
- while(top > 0 && ((e >> (4 * top)) & 0xF) == 0) --top;
- u64 acc= T[(e >> (4 * top)) & 0xF];
- for(int i= top - 1; i >= 0; --i) {
-  acc= frob4(acc);
-  u32 chunk= u32((e >> (4 * i)) & 0xF);
-  if(chunk) acc= mul(acc, T[chunk]);
- }
- return acc;
 }
 // =============================================================================
 // F_{2^16}^* log table (compile-time 構築)
@@ -173,7 +147,7 @@ struct BSGSTable6700417 {
  static constexpr u64 q= P_BIG;
  static constexpr u32 m= 131072;
  static constexpr u64 max_i= 52;
- u64 inv_base_m;
+ static constexpr u64 inv_base_m= 0x1489880b9cf723deull;
  void build() {
   u64 base= G_6700417;
   keys.assign(mask + 1, ~u64(0));
@@ -186,7 +160,6 @@ struct BSGSTable6700417 {
    values[h]= j;
    cur= mul(cur, base);
   }
-  inv_base_m= pow_bw(base, q - m);
  }
  u32 solve(u64 target) const {
   u64 t= target;
