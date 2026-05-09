@@ -141,23 +141,24 @@ constexpr u64 G_6700417= 0x00f542601703f991ull;
 // BSGS for 6700417
 // =============================================================================
 struct BSGSTable6700417 {
- std::vector<u64> keys;
- std::vector<u32> values;
+ std::vector<u64> tab;  // packed: (key & HI_MASK) | val
  static constexpr u32 mask= 524287;
  static constexpr u64 q= P_BIG;
  static constexpr u32 m= 131072;
  static constexpr u64 max_i= 52;
- static constexpr u64 inv_base_m= 0x1489880b9cf723deull;
+ static constexpr int VBITS= 17;
+ static constexpr u64 VMASK= (1ULL << VBITS) - 1;
+ static constexpr u64 HI_MASK= ~u64(mask);  // ~((1<<19) - 1) = 0xFFFFFFFFFFF80000
+ static constexpr u64 EMPTY= ~u64(0);
+ static constexpr u64 inv_base_m= 0x1489880b9cf723deULL;
  void build() {
   u64 base= G_6700417;
-  keys.assign(mask + 1, ~u64(0));
-  values.assign(mask + 1, 0);
+  tab.assign(mask + 1, EMPTY);
   u64 cur= 1;
   for(u32 j= 0; j < m; ++j) {
    u32 h= cur & mask;
-   while(keys[h] != ~u64(0)) h= (h + 1) & mask;
-   keys[h]= cur;
-   values[h]= j;
+   while(tab[h] != EMPTY) h= (h + 1) & mask;
+   tab[h]= (cur & HI_MASK) | u64(j);
    cur= mul(cur, base);
   }
  }
@@ -165,8 +166,9 @@ struct BSGSTable6700417 {
   u64 t= target;
   for(u8 i= 0; i <= max_i; ++i) {
    u32 h= t & mask;
-   while(keys[h] != ~u64(0)) {
-    if(keys[h] == t) return i * m + values[h];
+   while(tab[h] != EMPTY) {
+    u64 e= tab[h];
+    if(((e ^ t) & HI_MASK) == 0) return i * m + u32(e & VMASK);
     h= (h + 1) & mask;
    }
    t= mul(t, inv_base_m);
