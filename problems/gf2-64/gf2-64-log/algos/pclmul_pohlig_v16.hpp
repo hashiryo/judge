@@ -28,7 +28,9 @@ using gf2_64_pclmul::frob16;
 using gf2_64_pclmul::frob2;
 using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::frob4;
+using gf2_64_pclmul::frob7;
 using gf2_64_pclmul::frob8;
+using gf2_64_pclmul::frob9;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
 constexpr u8 RED[]= {0, 27, 45, 54, 90, 65, 119, 108};
@@ -241,10 +243,8 @@ u64 log_g(u64 x) {
  s= mul(s, frob8(s));  // 2^16-1
  const u64 x_65537= mul(s, frob32(s));
  u64 a= mul(s, frob16(s));  // 2^32-1
- u64 T[16];
- build_T(a, T);
- const u64 x_641= pow_bw_with_T(T, 6700417);
- const u64 x_6700417= pow_bw_with_T(T, 641);
+ const u64 x_6700417= mul(mul(a, frob7(a)), frob9(a));
+ const u64 x_641= pow_bw(a, 6700417);
  const u16 r1= LN16[x_f16];
  const u32 r0= direct_641.lookup(x_641);
  const u32 r2= direct_65537.lookup(x_65537);
