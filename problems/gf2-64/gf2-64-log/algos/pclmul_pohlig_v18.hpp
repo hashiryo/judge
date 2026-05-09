@@ -49,27 +49,24 @@ VPCLMUL inline __m256i mul2(__m256i a_vec, __m256i b_vec, u64& r0, u64& r1) {
  r1= _mm256_extract_epi64(result, 2);
  return result;
 }
-// T[i] = a^i for i = 0..15 を vpclmul binary-tree で構築
-inline void build_T(u64 a, u64 T[16]) {
+inline u64 pow_bw(u64 a, u64 e) {
+ u64 T[16];
  T[0]= 1;
  T[1]= a;
  T[2]= mul(a, a);
- __m256i T2a= _mm256_set_epi64x(0, (i64)T[2], 0, (i64)a);
+ __m256i T2a= _mm256_set_epi64x(0, T[2], 0, (i64)a);
  // L2: T[3] = T[2]·a, T[4] = T[2]·T[2]
- __m256i T43= mul2(T2a, _mm256_set1_epi64x((i64)T[2]), T[3], T[4]);
+ __m256i T43= mul2(T2a, _mm256_set1_epi64x(T[2]), T[3], T[4]);
  // L3: T[5..8]
- __m256i T4_v= _mm256_set1_epi64x((i64)T[4]);
+ __m256i T4_v= _mm256_set1_epi64x(T[4]);
  __m256i T56= mul2(T4_v, T2a, T[5], T[6]);
  mul2(T4_v, T43, T[7], T[8]);
  // L4: T[9..15]
- __m256i T8_v= _mm256_set1_epi64x((i64)T[8]);
+ __m256i T8_v= _mm256_set1_epi64x(T[8]);
  mul2(T8_v, T2a, T[9], T[10]);
  mul2(T8_v, T43, T[11], T[12]);
  mul2(T8_v, T56, T[13], T[14]);
  T[15]= mul(T[8], T[7]);
-}
-// precomputed T[16] を使った pow_bw (T 設定を skip するので main loop だけ)
-inline u64 pow_bw_with_T(const u64 T[16], u64 e) {
  int top= 15;
  while(top > 0 && ((e >> (4 * top)) & 0xF) == 0) --top;
  u64 acc= T[(e >> (4 * top)) & 0xF];
@@ -80,11 +77,33 @@ inline u64 pow_bw_with_T(const u64 T[16], u64 e) {
  }
  return acc;
 }
-// init 用 (T 共有しない単発版)
-inline u64 pow_bw(u64 a, u64 e) {
- u64 T[16];
- build_T(a, T);
- return pow_bw_with_T(T, e);
+inline u64 pow_bw_6700417(u64 a) {
+ u64 T[16]= {1, a, sq(a)};
+ __m256i T2a= _mm256_set_epi64x(0, T[2], 0, (i64)a);
+ // L2: T[3] = T[2]·a, T[4] = T[2]·T[2]
+ __m256i T43= mul2(T2a, _mm256_set1_epi64x(T[2]), T[3], T[4]);
+ // L3: T[5..8]
+ __m256i T4_v= _mm256_set1_epi64x(T[4]);
+ __m256i T56= mul2(T4_v, T2a, T[5], T[6]);
+ mul2(T4_v, T43, T[7], T[8]);
+ // L4: T[9..15]
+ __m256i T8_v= _mm256_set1_epi64x(T[8]);
+ mul2(T8_v, T2a, T[9], T[10]);
+ mul2(T8_v, T43, T[11], T[12]);
+ mul2(T8_v, T56, T[13], T[14]);
+ T[15]= mul(T[8], T[7]);
+ u64 acc= T[6];
+ acc= frob4(acc);
+ acc= mul(acc, T[6]);
+ acc= frob4(acc);
+ acc= mul(acc, T[3]);
+ acc= frob4(acc);
+ acc= mul(acc, T[0xD]);
+ acc= frob4(acc);
+ acc= mul(acc, T[8]);
+ acc= frob4(acc);
+ acc= mul(acc, T[1]);
+ return acc;
 }
 // =============================================================================
 // F_{2^16}^* log table (compile-time 構築)
@@ -242,7 +261,7 @@ u64 log_g(u64 x) {
  s= mul(s, frob8(s));  // 2^16-1
  mul2(_mm256_set_epi64x(0, frob16(s), 0, frob32(s)), _mm256_set1_epi64x(s), x_65537, s);
  const u64 x_6700417= mul(s, frob7(mul(s, frob2(s))));
- const u64 x_641= pow_bw(s, 6700417);
+ const u64 x_641= pow_bw_6700417(s);
  const u16 r1= LN16[u16(x_f16)];
  const u32 r0= direct_641.lookup(x_641);
  const u32 r2= direct_65537.lookup(x_65537);
