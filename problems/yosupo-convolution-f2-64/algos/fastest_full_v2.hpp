@@ -1,104 +1,47 @@
 #pragma once
 #include "_common.hpp"
-// full_btf + **init() の per-level inv/sq/φ を排除** (v2):
+// F_{2^64} 上の additive (nim) FFT に対する全部入り最適化版。
+// アルゴリズム: Lin-Chung-Han / Cantor 系の characteristic-2 FFT (Phase A: 線形
+// XOR-only butterfly + 並べ替え、 Phase B: twiddle 乗算)。
 //
-// 観察: descent 中の basis `b` は常に CHAIN の suffix [c[63-i], ..., c[62]] になる:
-//   - b.back() = c[62] = 1 が常に成立 → 正規化 (inv + mul) は no-op
-//   - pop_back + apply P (sq^x) は単に「suffix を 1 個短くする」だけ
-//   - つまり level i での basis[k] は CHAIN[CHAIN_LEN - i + k] そのもので得られる
+// 取り入れた最適化 (積み重ね):
 //
-// 結果、 init は CHAIN を直接参照する Gray code build だけになり、 per-level の
-// 動的な b vector / inv / sq / mul が完全に消滅。 コード行数も大幅減。
+// 1. Cantor 対称性 (基底の末尾 = 1 → twiddle 表の上下半分が +1 差)
+//      a[i][j + 2^(i-1)] = a[i][j] ^ 1
+//    これにより butterfly 1 個あたり 2 mul → 1 mul に半減:
+//      hi * g0[k]           (= p)
+//      hi * g1[k] = p ^ hi  (∵ GF(2) 上の分配律)
+//    IFFT 側も同様: f0_new = (lo+hi)*g0 + lo, f1_new = lo+hi で 1 mul に削減。
 //
-// その他は full_btf と同一: butterfly pair の SIMD pipeline、 Phase A 融合、
-// Cantor 対称性 + halftable + g0[0]=0 skip。
+// 2. halftable: 上半分は g0[k] ^ 1 で復元できるので保存不要。 twiddle メモリ半減
+//    (2^(n+1) - 1 → 2^n - 1 entry, s=2^20 で 16MB → 8MB)、 L3 圏内に収まりやすく
+//    memory-bandwidth 改善。
 //
-// 旧 (full): mul2 (vector mul + vector reduction) → extract 2 lane → scalar XOR で
-//   t = lo ^ p, scalar XOR で f1 = t ^ hi, scalar 4 store。 vector ↔ scalar 往復で
-//   extract / pack の overhead が発生。
+// 3. g0[0] = 0 スキップ + mul2 ペアリング: 各ブロック先頭の i=0 は PCLMUL 不要、
+//    残り (i=1..half-1) を 2 個ずつ VPCLMULQDQ で並列化。
 //
-// 新: butterfly_pair_fft / butterfly_pair_ifft を導入。
-//   - 入力 f0[i..i+1], f1[i..i+1], g0[i..i+1] を 16-byte __m128i load
-//   - vpermq で (a0, a1, _, _) → (a0, _, a1, _) に 256-bit 展開
-//   - VPCLMULQDQ + 並列 reduction (旧 mul2 と同 idiom)
-//   - その後の XOR (lo ^ p, t ^ hi など) も __m256i のまま実行
-//   - 最後に vpermq で lane (0, 2) → (0, 1) に集約、 __m128i store で 16 byte 一括書き込み
+// 4. butterfly pair の SIMD pipeline (btf_fft_pair / btf_ifft_pair):
+//    load → 256-bit 展開 → VPCLMULQDQ + 並列 reduction → __m256i のまま XOR →
+//    pack して __m128i 一括 store。 vector ↔ scalar の往復を排除し、 ペアあたり
+//    extract / scalar XOR / scalar store を ~7-8 命令削減。
 //
-// 効果: pair あたりの命令数削減 (set_epi64x の代わりに loadu+permq、 scalar XOR の
-// 代わりに vpxor、 4 個の scalar store の代わりに 2 個の __m128i store)。 extract 命令
-// (vpextrq / vextracti128) もペアあたり 4 個減る。
+// 5. Phase A の最終 2 段 + shuffle 融合: 連続する 3 パス (m=2 stage, m=1 stage,
+//    shuffle) は全部 F_2 線形変換なので、 8-tuple に対する 1 パスに圧縮。
+//    メモリトラフィックが ~3x 減 (36 ops → 16 ops / 8-tuple)。 IFFT 側も対称に。
+//    len=2 の Phase A iteration は identity + swap で実質 no-op なので skip。
 //
-// halftable + Phase A 融合 + Cantor 対称性 + g0[0]=0 skip は引き続き継承。
-//
-// Phase A は PCLMUL を使わない pure XOR butterfly + bit-reverse 風 shuffle で、
-// 既に SIMD-vectorize 済みでも **メモリ帯域律速**。 連続する 3 パス (m=2 stage,
-// m=1 stage, shuffle) は全部 F_2 線形変換なので、 8-tuple に対する 1 つの線形
-// 変換に圧縮できる。 メモリトラフィックが ~3x 減る (8-tuple あたり 36 ops → 16 ops)。
-//
-// FFT (Phase A の最後 2 段 + shuffle):
-//   8-tuple p[0..7] → out[0..7] へ 1 パスで変換、 dst の shuffle 後位置に書き込み。
-//
-// IFFT (Phase A の shuffle + 最初 2 段):
-//   src の deinterleave した位置から 8 値を読み、 m=1 + m=2 を適用して dst へ。
-//
-// 加えて len=2 の Phase A iteration は identity copy + swap で実質 no-op なので skip。
-//
-// 加えて halftable / cantor_sym_v2 の最適化も保持:
-//
-// 効果:
-//   - nim_data.a の総メモリが半減 (2^(n+1) -1 entry → 2^n - 1 entry)
-//     例) FFT size s = 2^20 で 16 MB → 8 MB。 L3 (16-32 MB) からの溢れが緩和され
-//     大入力で memory bandwidth 律速の改善が見込める
-//   - init() の Gray-code 構築コストも半減 (2^i 回 XOR → 2^(i-1) 回)
-//
-// hot path のロジック自体は v2 と同じ (Cantor 対称性は元から g0 しか読まない構造
-// だったので、 単に「g1 = g0 + half」 のオフセットがなくなるだけ)。
-//
-// Cantor 基底の正規化済み twiddle a[i] には恒等性
-//     a[i][j + 2^(i-1)] = a[i][j] ^ 1
-// が成り立つ (最終 basis 要素が 1 = s_W(β) = 1 の魔法)。 これを g0 = a[i] の下半分,
-// g1 = a[i] の上半分 と置くと g1[k] = g0[k] ^ 1。
-// よって fft の butterfly で必要な 2 つの mul は次のように共有可能:
-//     hi * g0[k]              (= p)
-//     hi * g1[k] = hi * g0[k] ^ hi (∵ GF(2) 上の分配律)
-// すなわち 1 PCLMUL + 1 XOR で 2 butterfly 出力が両方計算できる。
-// (元: 1 butterfly あたり 2 PCLMUL → 新: 1 butterfly あたり 1 PCLMUL)
-//
-// さらにこの「1 PCLMUL / butterfly」を 2 個まとめて VPCLMULQDQ (mul2) 1 命令で発行
-// すれば、 **ピーク 2 butterfly / cycle** (元の 4 倍スループット) が狙える。
-//
-// IFFT 側の butterfly:
-//     f0_new = lo*g1 + hi*g0 = lo*(g0+1) + hi*g0 = (lo+hi)*g0 + lo
-//     f1_new = lo + hi
-// → s = lo+hi をまず計算、 1 PCLMUL (s*g0) で済む。 同様に mul2 で 2 並列化。
-//
-// 各ブロック先頭の i=0 では g0[0]=0 (= 正規化済み twiddle 表の先頭は常に 0) なので
-// PCLMUL も load も不要、 単に f0[0]=lo, f1[0]=lo^hi だけで済む。 これを
-// cantor_sym のメインループから切り出し、 i=0 は単独処理 → 残り (i=1..half-1) を
-// pair で潰す構造に変更。
-//
-//   half=1 (len=2):                 i=0 単独 (PCLMUL なし)
-//   half=2 (len=4):                 i=0 単独 + i=1 単独 (1 scalar mul)
-//   half=N≥4:                       i=0 単独 + pair(1,2)..pair(N-3,N-2) + i=N-1 単独
-//
-// ペアの mul2 は 2 lane 両方が「有効な PCLMUL」 になり (cantor_sym v1 では i=0 ペア
-// で lane 0 が hi*0 = 0 の無駄演算だった) 命令効率が上がる。 ただし Ice Lake では
-// VPCLMULQDQ も PCLMUL もスループット 1 / cycle (port 5 占有) なので命令数の差は
-// 出ないが、 g0[0] の load 削減と分岐レス化でわずかに前段 IPC が改善する見込み。
-//
-// その他は raw_u64 と同一: subfield-split inv, constexpr CHAIN, Gray code init。
+// 6. init() の per-level 動的計算を排除: descent 中の basis が常に CHAIN suffix
+//    と一致 (`b.back() = c[62] = 1` が不変)、 inv/mul/sq/pop は全部 no-op だった。
+//    constexpr で焼いた CHAIN を直接参照する Gray code build だけに簡略化。
 //
 // 必要拡張: PCLMUL + VPCLMULQDQ + AVX2 + BMI2 (Ice Lake / Zen3 以降)。
 
 #pragma GCC optimize("O3,unroll-loops")
 #include "../../gf2-64/_shared/_common.hpp"
 #include "../../gf2-64/_shared/mul.hpp"
-#include "../../gf2-64/_shared/sq.hpp"
-#include "../../gf2-64/_shared/frob.hpp"
 namespace conv_f2_64_full_v2 {
 
 using gf2_64_pclmul::mul;
-using gf2_64_pclmul::sq;
 // =============================================================================
 // constexpr GF(2^64) mul / sq (chain を .rodata に焼くため)
 // =============================================================================
