@@ -153,21 +153,24 @@ inline void bc_to_mono(u64* poly, int n) {
   int len= 1 << level;
   int half= len >> 1;
   int sub_idx= level - 1;
-  // 全 proper submask を配列化して reverse で適用 (簡潔さ優先)
-  std::vector<int> subs;
-  int s= sub_idx;
-  while(true) {
-   s= (s - 1) & sub_idx;
-   subs.push_back(s);
-   if(s == 0) break;
+  // 全 proper submask を per-level 配列化して reverse 順で適用。
+  // sub_idx ≤ 62 で popcount ≤ 16 程度なので固定サイズ配列で十分。
+  int subs[64];
+  int sub_n= 0;
+  {
+   int s= sub_idx;
+   while(true) {
+    s= (s - 1) & sub_idx;
+    subs[sub_n++]= 1 << s;
+    if(s == 0) break;
+   }
   }
   for(int base= 0; base < n; base+= len) {
+   u64* p= poly + base;
    for(int i= 0; i < half; ++i) {
-    u64 q= poly[base + half + i];
+    u64 q= p[half + i];
     if(q == 0) continue;
-    for(int idx= (int)subs.size() - 1; idx >= 0; --idx) {
-     poly[base + i + (1 << subs[idx])]^= q;
-    }
+    for(int idx= sub_n - 1; idx >= 0; --idx) p[i + subs[idx]]^= q;
    }
   }
  }
