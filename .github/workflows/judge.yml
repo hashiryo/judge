@@ -254,125 +254,128 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-  callgrind:
-    needs: [detect, download]
-    if: needs.detect.outputs.has-problems == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        env:
-          - { os: ubuntu-24.04, toolchain: gcc, cxx: g++-15, name: x64-g++,
-              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread" }
-          - { os: ubuntu-24.04, toolchain: clang, cxx: clang++-21, name: x64-clang++,
-              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024" }
-          - { os: ubuntu-24.04-arm, toolchain: gcc, cxx: g++-15, name: arm-g++,
-              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
-          - { os: ubuntu-24.04-arm, toolchain: clang, cxx: clang++-21, name: arm-clang++,
-              cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
-    runs-on: ${{ matrix.env.os }}
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install compiler
-        run: |
-          set -eux
-          sudo apt-get update
-          if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
-            sudo apt-get install -y curl ca-certificates
-            # add-apt-repository は Launchpad API (api.launchpad.net) に依存しハング時に
-            # 詰むので、代わりに sources.list を直書き + 公開鍵を keyserver の HTTPS
-            # エンドポイントから curl で取得する経路で PPA を追加する。
-            # Launchpad 全体が落ちている時は g++-15 PPA 取得を諦め、Ubuntu 標準リポジトリ
-            # の g++-14 にフォールバックする。
-            UBUNTU_TOOLCHAIN_KEY=60C317803A41BA51845E371A1E9377A2BA9EF27F
-            CODENAME=$(lsb_release -sc 2>/dev/null || echo noble)
-            sudo install -m 0755 -d /etc/apt/keyrings
-            install_g15() {
-              # 鍵取得 (3 retry まで)
-              for i in 1 2 3; do
-                if curl -fsSL --max-time 60 \
-                  "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${UBUNTU_TOOLCHAIN_KEY}" \
-                  | sudo tee /etc/apt/keyrings/ubuntu-toolchain-r.asc > /dev/null \
-                  && [ -s /etc/apt/keyrings/ubuntu-toolchain-r.asc ]; then
-                  break
-                fi
-                echo "key fetch failed (attempt $i/3)" >&2
-                [[ "$i" == "3" ]] && return 1
-                sleep 10
-              done
-              sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.asc
-              echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.asc] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
-                | sudo tee /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list
-              sudo apt-get update || return 1
-              sudo apt-get install -y g++-15 || return 1
-              # apt が --fix-missing 等で握り潰すケースに備えて install 後に存在確認。
-              command -v g++-15 >/dev/null || return 1
-              return 0
-            }
-            set +e
-            if install_g15; then
-              echo "✓ installed g++-15"
-              echo "EFFECTIVE_CXX=g++-15" >> "$GITHUB_ENV"
-            else
-              echo "⚠ g++-15 install failed (Launchpad outage?), falling back to g++-14" >&2
-              # PPA 残骸を消して標準リポジトリに戻す
-              sudo rm -f /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list /etc/apt/keyrings/ubuntu-toolchain-r.asc
-              sudo apt-get update
-              sudo apt-get install -y g++-14
-              echo "EFFECTIVE_CXX=g++-14" >> "$GITHUB_ENV"
-            fi
-            set -e
-          else
-            sudo apt-get install -y wget lsb-release software-properties-common gnupg
-            wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
-            sudo bash /tmp/llvm.sh 21 all
-            sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
-            echo "EFFECTIVE_CXX=${{ matrix.env.cxx }}" >> "$GITHUB_ENV"
-          fi
-
-      - name: Install valgrind
-        run: sudo apt-get install -y valgrind
-
-      - name: Install llvm-mca (for static IPC analysis)
-        # ubuntu-latest 標準の llvm パッケージで llvm-mca が入る。
-        # 解析失敗時 analyze-mca.py は欠損で済むので、install 失敗も致命にしない。
-        run: sudo apt-get install -y llvm || true
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Download testcases
-        uses: actions/download-artifact@v4
-        with:
-          name: testcases
-          path: .cache
-
-      - name: Run callgrind
-        env:
-          CXX: ${{ env.EFFECTIVE_CXX }}
-          CXXFLAGS: ${{ matrix.env.cxxflags }}
-          ENV_NAME: ${{ matrix.env.name }}
-          PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
-        # 個別 algo は run-callgrind.sh 内で timeout 180s + 失敗継続するので、
-        # ここで script 自体の失敗 (set -e 由来など) もマスクして、Upload へ進める
-        continue-on-error: true
-        run: bash scripts/run-callgrind.sh
-
-      - name: Upload callgrind results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: callgrind-${{ matrix.env.name }}
-          path: .cache/callgrind/
-          retention-days: 7
+  # callgrind ジョブは CI 時間短縮のため一時的に無効化 (出力データを実利用していないため)。
+  # 復活させたい場合はこのブロック全体のコメントを外し、collect ジョブの needs / Download
+  # callgrind results / Merge callgrind into results ステップのコメントも戻すこと。
+  # callgrind:
+  #   needs: [detect, download]
+  #   if: needs.detect.outputs.has-problems == 'true'
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       env:
+  #         - { os: ubuntu-24.04, toolchain: gcc, cxx: g++-15, name: x64-g++,
+  #             cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread" }
+  #         - { os: ubuntu-24.04, toolchain: clang, cxx: clang++-21, name: x64-clang++,
+  #             cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=x86-64-v3 -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024" }
+  #         - { os: ubuntu-24.04-arm, toolchain: gcc, cxx: g++-15, name: arm-g++,
+  #             cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
+  #         - { os: ubuntu-24.04-arm, toolchain: clang, cxx: clang++-21, name: arm-clang++,
+  #             cxxflags: "-std=gnu++23 -Wall -Wextra -O2 -march=armv8.2-a -flto=auto -ftrivial-auto-var-init=zero -pthread -fuse-ld=lld -fconstexpr-depth=1024 -DUSE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -Ilib/include/simde" }
+  #   runs-on: ${{ matrix.env.os }}
+  #   timeout-minutes: 30
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #
+  #     - name: Install compiler
+  #       run: |
+  #         set -eux
+  #         sudo apt-get update
+  #         if [[ "${{ matrix.env.toolchain }}" == "gcc" ]]; then
+  #           sudo apt-get install -y curl ca-certificates
+  #           # add-apt-repository は Launchpad API (api.launchpad.net) に依存しハング時に
+  #           # 詰むので、代わりに sources.list を直書き + 公開鍵を keyserver の HTTPS
+  #           # エンドポイントから curl で取得する経路で PPA を追加する。
+  #           # Launchpad 全体が落ちている時は g++-15 PPA 取得を諦め、Ubuntu 標準リポジトリ
+  #           # の g++-14 にフォールバックする。
+  #           UBUNTU_TOOLCHAIN_KEY=60C317803A41BA51845E371A1E9377A2BA9EF27F
+  #           CODENAME=$(lsb_release -sc 2>/dev/null || echo noble)
+  #           sudo install -m 0755 -d /etc/apt/keyrings
+  #           install_g15() {
+  #             # 鍵取得 (3 retry まで)
+  #             for i in 1 2 3; do
+  #               if curl -fsSL --max-time 60 \
+  #                 "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${UBUNTU_TOOLCHAIN_KEY}" \
+  #                 | sudo tee /etc/apt/keyrings/ubuntu-toolchain-r.asc > /dev/null \
+  #                 && [ -s /etc/apt/keyrings/ubuntu-toolchain-r.asc ]; then
+  #                 break
+  #               fi
+  #               echo "key fetch failed (attempt $i/3)" >&2
+  #               [[ "$i" == "3" ]] && return 1
+  #               sleep 10
+  #             done
+  #             sudo chmod 0644 /etc/apt/keyrings/ubuntu-toolchain-r.asc
+  #             echo "deb [signed-by=/etc/apt/keyrings/ubuntu-toolchain-r.asc] https://ppa.launchpadcontent.net/ubuntu-toolchain-r/test/ubuntu $CODENAME main" \
+  #               | sudo tee /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list
+  #             sudo apt-get update || return 1
+  #             sudo apt-get install -y g++-15 || return 1
+  #             # apt が --fix-missing 等で握り潰すケースに備えて install 後に存在確認。
+  #             command -v g++-15 >/dev/null || return 1
+  #             return 0
+  #           }
+  #           set +e
+  #           if install_g15; then
+  #             echo "✓ installed g++-15"
+  #             echo "EFFECTIVE_CXX=g++-15" >> "$GITHUB_ENV"
+  #           else
+  #             echo "⚠ g++-15 install failed (Launchpad outage?), falling back to g++-14" >&2
+  #             # PPA 残骸を消して標準リポジトリに戻す
+  #             sudo rm -f /etc/apt/sources.list.d/ubuntu-toolchain-r-test.list /etc/apt/keyrings/ubuntu-toolchain-r.asc
+  #             sudo apt-get update
+  #             sudo apt-get install -y g++-14
+  #             echo "EFFECTIVE_CXX=g++-14" >> "$GITHUB_ENV"
+  #           fi
+  #           set -e
+  #         else
+  #           sudo apt-get install -y wget lsb-release software-properties-common gnupg
+  #           wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+  #           sudo bash /tmp/llvm.sh 21 all
+  #           sudo ln -sf /usr/bin/ld.lld-21 /usr/local/bin/ld.lld
+  #           echo "EFFECTIVE_CXX=${{ matrix.env.cxx }}" >> "$GITHUB_ENV"
+  #         fi
+  #
+  #     - name: Install valgrind
+  #       run: sudo apt-get install -y valgrind
+  #
+  #     - name: Install llvm-mca (for static IPC analysis)
+  #       # ubuntu-latest 標準の llvm パッケージで llvm-mca が入る。
+  #       # 解析失敗時 analyze-mca.py は欠損で済むので、install 失敗も致命にしない。
+  #       run: sudo apt-get install -y llvm || true
+  #
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #
+  #     - name: Download testcases
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: testcases
+  #         path: .cache
+  #
+  #     - name: Run callgrind
+  #       env:
+  #         CXX: ${{ env.EFFECTIVE_CXX }}
+  #         CXXFLAGS: ${{ matrix.env.cxxflags }}
+  #         ENV_NAME: ${{ matrix.env.name }}
+  #         PROBLEMS_JSON: ${{ needs.detect.outputs.matrix }}
+  #       # 個別 algo は run-callgrind.sh 内で timeout 180s + 失敗継続するので、
+  #       # ここで script 自体の失敗 (set -e 由来など) もマスクして、Upload へ進める
+  #       continue-on-error: true
+  #       run: bash scripts/run-callgrind.sh
+  #
+  #     - name: Upload callgrind results
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: callgrind-${{ matrix.env.name }}
+  #         path: .cache/callgrind/
+  #         retention-days: 7
 
   collect:
-    needs: [detect, run, callgrind]
+    needs: [detect, run]
     if: "!cancelled()"
     runs-on: ubuntu-24.04
     steps:
@@ -393,17 +396,19 @@ jobs:
           path: .cache/results/
           merge-multiple: true
 
-      - name: Download callgrind results
-        if: needs.detect.outputs.has-problems == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: callgrind-*
-          path: .cache/callgrind/
-          merge-multiple: true
-
-      - name: Merge callgrind into results
-        if: needs.detect.outputs.has-problems == 'true'
-        run: python3 scripts/merge-callgrind.py
+      # callgrind ジョブを無効化中のため、callgrind 成果物のダウンロードと
+      # merge-callgrind ステップも合わせて無効化。
+      # - name: Download callgrind results
+      #   if: needs.detect.outputs.has-problems == 'true'
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     pattern: callgrind-*
+      #     path: .cache/callgrind/
+      #     merge-multiple: true
+      #
+      # - name: Merge callgrind into results
+      #   if: needs.detect.outputs.has-problems == 'true'
+      #   run: python3 scripts/merge-callgrind.py
 
       - name: Collect results
         if: needs.detect.outputs.has-problems == 'true'
