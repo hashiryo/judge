@@ -85,6 +85,33 @@ template<class T> int msb(T n) { return n == 0 ? -1 : 63 - __builtin_clzll(n); }
 template<class T> T ceil_pow2(T n) { return n <= 1 ? T(1) : T(1) << (msb(n - 1) + 1); }
 
 // =============================================================================
+// Submask 表 (proper submasks of k for k=1..MAX_SUB_IDX)
+//   subs[k][.] = (1 << l) for proper submask l of k、 sub_n[k] = 個数。
+//   n は int サイズ ≤ 2^31-1 なので d ≤ 30、 sub_idx ≤ 29 で MAX_SUB_IDX=30。
+// =============================================================================
+constexpr int MAX_SUB_IDX= 30;
+constexpr int MAX_SUBS_PER_K= 32;  // 2^popcount, popcount ≤ 5
+struct SubmaskTable {
+ array<array<int, MAX_SUBS_PER_K>, MAX_SUB_IDX + 1> subs;
+ array<int, MAX_SUB_IDX + 1> sub_n;
+};
+constexpr SubmaskTable build_submask_tbl() {
+ SubmaskTable t{};
+ for(int k= 1; k <= MAX_SUB_IDX; ++k) {
+  int n= 0;
+  int s= k;
+  while(true) {
+   s= (s - 1) & k;
+   t.subs[k][n++]= 1 << s;
+   if(s == 0) break;
+  }
+  t.sub_n[k]= n;
+ }
+ return t;
+}
+constexpr auto SUBMASK_TBL= build_submask_tbl();
+
+// =============================================================================
 // DIF master twiddle (single contiguous table)
 //   M[j] = Σ_{L: j_L=1} β_{L+1}   (j ∈ [0, 2^(d-1)))
 //   level k の block j に対する ska = M[j] (level 非依存)
@@ -124,19 +151,14 @@ inline void bc_to_lch(u64* poly, int n) {
   int len= 1 << level;
   int half= len >> 1;
   int sub_idx= level - 1;  // s_{sub_idx} = subspace poly of dim 2^sub_idx
-  // proper submasks of sub_idx (excluding sub_idx itself)。 0 も含む。
-  // 各 proper submask l に対して x^{2^l} 項あり。
-  // (sub_idx 自体は x^half 項で、 これは Q_1 に対応するので feedback なし)
+  const int sub_n= SUBMASK_TBL.sub_n[sub_idx];
+  const int* subs= SUBMASK_TBL.subs[sub_idx].data();
   for(int base= 0; base < n; base+= len) {
+   u64* p= poly + base;
    for(int i= half - 1; i >= 0; --i) {
-    u64 q= poly[base + half + i];
+    u64 q= p[half + i];
     if(q == 0) continue;
-    int s= sub_idx;  // start enumerating proper submasks
-    while(true) {
-     s= (s - 1) & sub_idx;
-     poly[base + i + (1 << s)]^= q;
-     if(s == 0) break;
-    }
+    for(int idx= 0; idx < sub_n; ++idx) p[i + subs[idx]]^= q;
    }
   }
  }
@@ -153,23 +175,14 @@ inline void bc_to_mono(u64* poly, int n) {
   int len= 1 << level;
   int half= len >> 1;
   int sub_idx= level - 1;
-  // 全 proper submask を per-level 配列化して reverse 順で適用。
-  // sub_idx ≤ 62 で popcount ≤ 16 程度なので固定サイズ配列で十分。
-  int subs[64];
-  int sub_n= 0;
-  {
-   int s= sub_idx;
-   while(true) {
-    s= (s - 1) & sub_idx;
-    subs[sub_n++]= 1 << s;
-    if(s == 0) break;
-   }
-  }
+  const int sub_n= SUBMASK_TBL.sub_n[sub_idx];
+  const int* subs= SUBMASK_TBL.subs[sub_idx].data();
   for(int base= 0; base < n; base+= len) {
    u64* p= poly + base;
    for(int i= 0; i < half; ++i) {
     u64 q= p[half + i];
     if(q == 0) continue;
+    // forward の逆順で適用 (subs を逆順)
     for(int idx= sub_n - 1; idx >= 0; --idx) p[i + subs[idx]]^= q;
    }
   }

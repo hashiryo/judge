@@ -36,6 +36,10 @@
 //
 // 6. init() 簡略化: 既達。 master 1 本だけ。
 //
+// 追加最適化:
+// 7. submask 表 (SUBMASK_TBL) を constexpr で .rodata に焼く。 bc_to_lch /
+//    bc_to_mono の per-level submask 列挙を runtime build から table lookup に。
+//
 // 必要拡張: PCLMUL + VPCLMULQDQ + AVX2 + BMI2 (Ice Lake / Zen3 以降)。
 
 #pragma GCC optimize("O3,unroll-loops")
@@ -96,6 +100,36 @@ constexpr auto CHAIN= []() {
 
 template<class T> int msb(T n) { return n == 0 ? -1 : 63 - __builtin_clzll(n); }
 template<class T> T ceil_pow2(T n) { return n <= 1 ? T(1) : T(1) << (msb(n - 1) + 1); }
+
+// =============================================================================
+// Submask 表 (proper submasks of k for k=0..MAX_SUB_IDX)
+//   bc_to_lch / bc_to_mono の inner で使う x^{2^l} の oset (= 1<<l) を per-k で
+//   precompute。 sub_idx = level - 1 ≤ d - 1 ≤ 62、 popcount ≤ 5 程度なので
+//   per-k に 32 entries 確保すれば十分。 .rodata に焼いて runtime 構築排除。
+// =============================================================================
+// n は int サイズ ≤ 2^31 - 1、 d = msb(n) ≤ 30、 sub_idx = d - 1 ≤ 29 で十分。
+// popcount(sub_idx) max = popcount(31) = 5 → 2^5 = 32 submasks 上限。
+constexpr int MAX_SUB_IDX= 30;
+constexpr int MAX_SUBS_PER_K= 32;
+struct SubmaskTable {
+ array<array<int, MAX_SUBS_PER_K>, MAX_SUB_IDX + 1> subs;
+ array<int, MAX_SUB_IDX + 1> sub_n;
+};
+constexpr SubmaskTable build_submask_tbl() {
+ SubmaskTable t{};
+ for(int k= 1; k <= MAX_SUB_IDX; ++k) {
+  int n= 0;
+  int s= k;
+  while(true) {
+   s= (s - 1) & k;
+   t.subs[k][n++]= 1 << s;
+   if(s == 0) break;
+  }
+  t.sub_n[k]= n;
+ }
+ return t;
+}
+constexpr auto SUBMASK_TBL= build_submask_tbl();
 
 // =============================================================================
 // DIF master twiddle (single contiguous, level 非依存)
@@ -187,24 +221,15 @@ inline void bc_to_lch(u64* poly, int n) {
   int len= 1 << level;
   int half= len >> 1;
   int sub_idx= level - 1;
-  if(__builtin_popcount(sub_idx) == 1) {
-   // 単一 proper submask 0、 つまり inner op は 1 つ: poly[base+i+1] ^= poly[base+half+i]
+  const int sub_n= SUBMASK_TBL.sub_n[sub_idx];
+  const int* subs= SUBMASK_TBL.subs[sub_idx].data();
+  if(sub_n == 1) {
+   // 単一 proper submask {0}、 inner op は p[base+i+1] ^= p[base+half+i] のみ
    for(int base= 0; base < n; base+= len) {
     u64* p= poly + base;
     for(int i= half - 1; i >= 0; --i) p[i + 1]^= p[half + i];
    }
   } else {
-   // 一般 case: proper submasks を per-level 配列化
-   int subs[16];
-   int sub_n= 0;
-   {
-    int s= sub_idx;
-    while(true) {
-     s= (s - 1) & sub_idx;
-     subs[sub_n++]= 1 << s;
-     if(s == 0) break;
-    }
-   }
    for(int base= 0; base < n; base+= len) {
     u64* p= poly + base;
     for(int i= half - 1; i >= 0; --i) {
@@ -224,22 +249,14 @@ inline void bc_to_mono(u64* poly, int n) {
   int len= 1 << level;
   int half= len >> 1;
   int sub_idx= level - 1;
-  if(__builtin_popcount(sub_idx) == 1) {
+  const int sub_n= SUBMASK_TBL.sub_n[sub_idx];
+  const int* subs= SUBMASK_TBL.subs[sub_idx].data();
+  if(sub_n == 1) {
    for(int base= 0; base < n; base+= len) {
     u64* p= poly + base;
     for(int i= 0; i < half; ++i) p[i + 1]^= p[half + i];
    }
   } else {
-   int subs[16];
-   int sub_n= 0;
-   {
-    int s= sub_idx;
-    while(true) {
-     s= (s - 1) & sub_idx;
-     subs[sub_n++]= 1 << s;
-     if(s == 0) break;
-    }
-   }
    for(int base= 0; base < n; base+= len) {
     u64* p= poly + base;
     for(int i= 0; i < half; ++i) {
