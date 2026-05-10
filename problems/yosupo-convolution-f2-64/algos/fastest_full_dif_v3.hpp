@@ -102,10 +102,11 @@ template<class T> T ceil_pow2(T n) { return n <= 1 ? T(1) : T(1) << (msb(n - 1) 
 //   bc_to_lch / bc_to_mono の inner で使う x^{2^l} の oset (= 1<<l) を per-k で
 //   precompute、 .rodata に焼く。 n は int サイズ ≤ 2^31-1 なので
 //   d ≤ 30、 sub_idx ≤ 29 で MAX_SUB_IDX=30 で十分。
-//   popcount(sub_idx) max = popcount(31) = 5 → 2^5 = 32 submasks 上限。
+//   k ≤ 30 で popcount(k) max = 4 (popcount(15)=popcount(23)=popcount(30)=4 等)、
+//   proper submask 数 = 2^4 - 1 = 15 → MAX_SUBS_PER_K = 16 で足りる。
 // =============================================================================
 constexpr int MAX_SUB_IDX= 30;
-constexpr int MAX_SUBS_PER_K= 32;
+constexpr int MAX_SUBS_PER_K= 16;
 struct SubmaskTable {
  array<array<int, MAX_SUBS_PER_K>, MAX_SUB_IDX + 1> subs;
  array<int, MAX_SUB_IDX + 1> sub_n;
