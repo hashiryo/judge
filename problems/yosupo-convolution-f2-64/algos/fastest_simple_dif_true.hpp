@@ -1,30 +1,27 @@
 #pragma once
 #include "_common.hpp"
-// fastest_simple の DIF (decimation-in-frequency) 形 — placeholder 版。
-// (true DIF は fastest_simple_dif_true.hpp、 並列比較用に分離してある)
+// fastest_simple の DIF (decimation-in-frequency) 形 — true DIF 版。
+// fastest_simple_dif.hpp (= placeholder、 explicit bit-reverse 版) と並列比較用。
 //
 // 構造 (forward):
-//   1. Phase A (DIT-style with shuffles): monomial → LCH 基底 (natural 順)
-//   2. bit-reverse permute: LCH natural → LCH bit-reverse 順
-//   3. Phase B (DIF top-down butterflies, block 単位 single ska):
-//      LCH bit-reverse → eval bit-reverse 順
+//   1. Phase A (true DIF, no shuffle, no bit-reverse):
+//      monomial 基底 → LCH 自然順 を直接生成。
+//      再帰: P = Q_0 + s_{d-1}(x) · Q_1 と分解 (s_{d-1} = Cantor subspace poly)、
+//      Q_0/Q_1 を半分メモリに格納し、 各半分を再帰 bc。
+//      Cantor 基底下、 s_k(x) = Σ_{l ⊆ k bits} x^{2^l} (Lucas/Pascal mod 2)。
+//   2. Phase B (DIF top-down butterflies, block 単位 single ska):
+//      LCH natural → eval natural。
 //
-// Inverse は順序逆。
+// Inverse は bc_to_mono = forward 操作の reverse 順 (各 XOR は self-inverse)。
 //
-// LCH 基底 (Cantor): e_j(x) = ∏_{l: j_l=1} s_l(x)、 s_l(β_l)=1 (Cantor)
-//   評価点 α(p) = Σ_{l: p_l=1} β_l
+// LCH 基底 (Cantor): e_j(x) = ∏_{l: j_l=1} s_l(x)、 s_l(β_l) = 1。
+//   評価点 α(p) = Σ_{l: p_l=1} β_l。
 //
-// DIF butterfly:
-//   block j, level k (unit=2^k) で ska_j = s_{k-1}(α(j*2^k))
-//   Cantor 基底下: s_{k-1}(β_{k+L}) = β_{L+1} (level 非依存)
-//   → master M[j] = Σ_{L: j_L=1} β_{L+1} (size 2^(d-1)) で全 level の ska を提供
-//   → contiguous master access が DIF の自然な benefit
-//
-// 注: 本 baseline では Phase A は既存 DIT のものを流用、 explicit な bit_reverse
-//     を 1 回挟む。 「true DIF」 (bit-reverse を Phase A に折り込む) は
-//     fastest_simple_dif_true.hpp で実装。
-//     ここでの DIF 化の主眼は butterfly 側 (DIT の per-i twiddle → DIF の
-//     per-block single ska) + master 表 contiguous 化。
+// DIF butterfly twiddle:
+//   block j, level k (unit=2^k) で ska_j = s_{k-1}(α(j·2^k))。
+//   Cantor 帰納で s_{k-1}(β_{k+L}) = β_{L+1} (level 非依存)。
+//   → master M[j] = Σ_{L: j_L=1} β_{L+1} (size 2^(d-1)) で全 level の ska を提供。
+//   → contiguous master access が DIF の自然な benefit。
 //
 // 必要拡張: PCLMUL のみ。
 
@@ -33,7 +30,7 @@
 #include "../../gf2-64/_shared/mul.hpp"
 #include "../../gf2-64/_shared/sq.hpp"
 
-namespace conv_f2_64_simple_dif {
+namespace conv_f2_64_simple_dif_true {
 
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
@@ -109,73 +106,67 @@ struct nim_fft_data {
 inline nim_fft_data nim_data;
 
 // =============================================================================
-// in-place bit-reverse permutation
+// Phase A (true DIF, no shuffle): monomial → LCH natural
+//   level len = n, n/2, ..., 4 (top-down)。 各 level で contiguous block ごとに
+//   "polynomial division by s_{k-1}" (k = log2(len)) の feedback XOR を流す。
+//   その後 block を半分に分けて次 level (smaller len)。
+//
+//   Cantor で s_k(x) = Σ_{l: l⊆k bits} x^{2^l}。
+//   block 内 division は top-down (i = half-1 → 0):
+//     for each l ∈ S_{k-1} \ {k-1} (= proper submask of k-1):
+//       poly[base + i + 2^l] ^= poly[base + i + half]
+//   Q_1 (高位 half) はそのまま位置 [half, len) に残る。
 // =============================================================================
-inline void bit_reverse(std::vector<u64>& f) {
- int s= (int)f.size();
- if(s <= 1) return;
- for(int i= 1, j= 0; i < s; ++i) {
-  int b= s >> 1;
-  while(j & b) {
-   j^= b;
-   b>>= 1;
-  }
-  j^= b;
-  if(i < j) std::swap(f[i], f[j]);
- }
-}
-
-// =============================================================================
-// Phase A (DIT-style with shuffles): monomial → LCH natural
-//   既存 fastest_simple のものをそのまま流用。
-// =============================================================================
-inline void phase_a(std::vector<u64>& f) {
- int n= (int)f.size();
- std::vector<u64> f2(n);
- int len= n;
- while(len > 1) {
-  for(int l= 0; l < n; l+= len) {
-   for(int m= len / 4; m >= 1; m/= 2) {
-    for(int t= 0; t < len; t+= m * 4) {
-     for(int i= 0; i < m; ++i) {
-      u64 b= f[l + t + m + i], c= f[l + t + m * 2 + i], d= f[l + t + m * 3 + i];
-      f[l + t + m + i]= b ^ c ^ d;
-      f[l + t + m * 2 + i]= c ^ d;
-     }
+inline void bc_to_lch(u64* poly, int n) {
+ if(n <= 1) return;
+ int d= msb(n);
+ for(int level= d; level >= 2; --level) {
+  int len= 1 << level;
+  int half= len >> 1;
+  int sub_idx= level - 1;  // s_{sub_idx} = subspace poly of dim 2^sub_idx
+  // proper submasks of sub_idx (excluding sub_idx itself)。 0 も含む。
+  // 各 proper submask l に対して x^{2^l} 項あり。
+  // (sub_idx 自体は x^half 項で、 これは Q_1 に対応するので feedback なし)
+  for(int base= 0; base < n; base+= len) {
+   for(int i= half - 1; i >= 0; --i) {
+    u64 q= poly[base + half + i];
+    if(q == 0) continue;
+    int s= sub_idx;  // start enumerating proper submasks
+    while(true) {
+     s= (s - 1) & sub_idx;
+     poly[base + i + (1 << s)]^= q;
+     if(s == 0) break;
     }
    }
-   for(int i= 0; i < len / 2; ++i) {
-    f2[l + i]= f[l + i * 2];
-    f2[l + i + len / 2]= f[l + i * 2 + 1];
-   }
   }
-  std::swap(f, f2);
-  len/= 2;
  }
 }
 
-// inverse Phase A (bc_to_mono、 既存 fastest_simple の逆 Phase A 流用)
-inline void inv_phase_a(std::vector<u64>& f) {
- int n= (int)f.size();
- std::vector<u64> f2(n);
- int len= 1;
- while(len < n) {
-  len*= 2;
-  for(int l= 0; l < n; l+= len) {
-   for(int i= 0; i < len / 2; ++i) {
-    f2[l + i * 2]= f[l + i];
-    f2[l + i * 2 + 1]= f[l + i + len / 2];
-   }
+// inverse bc (bc_to_mono): forward の XOR 列を逆順で適用。
+//   各 XOR は self-inverse、 但し src/dst dependency があるので順序が重要。
+//   outer level: 小→大 (forward の逆)、 block 内 i: 0 → half-1 (forward の逆)、
+//   submask l: 順序は forward の逆 (proper submask を逆順で)。
+inline void bc_to_mono(u64* poly, int n) {
+ if(n <= 1) return;
+ int d= msb(n);
+ for(int level= 2; level <= d; ++level) {
+  int len= 1 << level;
+  int half= len >> 1;
+  int sub_idx= level - 1;
+  // 全 proper submask を配列化して reverse で適用 (簡潔さ優先)
+  std::vector<int> subs;
+  int s= sub_idx;
+  while(true) {
+   s= (s - 1) & sub_idx;
+   subs.push_back(s);
+   if(s == 0) break;
   }
-  std::swap(f, f2);
-  for(int l= 0; l < n; l+= len) {
-   for(int m= 1; m <= len / 4; m*= 2) {
-    for(int t= 0; t < len; t+= m * 4) {
-     for(int i= 0; i < m; ++i) {
-      u64 b= f[l + t + m + i], c= f[l + t + m * 2 + i], d= f[l + t + m * 3 + i];
-      f[l + t + m + i]= b ^ c;
-      f[l + t + m * 2 + i]= c ^ d;
-     }
+  for(int base= 0; base < n; base+= len) {
+   for(int i= 0; i < half; ++i) {
+    u64 q= poly[base + half + i];
+    if(q == 0) continue;
+    for(int idx= (int)subs.size() - 1; idx >= 0; --idx) {
+     poly[base + i + (1 << subs[idx])]^= q;
     }
    }
   }
@@ -189,8 +180,7 @@ inline void nim_fft(std::vector<u64>& f) {
  int n= (int)f.size();
  if(n <= 1) return;
  int d= msb(n);
- phase_a(f);
- bit_reverse(f);
+ bc_to_lch(f.data(), n);
  const u64* M= nim_data.master.data();
  for(int k= d; k >= 1; --k) {
   int unit= 1 << k;
@@ -234,8 +224,7 @@ inline void nim_ifft(std::vector<u64>& f) {
    }
   }
  }
- bit_reverse(f);
- inv_phase_a(f);
+ bc_to_mono(f.data(), n);
 }
 
 inline std::vector<u64> nim_convolution(std::vector<u64> f, std::vector<u64> g) {
@@ -252,11 +241,11 @@ inline std::vector<u64> nim_convolution(std::vector<u64> f, std::vector<u64> g) 
  return f;
 }
 
-}  // namespace conv_f2_64_simple_dif
+}  // namespace conv_f2_64_simple_dif_true
 
 struct Solver {
  static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
-  using namespace conv_f2_64_simple_dif;
+  using namespace conv_f2_64_simple_dif_true;
   auto c= nim_convolution(a_in, b_in);
   return c;
  }
