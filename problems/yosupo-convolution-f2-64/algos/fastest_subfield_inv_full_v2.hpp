@@ -95,14 +95,10 @@
 #include "../../gf2-64/_shared/mul.hpp"
 #include "../../gf2-64/_shared/sq.hpp"
 #include "../../gf2-64/_shared/frob.hpp"
-
 namespace conv_f2_64_full_v2 {
 
-using gf2_64_pclmul::frob16;
-using gf2_64_pclmul::frob32;
 using gf2_64_pclmul::mul;
 using gf2_64_pclmul::sq;
-
 // =============================================================================
 // constexpr GF(2^64) mul / sq (chain を .rodata に焼くため)
 // =============================================================================
@@ -137,7 +133,6 @@ constexpr u64 mul_ce(u64 a, u64 b) {
  return lo ^ f1l ^ f2l;
 }
 constexpr u64 sq_ce(u64 a) { return mul_ce(a, a); }
-
 // =============================================================================
 // Artin-Schreier 連鎖 c[k] = P^k(2), P(x) = x²+x。
 // 実測で c[62] = 1, c[63] = 0 なので非零 basis は c[0..62] の 63 個。
@@ -149,70 +144,6 @@ constexpr auto CHAIN= []() {
  for(int k= 1; k < CHAIN_LEN; ++k) c[k]= sq_ce(c[k - 1]) ^ c[k - 1];
  return c;
 }();
-
-// =============================================================================
-// subfield-split inv (constchain 版と同一)
-// =============================================================================
-constexpr auto INV_LOW= []() {
- u16 col[]= {1U, 11778U, 7028U, 51115U, 48663U, 26081U, 17458U, 40223U, 30334U, 42368U, 14380U, 2223U, 49688U, 11217U, 44239U, 63445U};
- u16 T_lo[256]= {}, T_hi[256]= {};
- for(int v= 0; v < 256; ++v) {
-  u16 lo= 0, hi= 0;
-  for(int j= 0; j < 8; ++j)
-   if((v >> j) & 1) {
-    lo^= col[j];
-    hi^= col[j + 8];
-   }
-  T_lo[v]= lo;
-  T_hi[v]= hi;
- }
- u16 nat[65535];
- for(u16 i= 0, cur= 1; i < 65535; ++i) nat[i]= cur, cur= u16(cur << 1) ^ (0x002DU & -u16(cur >> 15));
- array<u16, 65536> t{};
- u16 lo1= T_lo[1] ^ T_hi[0];
- t[lo1]= lo1;
- for(uint32_t k= 1; k <= 32767; ++k) {
-  u16 nk= nat[k];
-  u16 nik= nat[65535 - k];
-  u16 lo_k= T_lo[u8(nk)] ^ T_hi[nk >> 8];
-  u16 lo_ik= T_lo[u8(nik)] ^ T_hi[nik >> 8];
-  t[lo_k]= lo_ik;
-  t[lo_ik]= lo_k;
- }
- return t;
-}();
-
-constexpr inline u64 embed_idx(u16 idx) {
- static constexpr auto EMBED= []() {
-  u64 SUBFIELD_BASIS[]= {1ULL, 6899425322512154626ULL, 12712641506861907972ULL, 12687683756412895240ULL, 13108774640850436112ULL, 1196746230653255712ULL, 13779846473293824064ULL, 1136705091741089920ULL, 13132935623751303424ULL, 12256911237861802496ULL, 1968662052679910400ULL, 13476734309037115392ULL, 31478309824172032ULL, 5397840376063860736ULL, 18145356609018085376ULL, 2133828226494464000ULL};
-  array<array<u64, 256>, 2> t{};
-  for(int half= 0; half < 2; ++half)
-   for(int i= 0; i < 256; ++i) {
-    u64 v= 0;
-    for(int b= 0; b < 8; ++b)
-     if((i >> b) & 1) v^= SUBFIELD_BASIS[b + half * 8];
-    t[half][i]= v;
-   }
-  return t;
- }();
- return EMBED[0][u8(idx)] ^ EMBED[1][idx >> 8];
-}
-
-inline const __m256i RED_TABLE= _mm256_setr_epi8(0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0);
-
-VPCLMUL inline void mul2(const __m256i& a_vec, const __m256i& b_vec, u64& r0, u64& r1) {
- __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
- __m256i d_full= _mm256_xor_si256(prod, _mm256_slli_epi64(prod, 1));
- __m256i red1_full= _mm256_xor_si256(d_full, _mm256_slli_epi64(d_full, 3));
- __m256i red1_shift= _mm256_srli_si256(red1_full, 8);
- __m256i h_idx= _mm256_srli_epi64(prod, 60);
- __m256i indices= _mm256_srli_si256(h_idx, 8);
- __m256i red_vec= _mm256_shuffle_epi8(RED_TABLE, indices);
- __m256i result= _mm256_xor_si256(_mm256_xor_si256(prod, red1_shift), red_vec);
- r0= _mm256_extract_epi64(result, 0);
- r1= _mm256_extract_epi64(result, 2);
-}
-
 // =============================================================================
 // fused butterfly pair (FFT / IFFT) — load → expand → mul + reduction → XOR → store
 // を __m256i のまま実行。 vector ↔ scalar 往復を排除。
@@ -227,10 +158,10 @@ VPCLMUL inline __m256i expand_pair(const u64* p) {
 }
 // __m256i (x0, _, x1, _) → __m128i (x0, x1) (lane 0, 2 を low 128 へ集約)
 // imm = _MM_SHUFFLE(3, 2, 2, 0): output = (src[0], src[2], src[2], src[3])。 low128 = (src[0], src[2])。
-VPCLMUL inline __m128i pack_pair(__m256i v) {
- return _mm256_castsi256_si128(_mm256_permute4x64_epi64(v, _MM_SHUFFLE(3, 2, 2, 0)));
-}
+VPCLMUL inline __m128i pack_pair(__m256i v) { return _mm256_castsi256_si128(_mm256_permute4x64_epi64(v, _MM_SHUFFLE(3, 2, 2, 0))); }
 // VPCLMULQDQ + 並列 reduction を __m256i で完結 (mul2 と同 idiom、 結果は (p0, _, p1, _))
+
+inline const __m256i RED_TABLE= _mm256_setr_epi8(0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0);
 VPCLMUL inline __m256i clmul_reduce_pair(__m256i a_vec, __m256i b_vec) {
  __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
  __m256i d_full= _mm256_xor_si256(prod, _mm256_slli_epi64(prod, 1));
@@ -265,19 +196,8 @@ VPCLMUL inline void btf_ifft_pair(u64* f0_ptr, u64* f1_ptr, const u64* g0_ptr) {
  _mm_storeu_si128((__m128i*)f0_ptr, pack_pair(f0_new));
  _mm_storeu_si128((__m128i*)f1_ptr, pack_pair(s_vec));
 }
-
-VPCLMUL inline u64 inv(u64 a) {
- assert(a != 0);
- u64 a32= frob32(a);
- u64 N= mul(a, a32);
- u64 N16= frob16(N);
- mul2(_mm256_set_epi64x(0, N, 0, a32), _mm256_set1_epi64x(N16), a, N16);
- return mul(embed_idx(INV_LOW[u16(N16)]), a);
-}
-
-template<class T> int msb(T n) { return n == 0 ? -1 : 63 - __builtin_clzll(n); }
-template<class T> T ceil_pow2(T n) { return n <= 1 ? T(1) : T(1) << (msb(n - 1) + 1); }
-
+template <class T> int msb(T n) { return n == 0 ? -1 : 63 - __builtin_clzll(n); }
+template <class T> T ceil_pow2(T n) { return n <= 1 ? T(1) : T(1) << (msb(n - 1) + 1); }
 // =============================================================================
 // Twiddle: 下半分のみ (上半分は g[i]^1 = g[i+half] で復元可能なので不要)
 //   level i (i ≥ 1) の table 長 = 2^(i-1)
@@ -305,7 +225,6 @@ struct nim_fft_data {
  }
 };
 inline nim_fft_data nim_data;
-
 // =============================================================================
 // nim FFT (u64 そのまま、 + は ^、 * は mul / mul2)
 // =============================================================================
@@ -354,7 +273,7 @@ VPCLMUL inline void nim_fft(std::vector<u64>& f) {
     int b8= l + s * 8;
     u64 p0= f[b8], p1= f[b8 + 1], p2= f[b8 + 2], p3= f[b8 + 3];
     u64 p4= f[b8 + 4], p5= f[b8 + 5], p6= f[b8 + 6], p7= f[b8 + 7];
-    u64 a3457= p3 ^ p4 ^ p5;     // 共有: out[1] と out[4] のかたまり
+    u64 a3457= p3 ^ p4 ^ p5;         // 共有: out[1] と out[4] のかたまり
     u64 A2_7= p2 ^ a3457 ^ p6 ^ p7;  // p2^p3^p4^p5^p6^p7
     int d0= l + s * 4;
     int d1= d0 + hf;
@@ -402,7 +321,6 @@ VPCLMUL inline void nim_fft(std::vector<u64>& f) {
   }
  }
 }
-
 VPCLMUL inline void nim_ifft(std::vector<u64>& f) {
  int n= (int)f.size();
  std::vector<u64> f2(n);
@@ -492,7 +410,6 @@ VPCLMUL inline void nim_ifft(std::vector<u64>& f) {
   }
  }
 }
-
 VPCLMUL inline std::vector<u64> nim_convolution(std::vector<u64> f, std::vector<u64> g) {
  int n= (int)f.size(), m= (int)g.size();
  int s= (int)ceil_pow2(u32(n + m - 1));
@@ -506,9 +423,7 @@ VPCLMUL inline std::vector<u64> nim_convolution(std::vector<u64> f, std::vector<
  f.resize(n + m - 1);
  return f;
 }
-
 }  // namespace conv_f2_64_full_v2
-
 struct Solver {
  VPCLMUL static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
   using namespace conv_f2_64_full_v2;
