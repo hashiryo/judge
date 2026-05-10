@@ -2,14 +2,25 @@
 #ifdef USE_SIMDE
 #include <simde/x86/avx2.h>
 #include <simde/x86/clmul.h>
+#include <simde/x86/bmi.h>
+#else
+#include <immintrin.h>
 #endif
 #include <bits/stdc++.h>
+#ifdef __x86_64__
+#define PCLMUL [[gnu::target("pclmul")]]
+#define VPCLMUL [[gnu::target("vpclmulqdq")]]
+#else
+#define PCLMUL
+#define VPCLMUL
+#endif
+
 using namespace std;
-using u8 = unsigned char;
-using u32 = unsigned;
-using i64 = long long;
-using u64 = unsigned long long;
-using u128 = __uint128_t;
+using u8= unsigned char;
+using u32= unsigned;
+using i64= long long;
+using u64= unsigned long long;
+using u128= __uint128_t;
 
 // yosupo Convolution over F_{2^64}
 //   入力: n m

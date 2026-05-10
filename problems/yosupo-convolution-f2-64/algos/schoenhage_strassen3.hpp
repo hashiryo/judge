@@ -26,9 +26,7 @@
 
 #include <algorithm>
 #include <vector>
-
 namespace conv_f2_64_schoenhage_strassen3 {
-
 // =============================================================================
 // F2XMod1000000000000001B: GF(2^64) = F_2[x] / (x^64 + x^4 + x^3 + x + 1)
 // (元コードの x*x → 同一引数 clmul の最適化付き mul)
@@ -36,10 +34,7 @@ namespace conv_f2_64_schoenhage_strassen3 {
 struct F2XMod1000000000000001B {
  using uu64= unsigned long long;
  uu64 x;
-
-#pragma GCC target("pclmul")
-#pragma GCC target("sse4.1")
- static uu64 mul(uu64 a, uu64 b) {
+ PCLMUL static uu64 mul(uu64 a, uu64 b) {
   __m128i ab= _mm_set_epi64x(a, b);
   __m128i xy= _mm_clmulepi64_si128(ab, ab, 1);
   uu64 X= _mm_extract_epi64(xy, 0), Y= _mm_extract_epi64(xy, 1);
@@ -48,7 +43,6 @@ struct F2XMod1000000000000001B {
   X^= Y ^ Y << 1 ^ Y << 3 ^ Y << 4;
   return X;
  }
-
  using Self= F2XMod1000000000000001B;
  F2XMod1000000000000001B(uu64 v= 0): x(v) {}
  Self operator+(const Self& r) const { return Self(x ^ r.x); }
@@ -68,9 +62,7 @@ struct F2XMod1000000000000001B {
  }
  Self operator-() const { return Self(x); }
 };
-
 using RingElem= F2XMod1000000000000001B;
-
 // =============================================================================
 // IsThisSchonhageStrassen3 本体 (元コードそのまま、 ring_mul_operation_count は除去)
 // =============================================================================
@@ -100,7 +92,6 @@ struct IsThisSchonhageStrassen3 {
  RingElem zero;
  Circ3 zero3;
  IsThisSchonhageStrassen3(RingElem _zero): zero(_zero), zero3({zero, zero}) {}
-
  void mulAdd3(std::vector<Circ3>::iterator a, std::vector<Circ3>::iterator b, int m, int sh, int d) {
   if(sh == 0) {
    for(int i= 0; i < m - d; i++) b[i + d]+= a[i];
@@ -133,7 +124,9 @@ struct IsThisSchonhageStrassen3 {
    for(int p= 0; p < msdig; p+= z)
     for(int q= 0; q < z; q++)
      for(int t= 0; t < 3; t++)
-      for(int u= 0; u < 3; u++) { mulAdd3(a.begin() + ((p * 3 + u * z + q) * m), b.begin() + (p + q + msdig * t) * m, m, (l * t * u + p * u * 3) * gap); }
+      for(int u= 0; u < 3; u++) {
+       mulAdd3(a.begin() + ((p * 3 + u * z + q) * m), b.begin() + (p + q + msdig * t) * m, m, (l * t * u + p * u * 3) * gap);
+      }
    std::swap(a, b);
   }
  }
@@ -182,7 +175,7 @@ struct IsThisSchonhageStrassen3 {
     for(int j= 0; j < m; j++) std::swap(c2[i * m + j], c2[(l - i) * m + j]);
    Postmult3(c1, m, l);
    Premult3(c2, m, l);
-   for(auto& x : c2) x= x.rev();
+   for(auto& x: c2) x= x.rev();
    std::vector<Circ3> c(a.size(), zero3);
    for(int i= 0; i < (l - 1) * m; i++) {
     auto [u, v]= CRT3(c1[i], c2[i]);
@@ -198,7 +191,6 @@ struct IsThisSchonhageStrassen3 {
   }
  }
 };
-
 inline std::vector<RingElem> IsThisSchonhageStrassenConvolution3(std::vector<RingElem> a, std::vector<RingElem> b, RingElem zero) {
  int target_n= (int)std::max(a.size(), b.size());
  int logn= 0;
@@ -207,7 +199,9 @@ inline std::vector<RingElem> IsThisSchonhageStrassenConvolution3(std::vector<Rin
   logn++;
   n*= 3;
  }
- if(n == 1) { return {a[0] * b[0]}; }
+ if(n == 1) {
+  return {a[0] * b[0]};
+ }
  auto ds= IsThisSchonhageStrassen3(zero);
  IsThisSchonhageStrassen3::Circ3 zero3= {zero, zero};
  std::vector<IsThisSchonhageStrassen3::Circ3> a2(n, zero3), b2(n, zero3), c2(n, zero3);
@@ -219,11 +213,9 @@ inline std::vector<RingElem> IsThisSchonhageStrassenConvolution3(std::vector<Rin
  for(int i= 0; i < csz; i++) c[i]= i < n ? c2[i].v0 : c2[i - n].v1;
  return c;
 }
-
 }  // namespace conv_f2_64_schoenhage_strassen3
-
 struct Solver {
- [[gnu::target("pclmul,sse4.1")]] static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
+ static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
   using namespace conv_f2_64_schoenhage_strassen3;
   std::vector<RingElem> a(n), b(m);
   for(int i= 0; i < n; ++i) a[i]= RingElem(a_in[i]);

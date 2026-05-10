@@ -26,27 +26,23 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
-
 namespace conv_f2_64_schoenhage {
-
 // =============================================================================
 // F_2_64: GF(2^64) = F_2[x] / (x^64 + x^4 + x^3 + x + 1)
 // 元コードに u64 ↔ F_2_64 変換のための constructor / accessor を追加。
 // =============================================================================
 class F_2_64 {
  std::uint64_t p= 0;
-
 public:
  F_2_64()= default;
  explicit F_2_64(std::uint64_t v): p(v) {}
  std::uint64_t value() const { return p; }
-
  // clang-format off
  F_2_64 operator-() const { return *this; }
  F_2_64& operator+=(const F_2_64& r) { p^= r.p; return *this; }
  F_2_64& operator-=(const F_2_64& r) { return operator+=(r); }
  // clang-format on
- [[gnu::target("pclmul,sse4.1")]] F_2_64& operator*=(const F_2_64& r) {
+ PCLMUL F_2_64& operator*=(const F_2_64& r) {
   __m128i v= _mm_clmulepi64_si128(_mm_set_epi64x(0, p), _mm_set_epi64x(0, r.p), 0);
   std::uint64_t low= (std::uint64_t)_mm_extract_epi64(v, 0);
   std::uint64_t high= (std::uint64_t)_mm_extract_epi64(v, 1);
@@ -60,11 +56,10 @@ public:
  friend F_2_64 operator-(const F_2_64& l, const F_2_64& r) { return F_2_64(l)-= r; }
  friend F_2_64 operator*(const F_2_64& l, const F_2_64& r) { return F_2_64(l)*= r; }
 };
-
 // =============================================================================
 // Radix-3 Schönhage 本体 (元コードそのまま)
 // =============================================================================
-template<typename Tp> struct Radix3Schoenhage {
+template <typename Tp> struct Radix3Schoenhage {
  static bool IsPowOf3(int a) {
   int b= 1;
   while(b < a) b*= 3;
@@ -85,7 +80,6 @@ template<typename Tp> struct Radix3Schoenhage {
   const int e= Log3Ceil(a);
   return a == PowOf3(e) ? e : e - 1;
  }
-
  static void MultipliedByXToTheN(Tp a[], int d, int n) {
   if((n%= d * 3) < 0) n+= d * 3;
   const auto n_leq_d= [](Tp a[], int d, int n) {
@@ -96,7 +90,6 @@ template<typename Tp> struct Radix3Schoenhage {
   for(; n >= d; n-= d) n_leq_d(a, d, d);
   if(n) n_leq_d(a, d, n);
  }
-
  static void FFT3(Tp a[], int d, int delta, int E) {
   assert(delta <= d);
   assert(E % delta == 0);
@@ -120,7 +113,6 @@ template<typename Tp> struct Radix3Schoenhage {
   }
   for(int i= 0; i < 3; ++i) FFT3(a + n * i, d, delta / 3, E / 3 + d * i);
  }
-
  static void FFT(Tp a[], int d, int delta) {
   Tp* const b= a + delta * 2 * d;
   for(int i= 0; i < delta; ++i) {
@@ -137,7 +129,6 @@ template<typename Tp> struct Radix3Schoenhage {
   }
   FFT3(a, d, delta, d), FFT3(b, d, delta, d * 2);
  }
-
  static void InvFFT3(Tp a[], int d, int delta, int E) {
   assert(delta <= d);
   assert(E % delta == 0);
@@ -161,7 +152,6 @@ template<typename Tp> struct Radix3Schoenhage {
    for(int j= 1; j <= 2; ++j) MultipliedByXToTheN(b[j], d, E / 3 * -j);
   }
  }
-
  static void InvFFT(Tp a[], int d, int delta) {
   Tp* const b= a + delta * 2 * d;
   InvFFT3(a, d, delta, d), InvFFT3(b, d, delta, d * 2);
@@ -178,7 +168,6 @@ template<typename Tp> struct Radix3Schoenhage {
    }
   }
  }
-
  static int Schoenhage(const Tp a[], const Tp b[], Tp ab[], int n) {
   assert(IsPowOf3(n));
   enum { Threshold= 3 };
@@ -225,7 +214,6 @@ template<typename Tp> struct Radix3Schoenhage {
     }
   return cnt + delta + 1;
  }
-
  static std::pair<std::vector<Tp>, int> Product(std::vector<Tp> a, std::vector<Tp> b) {
   if(empty(a) || empty(b)) return {};
   const int n= size(a), m= size(b);
@@ -239,11 +227,9 @@ template<typename Tp> struct Radix3Schoenhage {
   return std::make_pair(std::move(ab), cnt);
  }
 };
-
 }  // namespace conv_f2_64_schoenhage
-
 struct Solver {
- [[gnu::target("pclmul,sse4.1")]] static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
+ static std::vector<u64> run(int n, int m, const std::vector<u64>& a_in, const std::vector<u64>& b_in) {
   using namespace conv_f2_64_schoenhage;
   std::vector<F_2_64> a(n), b(m);
   for(int i= 0; i < n; ++i) a[i]= F_2_64(a_in[i]);
