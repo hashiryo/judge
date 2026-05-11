@@ -4,6 +4,7 @@
 
 - 現在最速は tastest_full_dif_radix4_v2_loctbl.hpp
 - ところで前処理 nim table の要素が 0 になることあるの？
+- sq(x)^x の操作ってよく考えたらシンプルになるくね？ constexpr mul よりもシンプルな実装ができそう. 嘘かも？ちょっと勘違いしてた. まあ線型写像では書けるかな. それがいいかは別にして
 - submask table を constexpr にしても工夫すれば loctbl 同等のスピードにならないかなあ.
   - sub_n は 一瞬で求められるでしょ.
   - ポインタで取得しなくていいのでは？
