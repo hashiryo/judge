@@ -1,0 +1,20 @@
+{
+  "configurations": [
+    {
+      "name": "Mac",
+      "compilerPath": "/usr/bin/clang++",
+      "cppStandard": "gnu++23",
+      "intelliSenseMode": "macos-clang-arm64",
+      "includePath": [
+        "${workspaceFolder}/lib/include",
+        "${workspaceFolder}/lib",
+        "${workspaceFolder}/lib/include/simde"
+      ],
+      "defines": [
+        "USE_SIMDE",
+        "SIMDE_ENABLE_NATIVE_ALIASES"
+      ]
+    }
+  ],
+  "version": 4
+}

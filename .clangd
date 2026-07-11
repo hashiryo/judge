@@ -1,0 +1,12 @@
+# Zed (clangd) 用: scripts/local-test.sh が ARM Mac で付けるフラグを再現する。
+# 相対 -I は開いているファイルのディレクトリ基準になるため絶対パスで書く。
+CompileFlags:
+  Add:
+    - -std=gnu++23
+    - -Wall
+    - -Wextra
+    - -DUSE_SIMDE
+    - -DSIMDE_ENABLE_NATIVE_ALIASES
+    - -I/Users/01058120/code/asobi/procon/algo/judge/lib/include
+    - -I/Users/01058120/code/asobi/procon/algo/judge/lib
+    - -I/Users/01058120/code/asobi/procon/algo/judge/lib/include/simde
