@@ -79,6 +79,19 @@ constexpr array<array<u64, 256>, 8> make_frob_chain(int chain_count) {
 }  // namespace _frob_detail
 inline constexpr auto FROB32_BYTE= _frob_detail::make_frob_chain(2);  // sq×32 = frob16 ∘ frob16
 inline constexpr auto FROB48_BYTE= _frob_detail::make_frob_chain(3);  // sq×48 = frob16^3
+// frob24 (= sq×24) は pow の 2-lane 分割 (a^r = frob24(a^{r_H}) · a^{r_L}) の結合で使う。
+// sq×24 の直接 constexpr 生成は FROB16 の 1.5 倍 step で上限が怖いので、
+// 既存 byte table の合成 frob16 ∘ frob8 で構築 (各 entry 16 lookup で軽い)。
+namespace _frob_detail {
+constexpr u64 apply_frob8_constexpr(u64 a) { return FROB8_BYTE[0][u8(a)] ^ FROB8_BYTE[1][u8(a >> 8)] ^ FROB8_BYTE[2][u8(a >> 16)] ^ FROB8_BYTE[3][u8(a >> 24)] ^ FROB8_BYTE[4][u8(a >> 32)] ^ FROB8_BYTE[5][u8(a >> 40)] ^ FROB8_BYTE[6][u8(a >> 48)] ^ FROB8_BYTE[7][u8(a >> 56)]; }
+constexpr array<array<u64, 256>, 8> make_frob24_table() {
+ array<array<u64, 256>, 8> t{};
+ for(int p= 0; p < 8; ++p)
+  for(int b= 0; b < 256; ++b) t[p][b]= apply_frob16_constexpr(apply_frob8_constexpr(u64(b) << (8 * p)));
+ return t;
+}
+}  // namespace _frob_detail
+inline constexpr auto FROB24_BYTE= _frob_detail::make_frob24_table();
 // 各 frobK は対応する byte table を直接展開 (関数引数経由の indirection を避ける)。
 inline u64 frob2(u64 a) { return FROB2_BYTE[0][u8(a)] ^ FROB2_BYTE[1][u8(a >> 8)] ^ FROB2_BYTE[2][u8(a >> 16)] ^ FROB2_BYTE[3][u8(a >> 24)] ^ FROB2_BYTE[4][u8(a >> 32)] ^ FROB2_BYTE[5][u8(a >> 40)] ^ FROB2_BYTE[6][u8(a >> 48)] ^ FROB2_BYTE[7][u8(a >> 56)]; }
 inline u64 frob3(u64 a) { return FROB3_BYTE[0][u8(a)] ^ FROB3_BYTE[1][u8(a >> 8)] ^ FROB3_BYTE[2][u8(a >> 16)] ^ FROB3_BYTE[3][u8(a >> 24)] ^ FROB3_BYTE[4][u8(a >> 32)] ^ FROB3_BYTE[5][u8(a >> 40)] ^ FROB3_BYTE[6][u8(a >> 48)] ^ FROB3_BYTE[7][u8(a >> 56)]; }
@@ -90,6 +103,7 @@ inline u64 frob8(u64 a) { return FROB8_BYTE[0][u8(a)] ^ FROB8_BYTE[1][u8(a >> 8)
 inline u64 frob9(u64 a) { return FROB9_BYTE[0][u8(a)] ^ FROB9_BYTE[1][u8(a >> 8)] ^ FROB9_BYTE[2][u8(a >> 16)] ^ FROB9_BYTE[3][u8(a >> 24)] ^ FROB9_BYTE[4][u8(a >> 32)] ^ FROB9_BYTE[5][u8(a >> 40)] ^ FROB9_BYTE[6][u8(a >> 48)] ^ FROB9_BYTE[7][u8(a >> 56)]; }
 inline u64 frob10(u64 a) { return FROB10_BYTE[0][u8(a)] ^ FROB10_BYTE[1][u8(a >> 8)] ^ FROB10_BYTE[2][u8(a >> 16)] ^ FROB10_BYTE[3][u8(a >> 24)] ^ FROB10_BYTE[4][u8(a >> 32)] ^ FROB10_BYTE[5][u8(a >> 40)] ^ FROB10_BYTE[6][u8(a >> 48)] ^ FROB10_BYTE[7][u8(a >> 56)]; }
 inline u64 frob16(u64 a) { return FROB16_BYTE[0][u8(a)] ^ FROB16_BYTE[1][u8(a >> 8)] ^ FROB16_BYTE[2][u8(a >> 16)] ^ FROB16_BYTE[3][u8(a >> 24)] ^ FROB16_BYTE[4][u8(a >> 32)] ^ FROB16_BYTE[5][u8(a >> 40)] ^ FROB16_BYTE[6][u8(a >> 48)] ^ FROB16_BYTE[7][u8(a >> 56)]; }
+inline u64 frob24(u64 a) { return FROB24_BYTE[0][u8(a)] ^ FROB24_BYTE[1][u8(a >> 8)] ^ FROB24_BYTE[2][u8(a >> 16)] ^ FROB24_BYTE[3][u8(a >> 24)] ^ FROB24_BYTE[4][u8(a >> 32)] ^ FROB24_BYTE[5][u8(a >> 40)] ^ FROB24_BYTE[6][u8(a >> 48)] ^ FROB24_BYTE[7][u8(a >> 56)]; }
 inline u64 frob32(u64 a) { return FROB32_BYTE[0][u8(a)] ^ FROB32_BYTE[1][u8(a >> 8)] ^ FROB32_BYTE[2][u8(a >> 16)] ^ FROB32_BYTE[3][u8(a >> 24)] ^ FROB32_BYTE[4][u8(a >> 32)] ^ FROB32_BYTE[5][u8(a >> 40)] ^ FROB32_BYTE[6][u8(a >> 48)] ^ FROB32_BYTE[7][u8(a >> 56)]; }
 inline u64 frob48(u64 a) { return FROB48_BYTE[0][u8(a)] ^ FROB48_BYTE[1][u8(a >> 8)] ^ FROB48_BYTE[2][u8(a >> 16)] ^ FROB48_BYTE[3][u8(a >> 24)] ^ FROB48_BYTE[4][u8(a >> 32)] ^ FROB48_BYTE[5][u8(a >> 40)] ^ FROB48_BYTE[6][u8(a >> 48)] ^ FROB48_BYTE[7][u8(a >> 56)]; }
 }
