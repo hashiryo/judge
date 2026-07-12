@@ -76,19 +76,14 @@ constexpr auto TABLES= []() {
  return t;
 }();
 const __m256i RED_TABLE= _mm256_setr_epi8(0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 45, 54, 90, 65, 119, 108, 0, 0, 0, 0, 0, 0, 0, 0);
-VPCLMUL inline __m256i mul2(const __m256i& a_vec, const __m256i& b_vec, u64& r0, u64& r1) {
+VPCLMUL inline __m256i mul2(const __m256i& a_vec, const __m256i& b_vec) {
  __m256i prod= _mm256_clmulepi64_epi128(a_vec, b_vec, 0);
  __m256i d_full= _mm256_xor_si256(prod, _mm256_slli_epi64(prod, 1));
- __m256i red1_full= _mm256_xor_si256(d_full, _mm256_slli_epi64(d_full, 3));
- __m256i red1_shift= _mm256_srli_si256(red1_full, 8);
- __m256i h_idx= _mm256_srli_epi64(prod, 60);
- __m256i indices= _mm256_srli_si256(h_idx, 8);
- __m256i red_vec= _mm256_shuffle_epi8(RED_TABLE, indices);
- __m256i result= _mm256_xor_si256(_mm256_xor_si256(prod, red1_shift), red_vec);
- r0= _mm256_extract_epi64(result, 0);
- r1= _mm256_extract_epi64(result, 2);
- return result;
+ __m256i red1_shift= _mm256_srli_si256(_mm256_xor_si256(d_full, _mm256_slli_epi64(d_full, 3)), 8);
+ __m256i indices= _mm256_srli_si256(_mm256_srli_epi64(prod, 60), 8);
+ return _mm256_xor_si256(_mm256_xor_si256(prod, red1_shift), _mm256_shuffle_epi8(RED_TABLE, indices));
 }
+VPCLMUL inline pair<u64, u64> unpack(const __m256i& vec) { return make_pair(u64(_mm256_extract_epi64(vec, 0)), u64(_mm256_extract_epi64(vec, 2))); }
 u64 pow(u64 a, u64 e) {
  if(!e) return 1;
  if(!a) return 0;
@@ -104,21 +99,23 @@ u64 pow(u64 a, u64 e) {
  // T[i] = a^i for i = 0..15、 binary-tree で 4 層に分けて VPCLMUL 並列化
  u64 T[16]= {1, a};
  u64 B;
- mul2(_mm256_set1_epi64x(a), _mm256_set_epi64x(0, frob32(a), 0, a), T[2], B);
+ tie(T[2], B)= unpack(mul2(_mm256_set1_epi64x(a), _mm256_set_epi64x(0, frob32(a), 0, a)));
 
  // L2: T[3], T[4]
- __m256i T2a= _mm256_set_epi64x(0, T[2], 0, a);
- __m256i T43= mul2(T2a, _mm256_set1_epi64x(T[2]), T[3], T[4]);
+ __m256i T12= _mm256_set_epi64x(0, T[2], 0, a);
+ __m256i T34= mul2(T12, _mm256_set1_epi64x(T[2]));
+ tie(T[3], T[4])= unpack(T34);
  // L3: T[5..8]
  __m256i T4= _mm256_set1_epi64x(T[4]);
- __m256i T56= mul2(T4, T2a, T[5], T[6]);
- mul2(T4, T43, T[7], T[8]);
+ __m256i T56= mul2(T4, T12);
+ tie(T[5], T[6])= unpack(T56);
+ tie(T[7], T[8])= unpack(mul2(T4, T34));
  // L4: T[9..15] (T[15] は単独 mul)
  __m256i T8= _mm256_set1_epi64x(T[8]);
- mul2(T8, T2a, T[9], T[10]);
- mul2(T8, T43, T[11], T[12]);
- mul2(T8, T56, T[13], T[14]);
- mul2(_mm256_set_epi64x(0, frob16(B), 0, T[7]), _mm256_set_epi64x(0, B, 0, T[8]), T[15], B);
+ tie(T[9], T[10])= unpack(mul2(T8, T12));
+ tie(T[11], T[12])= unpack(mul2(T8, T34));
+ tie(T[13], T[14])= unpack(mul2(T8, T56));
+ tie(T[15], B)= unpack(mul2(_mm256_set_epi64x(0, frob16(B), 0, T[7]), _mm256_set_epi64x(0, B, 0, T[8])));
  // メイン loop 2-lane 化: r = r_H·2^24 + r_L と分け a^r = frob24(a^{r_H})·a^{r_L} を
  // lockstep で計算 (直列チェーン init+11 反復 → init+5 反復 + frob24 + mul)。
  // ・chunk=0 の skip は廃止して無条件 mul2s (T[0]=1 の単位元掛け、分岐 mispredict も消える)
@@ -126,11 +123,11 @@ u64 pow(u64 a, u64 e) {
  // ・b = N^q は loop と独立に確定するので r_L の最下位 nibble operand に織り込み、
  //   末尾の直列を frob24 + mul 1 回に (bt は OoO が loop 実行中に計算)
  const u32 rl= r & 0xFFFFFF, rh= r >> 24;
- const int it= int(r >> 48) + 5;
  const u64 bt= mul(embed_idx(TABLES.PW_SIGMA_IDX[(u32(TABLES.LN_SIGMA[u16(B)]) * q) % 65535]), T[rl & 0xF]);
+ const int it= int(r >> 48) + 5;
  u64 gl= T[(rl >> (4 * it)) & 0xF], gh= T[(rh >> (4 * it)) & 0xF];
- for(int i= it - 1; i >= 1; --i) mul2(_mm256_set_epi64x(0, frob4(gl), 0, frob4(gh)), _mm256_set_epi64x(0, T[(rl >> (4 * i)) & 0xF], 0, T[(rh >> (4 * i)) & 0xF]), gh, gl);
- mul2(_mm256_set_epi64x(0, frob4(gl), 0, frob4(gh)), _mm256_set_epi64x(0, bt, 0, T[rh & 0xF]), gh, gl);
+ for(int i= it - 1; i >= 1; --i) tie(gh, gl)= unpack(mul2(_mm256_set_epi64x(0, frob4(gl), 0, frob4(gh)), _mm256_set_epi64x(0, T[(rl >> (4 * i)) & 0xF], 0, T[(rh >> (4 * i)) & 0xF])));
+ tie(gh, gl)= unpack(mul2(_mm256_set_epi64x(0, frob4(gl), 0, frob4(gh)), _mm256_set_epi64x(0, bt, 0, T[rh & 0xF])));
  return mul(frob24(gh), gl);
 }
 }  // namespace gf2_64_pow_subfield_split_v4_7
