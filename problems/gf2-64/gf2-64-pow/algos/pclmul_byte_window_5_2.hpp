@@ -43,12 +43,12 @@ GNU_TARGET("pclmul,vpclmulqdq") u64 pow(u64 a, u64 e) {
  __m256i T4= _mm256_set1_epi64x(T[4]);
  __m256i T56= mul2(T4, T12);
  tie(T[5], T[6])= unpack(T56);
- __m256i T78= mul2(T4, T34);
- tie(T[7], T[8])= unpack(T78);
  __m256i T910= mul2(T4, T56);
  tie(T[9], T[10])= unpack(T910);
- tie(T[11], T[12])= unpack(mul2(T4, T78));
  tie(T[13], T[14])= unpack(mul2(T4, T910));
+ __m256i T78= mul2(T4, T34);
+ tie(T[7], T[8])= unpack(T78);
+ tie(T[11], T[12])= unpack(mul2(T4, T78));
  T[15]= mul(T[7], T[8]);
  // メイン loop: 前半/後半 32 bit を 2-lane lockstep で処理
  const u32 el= u32(e), eh= u32(e >> 32);
