@@ -9,11 +9,11 @@
 #ifdef __x86_64__
 #define PCLMUL [[gnu::target("pclmul")]]
 #define VPCLMUL [[gnu::target("vpclmulqdq")]]
-#define GNU_TARGET(__vargs__) [[gnu::target(__VA_ARGS__)]]
+#define GNU_TARGET(x) [[gnu::target(x)]]
 #else
 #define PCLMUL
 #define VPCLMUL
-#define GNU_TARGET(__vargs__)
+#define GNU_TARGET(x)
 #endif
 
 #include <bits/stdc++.h>
